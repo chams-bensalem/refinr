@@ -1,5 +1,6 @@
 package fr.heliocraft.refinr.adapters.out.jira;
 
+import fr.heliocraft.refinr.application.service.CreateBacklogService;
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.TrackedStory;
 import fr.heliocraft.refinr.domain.model.Readiness;
@@ -416,7 +417,7 @@ class JiraIssueTrackerTest {
         mockWebServer.enqueue(jsonResponse("{\"key\":\"DEMO-1\"}"));
         mockWebServer.enqueue(jsonResponse("{\"key\":\"DEMO-2\"}"));
         mockWebServer.enqueue(jsonResponse("{\"key\":\"DEMO-3\"}"));
-        jiraService.createFullHierarchy(List.of(epic), "DEMO");
+        new CreateBacklogService(jiraService).create(List.of(epic), "DEMO");
         for (int i = 0; i < 3; i++) {
             assertTrue(mockWebServer.takeRequest().getBody().readUtf8().contains("{\"key\":\"DEMO\"}"));
         }
@@ -424,7 +425,7 @@ class JiraIssueTrackerTest {
         mockWebServer.enqueue(jsonResponse("{\"key\":\"TEST-1\"}"));
         mockWebServer.enqueue(jsonResponse("{\"key\":\"TEST-2\"}"));
         mockWebServer.enqueue(jsonResponse("{\"key\":\"TEST-3\"}"));
-        jiraService.createFullHierarchy(List.of(epic), " ");
+        new CreateBacklogService(jiraService).create(List.of(epic), " ");
         for (int i = 0; i < 3; i++) {
             assertTrue(mockWebServer.takeRequest().getBody().readUtf8().contains("{\"key\":\"TEST\"}"));
         }

@@ -2,13 +2,14 @@ package fr.heliocraft.refinr.api;
 
 import fr.heliocraft.refinr.adapters.in.rest.RestBacklogMapper;
 import fr.heliocraft.refinr.adapters.in.rest.dto.EpicDto;
-import fr.heliocraft.refinr.adapters.out.confluence.ConfluenceDocumentSource;
-import fr.heliocraft.refinr.adapters.out.jira.JiraIssueTracker;
-import fr.heliocraft.refinr.adapters.out.llm.LlmBacklogAnalyzer;
+import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
+import fr.heliocraft.refinr.application.port.in.CreateBacklog;
+import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
+import fr.heliocraft.refinr.application.port.in.ReassessStory;
+import fr.heliocraft.refinr.application.port.in.SearchDocuments;
+import fr.heliocraft.refinr.application.port.in.StoryNotAwaitingValidationException;
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Readiness;
-import fr.heliocraft.refinr.domain.model.TrackedStory;
-import fr.heliocraft.refinr.domain.service.ReadinessPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,17 +42,23 @@ public class MvpController {
 
     private static final java.util.regex.Pattern CLE_PROJET = java.util.regex.Pattern.compile("^[A-Z][A-Z0-9]{1,9}$");
 
-    private final ConfluenceDocumentSource confluenceService;
-    private final LlmBacklogAnalyzer documentAnalyzer;
-    private final JiraIssueTracker jiraService;
+    private final AnalyzeDocument analyzeDocument;
+    private final PreviewBacklog previewBacklog;
+    private final CreateBacklog createBacklog;
+    private final ReassessStory reassessStory;
+    private final SearchDocuments searchDocuments;
 
     public MvpController(
-            ConfluenceDocumentSource confluenceService,
-            LlmBacklogAnalyzer documentAnalyzer,
-            JiraIssueTracker jiraService) {
-        this.confluenceService = confluenceService;
-        this.documentAnalyzer = documentAnalyzer;
-        this.jiraService = jiraService;
+            AnalyzeDocument analyzeDocument,
+            PreviewBacklog previewBacklog,
+            CreateBacklog createBacklog,
+            ReassessStory reassessStory,
+            SearchDocuments searchDocuments) {
+        this.analyzeDocument = analyzeDocument;
+        this.previewBacklog = previewBacklog;
+        this.createBacklog = createBacklog;
+        this.reassessStory = reassessStory;
+        this.searchDocuments = searchDocuments;
     }
 
     @PostMapping("/analyze-and-create")
@@ -68,14 +75,7 @@ public class MvpController {
         log.info("Received request to analyze Confluence page: {}", confluencePageId);
 
         try {
-            log.info("Step 1: Reading Confluence page...");
-            String pageContent = confluenceService.getDocumentContent(confluencePageId);
-            
-            log.info("Step 2: Analyzing document with AI...");
-            List<Epic> epics = documentAnalyzer.analyzeDocument(pageContent);
-            
-            log.info("Step 3: Creating Jira hierarchy ({} epics)...", epics.size());
-            jiraService.createFullHierarchy(epics, projectKey);
+            List<Epic> epics = analyzeDocument.analyzeAndCreate(confluencePageId, projectKey);
             
             return ResponseEntity.ok(Map.of(
                     "success", true,
@@ -99,8 +99,7 @@ public class MvpController {
         log.info("Preview request for Confluence page: {}", confluencePageId);
 
         try {
-            String pageContent = confluenceService.getDocumentContent(confluencePageId);
-            List<Epic> epics = documentAnalyzer.analyzeDocument(pageContent);
+            List<Epic> epics = previewBacklog.preview(confluencePageId);
             
             return ResponseEntity.ok(Map.of(
                     "success", true,
@@ -123,7 +122,7 @@ public class MvpController {
 
         try {
             List<Epic> epics = RestBacklogMapper.toDomain(request);
-            jiraService.createFullHierarchy(epics);
+            createBacklog.create(epics, null);
             
             return ResponseEntity.ok(Map.of(
                     "success", true,
@@ -156,23 +155,17 @@ public class MvpController {
 
         log.info("Reassessment request for {}", issueKey);
         try {
-            TrackedStory story = jiraService.findStory(issueKey);
-            // Seules les stories en attente de validation sont reevaluees : une story ai-ready ne regresse pas ici
-            if (!ReadinessPolicy.isAwaitingValidation(story.labels())) {
-                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
-                        "success", false,
-                        "error", "Issue " + issueKey + " is not awaiting validation (label "
-                                + ReadinessPolicy.LABEL_VALIDATION + " absent)"
-                ));
-            }
-            Readiness verdict =
-                    documentAnalyzer.reassessStory(story.summary(), story.description(), precision);
-            jiraService.applyReassessment(story, precision, verdict);
+            Readiness verdict = reassessStory.reassess(issueKey, precision);
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "issueKey", issueKey,
                     "aiReady", verdict.aiReady(),
                     "aiReadyReason", verdict.aiReadyReason() != null ? verdict.aiReadyReason() : ""
+            ));
+        } catch (StoryNotAwaitingValidationException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
             ));
         } catch (Exception e) {
             log.error("Error reassessing story {}", issueKey, e);
@@ -191,7 +184,7 @@ public class MvpController {
         log.info("Searching Confluence pages: space={}, title={}", spaceKey, title);
 
         try {
-            Map<String, Object> results = confluenceService.searchDocuments(spaceKey, title);
+            Map<String, Object> results = searchDocuments.search(spaceKey, title);
             return ResponseEntity.ok(results);
             
         } catch (Exception e) {

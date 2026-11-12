@@ -15,6 +15,9 @@ Une ligne par choix structurant : la décision, puis sa justification.
 - **Mockito chargé en `-javaagent`** (surefire + `dependency:properties`) : le chargement dynamique d'agent est déprécié depuis Java 21 ; remplace l'option `-Dnet.bytebuddy.experimental`.
 - **Suppression de `DocumentAnalyzer`** : code mort (aucune référence, cf. AUDIT) ; supprimé plutôt que migré vers Jackson 3. Seul effet visible : le log de démarrage « Using Ollama » de ce bean disparaît.
 - **ArchUnit 1.4.1 (`archunit-junit5`, scope test)** : tests d'architecture hexagonale exécutés par JUnit 5 (domaine/application sans framework, dépendances vers le centre, adaptateurs indépendants, aucun identifiant `jira` au centre) ; bibliothèque de test seule, sans impact sur l'artefact livré.
+- **Cas d'usage câblés par `config/UseCaseConfig` (`@Bean`)** : les services de `application/service` restent du Java pur, sans `@Service`, conformément à la règle « domaine et application sans Spring ».
+- **`SearchDocuments` renvoie la `Map` brute de Confluence — DETTE** : conservée telle quelle en phase 3 pour ne pas changer le contrat REST de `GET /confluence/search` ; typage par un type de domaine prévu en phase 4.
+- **Retry : comportement d'avant la phase 3 conservé, figé par `ApplicationWiringTest`** : avec Spring Framework 7, `@Retryable` parcourt les causes, donc l'encapsulation en `RuntimeException` ne le neutralise pas ; la lecture Confluence et l'analyse LLM étaient (et restent) retentées. La création Jira ne l'était jamais (appels via `this`) : comme `CreateBacklogService` passe désormais par le proxy, `@Retryable` est retiré des trois méthodes de création pour ne pas se mettre à rejouer des POST non idempotents ; décision à prendre en phase 4.
 
 ## Frontend
 

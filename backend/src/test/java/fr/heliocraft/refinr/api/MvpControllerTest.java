@@ -1,8 +1,9 @@
 package fr.heliocraft.refinr.api;
 
-import fr.heliocraft.refinr.adapters.out.llm.LlmBacklogAnalyzer;
-import fr.heliocraft.refinr.adapters.out.confluence.ConfluenceDocumentSource;
-import fr.heliocraft.refinr.adapters.out.jira.JiraIssueTracker;
+import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
+import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
+import fr.heliocraft.refinr.application.port.out.LlmPort;
+import fr.heliocraft.refinr.config.UseCaseConfig;
 import fr.heliocraft.refinr.domain.model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
@@ -23,7 +25,9 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+// Controleur + vrais cas d'usage (UseCaseConfig) ; seuls les ports sortants sont simules
 @WebMvcTest(MvpController.class)
+@Import(UseCaseConfig.class)
 @TestPropertySource(properties = {
     "jira.base-url=http://localhost:8080",
     "jira.username=test@example.com",
@@ -40,13 +44,13 @@ class MvpControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private ConfluenceDocumentSource confluenceService;
+    private DocumentSourcePort confluenceService;
 
     @MockitoBean
-    private LlmBacklogAnalyzer geminiAnalyzer;
+    private LlmPort geminiAnalyzer;
 
     @MockitoBean
-    private JiraIssueTracker jiraService;
+    private IssueTrackerPort jiraService;
 
     private Epic testEpic;
     private Story testStory;
@@ -89,9 +93,9 @@ class MvpControllerTest {
 
         when(confluenceService.getDocumentContent(pageId)).thenReturn(cdcContent);
         when(geminiAnalyzer.analyzeDocument(cdcContent)).thenReturn(testEpics);
-        when(jiraService.createEpic(any(Epic.class))).thenReturn("PROJ-1");
-        when(jiraService.createStory(any(Story.class), anyString())).thenReturn("PROJ-2");
-        when(jiraService.createSubtask(any(Task.class), anyString())).thenReturn("PROJ-3");
+        when(jiraService.createEpic(any(Epic.class), any())).thenReturn("PROJ-1");
+        when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("PROJ-2");
+        when(jiraService.createSubtask(any(Task.class), anyString(), any())).thenReturn("PROJ-3");
 
         // When/Then
         mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
@@ -102,7 +106,7 @@ class MvpControllerTest {
         // Verify interactions
         verify(confluenceService).getDocumentContent(pageId);
         verify(geminiAnalyzer).analyzeDocument(cdcContent);
-        verify(jiraService).createFullHierarchy(anyList(), isNull());
+        verify(jiraService).createEpic(any(Epic.class), isNull());
     }
 
     @Test
@@ -116,7 +120,7 @@ class MvpControllerTest {
                 .content("{\"confluencePageId\":\"42\",\"projectKey\":\"DEMO\"}"))
                 .andExpect(status().isOk());
 
-        verify(jiraService).createFullHierarchy(anyList(), eq("DEMO"));
+        verify(jiraService).createEpic(any(Epic.class), eq("DEMO"));
     }
 
     @Test
@@ -194,8 +198,8 @@ class MvpControllerTest {
 
         when(confluenceService.getDocumentContent(pageId)).thenReturn(cdcContent);
         when(geminiAnalyzer.analyzeDocument(cdcContent)).thenReturn(testEpics);
-        doThrow(new RuntimeException("Jira API error"))
-            .when(jiraService).createFullHierarchy(anyList(), any());
+        when(jiraService.createEpic(any(Epic.class), any()))
+            .thenThrow(new RuntimeException("Jira API error"));
 
         // When/Then
         mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
@@ -205,7 +209,7 @@ class MvpControllerTest {
 
         verify(confluenceService).getDocumentContent(pageId);
         verify(geminiAnalyzer).analyzeDocument(cdcContent);
-        verify(jiraService).createFullHierarchy(anyList(), isNull());
+        verify(jiraService).createEpic(any(Epic.class), isNull());
     }
 
     @Test

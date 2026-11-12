@@ -1,8 +1,10 @@
 package fr.heliocraft.refinr.api;
 
-import fr.heliocraft.refinr.adapters.out.llm.LlmBacklogAnalyzer;
-import fr.heliocraft.refinr.adapters.out.confluence.ConfluenceDocumentSource;
-import fr.heliocraft.refinr.adapters.out.jira.JiraIssueTracker;
+import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
+import fr.heliocraft.refinr.application.port.in.CreateBacklog;
+import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
+import fr.heliocraft.refinr.application.port.in.ReassessStory;
+import fr.heliocraft.refinr.application.port.in.SearchDocuments;
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Story;
 import fr.heliocraft.refinr.domain.model.Task;
@@ -24,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -49,19 +52,24 @@ class RestJsonContractTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private ConfluenceDocumentSource confluenceService;
+    private AnalyzeDocument analyzeDocument;
 
     @MockitoBean
-    private LlmBacklogAnalyzer geminiAnalyzer;
+    private PreviewBacklog previewBacklog;
 
     @MockitoBean
-    private JiraIssueTracker jiraService;
+    private CreateBacklog createBacklog;
+
+    @MockitoBean
+    private ReassessStory reassessStory;
+
+    @MockitoBean
+    private SearchDocuments searchDocuments;
 
     @Test
     @DisplayName("analyze-preview serializes every Epic/Story/Task field exactly as the snapshot")
     void previewResponseMatchesSnapshot() throws Exception {
-        when(confluenceService.getDocumentContent("42")).thenReturn("cdc");
-        when(geminiAnalyzer.analyzeDocument("cdc")).thenReturn(List.of(fullEpic()));
+        when(previewBacklog.preview("42")).thenReturn(List.of(fullEpic()));
 
         String body = mockMvc.perform(post("/api/v1/mvp/analyze-preview")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -82,7 +90,7 @@ class RestJsonContractTest {
             .andExpect(status().isOk());
 
         ArgumentCaptor<List<Epic>> captor = ArgumentCaptor.forClass(List.class);
-        verify(jiraService).createFullHierarchy(captor.capture());
+        verify(createBacklog).create(captor.capture(), isNull());
         assertEquals(1, captor.getValue().size());
         assertEpicFields(captor.getValue().get(0));
     }
@@ -98,7 +106,7 @@ class RestJsonContractTest {
             .andExpect(status().isOk());
 
         ArgumentCaptor<List<Epic>> captor = ArgumentCaptor.forClass(List.class);
-        verify(jiraService).createFullHierarchy(captor.capture());
+        verify(createBacklog).create(captor.capture(), isNull());
         assertEquals("T", captor.getValue().get(0).getStories().get(0).getTasks().get(0).getTitle());
     }
 

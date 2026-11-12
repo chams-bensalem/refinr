@@ -38,7 +38,6 @@ class HexagonalArchitectureTest {
             .should().onlyDependOnClassesThat().resideInAnyPackage("java..", DOMAIN)
             .because("le domaine est du Java pur : ni Spring, ni WebClient, ni Jackson");
 
-    @ArchIgnore(reason = "active a l'etape 4 (services applicatifs)")
     @ArchTest
     static final ArchRule application_depends_only_on_the_jdk_slf4j_and_domain = classes()
             .that().resideInAPackage(APPLICATION)
@@ -81,7 +80,6 @@ class HexagonalArchitectureTest {
             .that().resideInAPackage(ROOT + ".application.port.out..")
             .should().beInterfaces();
 
-    @ArchIgnore(reason = "active a l'etape 4 (services applicatifs)")
     @ArchTest
     static final ArchRule no_jira_identifier_in_domain_and_application = classes()
             .that().resideInAnyPackage(DOMAIN, APPLICATION)
