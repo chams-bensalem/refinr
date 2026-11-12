@@ -9,7 +9,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.reactive.function.client.WebClient;
+import fr.heliocraft.refinr.application.port.out.LlmException;
 import tools.jackson.databind.node.StringNode;
 
 import java.io.IOException;
@@ -26,14 +26,14 @@ import static org.junit.jupiter.api.Assertions.*;
 class LlmResponseContractTest {
 
     private MockWebServer mockWebServer;
-    private LlmBacklogAnalyzer analyzer;
+    private LlmBacklogGenerator analyzer;
 
     @BeforeEach
     void setUp() throws IOException {
         mockWebServer = new MockWebServer();
         mockWebServer.start();
-        analyzer = new LlmBacklogAnalyzer(
-            WebClient.builder().baseUrl(mockWebServer.url("/").toString()).build(), "fake-api-key");
+        analyzer = new LlmBacklogGenerator(LlmClients.create(LlmTestSettings.of(LlmProvider.GOOGLE,
+            mockWebServer.url("/").toString())), new StructuredOutput());
     }
 
     @AfterEach
@@ -44,7 +44,7 @@ class LlmResponseContractTest {
     @Test
     @DisplayName("Every Epic/Story/Task field produced by the model is read")
     void readsEveryField() throws IOException {
-        mockWebServer.enqueue(geminiText(resource("contract/create-jira-request.json")));
+        mockWebServer.enqueue(geminiText("{\"epics\":" + resource("contract/create-jira-request.json") + "}"));
 
         List<Epic> epics = analyzer.generate("cdc");
 
@@ -88,10 +88,11 @@ class LlmResponseContractTest {
     @Test
     @DisplayName("An unknown property in the model output is rejected (Jackson 2 defaults)")
     void rejectsUnknownProperty() {
-        mockWebServer.enqueue(geminiText("[{\"name\":\"E\",\"color\":\"red\",\"stories\":[]}]"));
+        mockWebServer.enqueue(geminiText("{\"epics\":[{\"name\":\"E\",\"color\":\"red\",\"stories\":[]}]}"));
 
-        RuntimeException error = assertThrows(RuntimeException.class, () -> analyzer.generate("cdc"));
-        assertTrue(error.getMessage().contains("Unrecognized property"), error.getMessage());
+        LlmException error = assertThrows(LlmException.class, () -> analyzer.generate("cdc"));
+        assertEquals(LlmException.Reason.INVALID_OUTPUT, error.reason());
+        assertTrue(error.getCause().getMessage().contains("Unrecognized property"), error.getCause().getMessage());
     }
 
     private static MockResponse geminiText(String text) {

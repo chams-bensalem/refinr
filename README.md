@@ -270,20 +270,22 @@ jira.priority-enabled=true       # false pour un projet team-managed
 jira.story-points-field=         # ex. customfield_10016 ; vide = story points non envoyés
 
 # --- IA : analyse (structure Epic/Story/Task) -------------------
-ai.provider=ollama               # ollama | gemini
-ollama.base-url=http://localhost:11434
-ollama.model=qwen3:8b
-gemini.api-key=${GEMINI_API_KEY:}
-gemini.model=gemini-2.5-flash
+# anthropic | google | openai-compatible (OpenAI, DeepSeek, Mistral, Groq, OpenRouter, Ollama, LiteLLM, vLLM)
+refinr.llm.analysis.provider=${LLM_ANALYSIS_PROVIDER:openai-compatible}
+refinr.llm.analysis.base-url=${LLM_ANALYSIS_BASE_URL:http://localhost:11434/v1}
+refinr.llm.analysis.model=${LLM_ANALYSIS_MODEL:qwen3:8b}
+refinr.llm.analysis.api-key=${LLM_ANALYSIS_API_KEY:}
+refinr.llm.analysis.timeout=300s
+refinr.llm.analysis.max-output-tokens=32768
 
 # --- IA : verdict ai-ready (optionnel) --------------------------
-# Vide = le verdict est produit par l'appel d'analyse
-ai.verdict.provider=litellm      # litellm | ollama | gemini | (vide)
-ai.verdict.base-url=${AI_VERDICT_BASE_URL:http://localhost:4000}
-ai.verdict.model=gemini-2.5-flash
-ai.verdict.api-key=${AI_VERDICT_API_KEY:}
-ai.verdict.timeout-seconds=90
-ai.verdict.retry-delay-ms=2000
+# provider vide = le verdict est produit par l'appel d'analyse
+refinr.llm.verdict.provider=${LLM_VERDICT_PROVIDER:}
+refinr.llm.verdict.base-url=${LLM_VERDICT_BASE_URL:}
+refinr.llm.verdict.model=${LLM_VERDICT_MODEL:}
+refinr.llm.verdict.api-key=${LLM_VERDICT_API_KEY:}
+refinr.llm.verdict.timeout=90s
+refinr.llm.verdict.max-output-tokens=4096
 ```
 
 #### Tableau des propriétés
@@ -296,18 +298,20 @@ ai.verdict.retry-delay-ms=2000
 | `jira.project-key` | — | Clé du projet utilisé si `projectKey` n'est pas fourni |
 | `jira.priority-enabled` | `true` | Envoie le champ `priority` (désactiver en team-managed) |
 | `jira.story-points-field` | *(vide)* | Champ personnalisé des story points (ex. `customfield_10016`, cf. ci-dessous) ; vide = non envoyés |
-| `ai.provider` | `ollama` | Fournisseur de l'analyse : `ollama` ou `gemini` |
-| `ollama.model` | `qwen3:8b` | Modèle Ollama utilisé |
-| `gemini.api-key` | — | Clé API Google Gemini |
-| `gemini.model` | `gemini-2.5-flash` | Modèle Gemini de l'analyse (et du health check) |
-| `ai.verdict.provider` | *(vide)* | Fournisseur dédié au verdict `ai-ready` |
-| `ai.verdict.model` | `gemini-2.5-flash` | Modèle du verdict (nom du modèle Gemini, ou alias côté LiteLLM) |
-| `ai.verdict.timeout-seconds` | `90` | Délai maximal par appel de verdict |
+| `refinr.llm.analysis.provider` | `openai-compatible` | Fournisseur de l'analyse : `anthropic`, `google` ou `openai-compatible` |
+| `refinr.llm.analysis.base-url` | `http://localhost:11434/v1` | URL de l'API (avec `/v1` pour `openai-compatible`) ; vide = URL officielle pour `anthropic` / `google` |
+| `refinr.llm.analysis.model` | `qwen3:8b` | Modèle de l'analyse (et du health check) |
+| `refinr.llm.analysis.api-key` | *(vide)* | Clé API (obligatoire pour `anthropic` et `google`) |
+| `refinr.llm.analysis.timeout` | `300s` | Délai maximal par appel d'analyse |
+| `refinr.llm.analysis.max-output-tokens` | `32768` | Limite de tokens de sortie (sortie tronquée ⇒ erreur explicite) |
+| `refinr.llm.verdict.provider` | *(vide)* | Fournisseur dédié au verdict `ai-ready` ; vide = celui de l'analyse |
+| `refinr.llm.verdict.timeout` | `90s` | Délai maximal par appel de verdict |
+| `refinr.llm.verdict.max-output-tokens` | `4096` | Limite de tokens de sortie du verdict |
 
 #### Variables d'environnement (recommandé)
 
-Voir `.env.example` pour la liste complète (`CONFLUENCE_TOKEN`, `JIRA_TOKEN`, `GEMINI_API_KEY`,
-`AI_VERDICT_API_KEY`…). Les mêmes noms peuvent être fournis comme variables d'environnement.
+Voir `.env.example` pour la liste complète (`CONFLUENCE_TOKEN`, `JIRA_TOKEN`, `LLM_ANALYSIS_API_KEY`,
+`LLM_VERDICT_API_KEY`…). Les mêmes noms peuvent être fournis comme variables d'environnement.
 
 ### Frontend
 

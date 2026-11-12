@@ -27,7 +27,7 @@ public class UseCaseConfig {
     // Fournisseur de verdict distinct configure : le verdict de l'analyse est alors remplace par le sien
     private final boolean separateVerdict;
 
-    public UseCaseConfig(@Value("${ai.verdict.provider:}") String verdictProvider) {
+    public UseCaseConfig(@Value("${refinr.llm.verdict.provider:}") String verdictProvider) {
         this.separateVerdict = verdictProvider != null && !verdictProvider.isBlank();
     }
 
