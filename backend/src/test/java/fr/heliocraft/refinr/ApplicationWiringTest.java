@@ -8,7 +8,8 @@ import fr.heliocraft.refinr.application.port.in.ReassessStory;
 import fr.heliocraft.refinr.application.port.in.SearchDocuments;
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
-import fr.heliocraft.refinr.application.port.out.LlmPort;
+import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
+import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
 import fr.heliocraft.refinr.domain.model.Epic;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -59,7 +60,10 @@ class ApplicationWiringTest {
     private IssueTrackerPort issueTracker;
 
     @Autowired
-    private LlmPort llm;
+    private BacklogGeneratorPort generator;
+
+    @Autowired
+    private ReadinessAssessorPort assessor;
 
     @Test
     @DisplayName("Every use case is wired")
@@ -129,7 +133,7 @@ class ApplicationWiringTest {
         server.enqueue(new MockResponse().setResponseCode(200).addHeader("Content-Type", "application/json")
             .setBody("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"[]\"}]}}]}"));
 
-        assertEquals(List.of(), llm.analyzeDocument("cdc"));
+        assertEquals(List.of(), generator.generate("cdc"));
         assertEquals(2, server.getRequestCount() - before);
     }
 
@@ -138,7 +142,7 @@ class ApplicationWiringTest {
     void storyVerdictIsNotRetried() {
         int before = server.getRequestCount();
         server.enqueue(new MockResponse().setResponseCode(429));
-        assertThrows(RuntimeException.class, () -> llm.reassessStory("S", "D", "P"));
+        assertThrows(RuntimeException.class, () -> assessor.reassess("S", "D", "P"));
         assertEquals(1, server.getRequestCount() - before);
     }
 }

@@ -3,7 +3,7 @@ package fr.heliocraft.refinr.application.service;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
 import fr.heliocraft.refinr.application.port.in.StoryNotAwaitingValidationException;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
-import fr.heliocraft.refinr.application.port.out.LlmPort;
+import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
 import fr.heliocraft.refinr.domain.model.Readiness;
 import fr.heliocraft.refinr.domain.model.TrackedStory;
 import fr.heliocraft.refinr.domain.service.ReadinessPolicy;
@@ -11,11 +11,11 @@ import fr.heliocraft.refinr.domain.service.ReadinessPolicy;
 public class ReassessStoryService implements ReassessStory {
 
     private final IssueTrackerPort issueTracker;
-    private final LlmPort llm;
+    private final ReadinessAssessorPort assessor;
 
-    public ReassessStoryService(IssueTrackerPort issueTracker, LlmPort llm) {
+    public ReassessStoryService(IssueTrackerPort issueTracker, ReadinessAssessorPort assessor) {
         this.issueTracker = issueTracker;
-        this.llm = llm;
+        this.assessor = assessor;
     }
 
     @Override
@@ -25,7 +25,7 @@ public class ReassessStoryService implements ReassessStory {
         if (!ReadinessPolicy.isAwaitingValidation(story.labels())) {
             throw new StoryNotAwaitingValidationException(storyKey);
         }
-        Readiness verdict = llm.reassessStory(story.summary(), story.description(), precision);
+        Readiness verdict = assessor.reassess(story.summary(), story.description(), precision);
         issueTracker.applyReassessment(story, precision, verdict);
         return verdict;
     }

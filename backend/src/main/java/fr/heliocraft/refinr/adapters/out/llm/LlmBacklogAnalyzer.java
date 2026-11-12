@@ -3,7 +3,8 @@ package fr.heliocraft.refinr.adapters.out.llm;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
-import fr.heliocraft.refinr.application.port.out.LlmPort;
+import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
+import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Readiness;
 import fr.heliocraft.refinr.domain.model.Story;
@@ -21,6 +22,7 @@ import org.springframework.web.reactive.function.client.WebClientRequestExceptio
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -29,7 +31,7 @@ import java.util.Map;
  * (Gemini, Ollama ; verdict eventuellement confie a un autre fournisseur, ex. proxy LiteLLM).
  */
 @Service
-public class LlmBacklogAnalyzer implements LlmPort {
+public class LlmBacklogAnalyzer implements BacklogGeneratorPort, ReadinessAssessorPort {
 
     private static final Logger log = LoggerFactory.getLogger(LlmBacklogAnalyzer.class);
 
@@ -165,7 +167,7 @@ public class LlmBacklogAnalyzer implements LlmPort {
         multiplier = 2
     )
     @Override
-    public List<Epic> analyzeDocument(String documentContent) {
+    public List<Epic> generate(String documentContent) {
         log.info("Analyzing document with {}...", isOllama() ? "Ollama" : "Gemini");
 
         String prompt = buildAnalysisPrompt(documentContent);
@@ -173,9 +175,6 @@ public class LlmBacklogAnalyzer implements LlmPort {
         try {
             String aiResponse = isOllama() ? callOllamaAPI(prompt) : callGeminiAPI(prompt, geminiModel);
             List<Epic> epics = parseAIResponse(aiResponse);
-            if (hasSeparateVerdict()) {
-                applyVerdicts(epics);
-            }
 
             log.info("Analysis complete. Generated {} epics", epics.size());
             return epics;
@@ -187,7 +186,7 @@ public class LlmBacklogAnalyzer implements LlmPort {
 
     /** Reevalue une seule story (deja creee dans Jira) avec la precision apportee par l'utilisateur. */
     @Override
-    public Readiness reassessStory(String summary, String description, String precision) {
+    public Readiness reassess(String summary, String description, String precision) {
         log.info("Reassessing story '{}' with the user's precision ({})", summary, isOllama() ? "Ollama" : "Gemini");
         String prompt = buildReassessmentPrompt(summary, description, precision);
         try {
@@ -227,36 +226,21 @@ public class LlmBacklogAnalyzer implements LlmPort {
             """;
     }
 
+    /** Un verdict par story (un appel chacune) ; null pour une story dont le verdict n'a pas pu etre obtenu. */
     @Override
-    public Readiness assessStory(Story story) {
-        log.info("Assessing readiness of story '{}'", story.getTitle());
-        try {
-            return parseReadiness(callVerdictAPI(buildVerdictPrompt(story)));
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to assess story readiness", e);
-        }
-    }
-
-    /** Un verdict par story, par le fournisseur de verdict ; sans verdict fiable, jamais ai-ready. */
-    private void applyVerdicts(List<Epic> epics) {
-        for (Epic epic : epics) {
-            if (epic.getStories() == null) {
-                continue;
-            }
-            for (Story story : epic.getStories()) {
-                try {
-                    Readiness verdict = assessStory(story);
-                    story.setAiReady(verdict.aiReady());
-                    story.setAiReadyReason(verdict.aiReadyReason());
-                } catch (Exception e) {
-                    Throwable cause = e.getCause() != null ? e.getCause() : e;
-                    log.warn("Readiness verdict unavailable for '{}': {}", story.getTitle(), cause.getMessage());
-                    Readiness fallback = ReadinessPolicy.unavailable(cause.getClass().getSimpleName());
-                    story.setAiReady(fallback.aiReady());
-                    story.setAiReadyReason(fallback.aiReadyReason());
-                }
+    public List<Readiness> assess(List<Story> stories) {
+        List<Readiness> verdicts = new ArrayList<>();
+        for (Story story : stories) {
+            log.info("Assessing readiness of story '{}'", story.getTitle());
+            try {
+                verdicts.add(parseReadiness(callVerdictAPI(buildVerdictPrompt(story))));
+            } catch (Exception e) {
+                Throwable cause = e.getCause() != null ? e.getCause() : e;
+                log.warn("Readiness verdict unavailable for '{}': {}", story.getTitle(), cause.getMessage());
+                verdicts.add(null);
             }
         }
+        return verdicts;
     }
 
     private String buildVerdictPrompt(Story story) {
