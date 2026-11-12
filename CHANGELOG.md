@@ -43,5 +43,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   des services) : message générique + `correlationId` pour les endpoints `/mvp/*`, cause courte (`HTTP 401`,
   `unreachable`…) pour `/health`.
 
+### Fixed
+- README : description exacte des nouveaux essais. La création Jira n'a jamais été retentée (le README l'annonçait),
+  seuls `429` et `500` le sont pour la lecture Confluence et l'analyse IA (pas tous les `5xx`).
+
 ### Removed
 - Endpoint de debug `POST /api/v1/mvp/test-issue-types`.
