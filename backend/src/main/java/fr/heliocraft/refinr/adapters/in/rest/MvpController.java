@@ -52,10 +52,8 @@ public class MvpController {
         String confluencePageId = request.get("confluencePageId");
         // Projet Jira cible optionnel (sinon jira.project-key) : permet a un outil appelant de remplir un projet qu'il vient de creer.
         String projectKey = request.get("projectKey");
-        if (projectKey != null && !projectKey.isBlank() && !CLE_PROJET.matcher(projectKey).matches()) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "error", "Invalid projectKey: " + projectKey));
+        if (!isValidProjectKey(projectKey)) {
+            return invalidProjectKey(projectKey);
         }
         
         log.info("Received request to analyze Confluence page: {}", confluencePageId);
@@ -73,6 +71,15 @@ public class MvpController {
             log.error("Error processing request", e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to analyze the document and create the issues"));
         }
+    }
+
+    /** Absent ou vide : projet par defaut ; sinon une cle de projet valide (ex. PROJ, DEMO2). */
+    private static boolean isValidProjectKey(String projectKey) {
+        return projectKey == null || projectKey.isBlank() || CLE_PROJET.matcher(projectKey).matches();
+    }
+
+    private static ResponseEntity<Map<String, Object>> invalidProjectKey(String projectKey) {
+        return ResponseEntity.badRequest().body(ErrorResponses.error("Invalid projectKey: " + projectKey));
     }
 
     @PostMapping("/analyze-preview")
@@ -97,12 +104,18 @@ public class MvpController {
     }
 
     @PostMapping("/create-jira")
-    public ResponseEntity<Map<String, Object>> createJira(@RequestBody List<EpicDto> request) {
+    public ResponseEntity<Map<String, Object>> createJira(
+            @RequestBody List<EpicDto> request,
+            // Projet cible optionnel (sinon jira.project-key), meme validation que analyze-and-create
+            @RequestParam(required = false) String projectKey) {
+        if (!isValidProjectKey(projectKey)) {
+            return invalidProjectKey(projectKey);
+        }
         log.info("Received request to create {} epics in Jira", request.size());
 
         try {
             List<Epic> epics = RestBacklogMapper.toDomain(request);
-            createBacklog.create(epics, null);
+            createBacklog.create(epics, projectKey);
             
             return ResponseEntity.ok(Map.of(
                     "success", true,
