@@ -78,6 +78,7 @@ Le projet est un monorepo :
 - 📝 Descriptions écrites en Markdown et converties en **ADF** (titres, gras, italique, listes, code en ligne et blocs de code) : rendu natif dans Jira, critères d'acceptation en liste.
 - 🎯 Projet cible **configurable par requête** (`projectKey`) ou projet par défaut.
 - ⚙️ Compatible projets **team-managed** (sans champ *priority*) via `jira.priority-enabled=false`.
+- 🔢 **Story points** envoyés dans le champ configuré par `jira.story-points-field` (désactivé si vide). L'identifiant dépend de l'instance : `GET /rest/api/3/field`, champ nommé *Story point estimate* (team-managed) ou *Story Points* (company-managed), souvent `customfield_10016`. Le champ doit figurer sur l'écran de création des stories.
 - 👀 **Mode prévisualisation** : générer la structure sans rien créer, l'ajuster, puis l'envoyer à Jira.
 
 ### Fiabilité & observabilité
@@ -255,6 +256,7 @@ jira.username=${JIRA_USERNAME:you@example.com}
 jira.token=${JIRA_TOKEN:}
 jira.project-key=PROJ            # projet par défaut
 jira.priority-enabled=true       # false pour un projet team-managed
+jira.story-points-field=         # ex. customfield_10016 ; vide = story points non envoyés
 
 # --- IA : analyse (structure Epic/Story/Task) -------------------
 ai.provider=ollama               # ollama | gemini
@@ -282,6 +284,7 @@ ai.verdict.retry-delay-ms=2000
 | `confluence.token` / `jira.token` | — | Token API Atlassian |
 | `jira.project-key` | — | Clé du projet utilisé si `projectKey` n'est pas fourni |
 | `jira.priority-enabled` | `true` | Envoie le champ `priority` (désactiver en team-managed) |
+| `jira.story-points-field` | *(vide)* | Champ personnalisé des story points (ex. `customfield_10016`, cf. ci-dessous) ; vide = non envoyés |
 | `ai.provider` | `ollama` | Fournisseur de l'analyse : `ollama` ou `gemini` |
 | `ollama.model` | `qwen3:8b` | Modèle Ollama utilisé |
 | `gemini.api-key` | — | Clé API Google Gemini |
@@ -535,7 +538,6 @@ Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour 
 
 ## 🗺️ Limites connues & feuille de route
 
-- [ ] Les **story points** sont calculés mais pas encore envoyés à Jira (champ `customfield_10016` dépendant de l'instance).
 - [ ] Les descriptions sont envoyées dans un unique paragraphe ADF : le balisage (`h3.`, `*gras*`) n'est pas rendu.
 - [ ] La création n'est pas transactionnelle : une erreur en cours de route laisse les tickets déjà créés.
 - [ ] Brancher la prévisualisation et la réévaluation dans l'interface web.

@@ -455,4 +455,40 @@ class JiraIssueTrackerTest {
         assertFalse(body.contains("*As a*"), body);
         assertFalse(body.contains("**"), body);
     }
+
+    private Story storyWithPoints(Integer points) {
+        Story story = new Story();
+        story.setTitle("Story");
+        story.setEstimatedStoryPoints(points);
+        return story;
+    }
+
+    @Test
+    @DisplayName("Story points are sent in the configured jira.story-points-field")
+    void storyPointsSentInConfiguredField() throws InterruptedException {
+        JiraIssueTracker withPoints = new JiraIssueTracker(
+            mockWebServer.url("/").toString(), "test@example.com", "fake-token", "TEST", true, "customfield_10016");
+        mockWebServer.enqueue(jsonResponse("{\"key\":\"TEST-2\"}"));
+
+        withPoints.createStory(storyWithPoints(5), "TEST-1");
+
+        assertTrue(mockWebServer.takeRequest().getBody().readUtf8().contains("\"customfield_10016\":5"));
+    }
+
+    @Test
+    @DisplayName("Story points are not sent when jira.story-points-field is empty, or when the story has none")
+    void storyPointsDisabledWhenFieldEmpty() throws InterruptedException {
+        JiraIssueTracker disabled = new JiraIssueTracker(
+            mockWebServer.url("/").toString(), "test@example.com", "fake-token", "TEST", true, " ");
+        JiraIssueTracker enabled = new JiraIssueTracker(
+            mockWebServer.url("/").toString(), "test@example.com", "fake-token", "TEST", true, "customfield_10016");
+        mockWebServer.enqueue(jsonResponse("{\"key\":\"TEST-2\"}"));
+        mockWebServer.enqueue(jsonResponse("{\"key\":\"TEST-3\"}"));
+
+        disabled.createStory(storyWithPoints(5), "TEST-1");
+        enabled.createStory(storyWithPoints(null), "TEST-1");
+
+        assertFalse(mockWebServer.takeRequest().getBody().readUtf8().contains("customfield_"));
+        assertFalse(mockWebServer.takeRequest().getBody().readUtf8().contains("customfield_"));
+    }
 }
