@@ -260,12 +260,13 @@ ai.provider=ollama               # ollama | gemini
 ollama.base-url=http://localhost:11434
 ollama.model=qwen3:8b
 gemini.api-key=${GEMINI_API_KEY:}
+gemini.model=gemini-2.5-flash
 
 # --- IA : verdict ai-ready (optionnel) --------------------------
 # Vide = le verdict est produit par l'appel d'analyse
 ai.verdict.provider=litellm      # litellm | ollama | gemini | (vide)
 ai.verdict.base-url=${AI_VERDICT_BASE_URL:http://localhost:4000}
-ai.verdict.model=gemini-3.6-flash
+ai.verdict.model=gemini-2.5-flash
 ai.verdict.api-key=${AI_VERDICT_API_KEY:}
 ai.verdict.timeout-seconds=90
 ai.verdict.retry-delay-ms=2000
@@ -282,8 +283,10 @@ ai.verdict.retry-delay-ms=2000
 | `jira.priority-enabled` | `true` | Envoie le champ `priority` (désactiver en team-managed) |
 | `ai.provider` | `ollama` | Fournisseur de l'analyse : `ollama` ou `gemini` |
 | `ollama.model` | `qwen3:8b` | Modèle Ollama utilisé |
-| `gemini.api-key` | — | Clé API Google Gemini (modèle `gemini-2.5-flash`) |
+| `gemini.api-key` | — | Clé API Google Gemini |
+| `gemini.model` | `gemini-2.5-flash` | Modèle Gemini de l'analyse (et du health check) |
 | `ai.verdict.provider` | *(vide)* | Fournisseur dédié au verdict `ai-ready` |
+| `ai.verdict.model` | `gemini-2.5-flash` | Modèle du verdict (nom du modèle Gemini, ou alias côté LiteLLM) |
 | `ai.verdict.timeout-seconds` | `90` | Délai maximal par appel de verdict |
 
 #### Variables d'environnement (recommandé)

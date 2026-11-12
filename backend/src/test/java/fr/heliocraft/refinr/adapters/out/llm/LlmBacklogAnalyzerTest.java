@@ -309,6 +309,33 @@ class LlmBacklogAnalyzerTest {
     }
 
     @Test
+    @DisplayName("Should call the configured Gemini model (gemini.model), and ai.verdict.model for a Gemini verdict")
+    void shouldUseConfiguredGeminiModels() throws InterruptedException {
+        LlmBacklogAnalyzer configured = new LlmBacklogAnalyzer(
+            WebClient.builder().baseUrl(mockWebServer.url("/").toString()).build(),
+            "fake-api-key", "gemini", "gemini-analysis-model", "qwen3:8b", "gemini", "gemini-verdict-model", "");
+        mockWebServer.enqueue(new MockResponse()
+            .setBody("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"{\\\"aiReady\\\": false}\"}]}}]}")
+            .addHeader("Content-Type", "application/json")
+            .setResponseCode(200));
+
+        configured.reassessStory("Titre", "Description", "Precision");
+
+        String path = mockWebServer.takeRequest().getPath();
+        assertTrue(path.startsWith("/v1beta/models/gemini-verdict-model:generateContent"), path);
+
+        mockWebServer.enqueue(new MockResponse()
+            .setBody("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"[]\"}]}}]}")
+            .addHeader("Content-Type", "application/json")
+            .setResponseCode(200));
+
+        configured.analyzeDocument("Un besoin");
+
+        path = mockWebServer.takeRequest().getPath();
+        assertTrue(path.startsWith("/v1beta/models/gemini-analysis-model:generateContent"), path);
+    }
+
+    @Test
     @DisplayName("Should reassess a single story with the user's precision")
     void shouldReassessStoryWithPrecision() throws InterruptedException {
         mockWebServer.enqueue(new MockResponse()
@@ -345,7 +372,7 @@ class LlmBacklogAnalyzerTest {
     private LlmBacklogAnalyzer analyzerWithLitellmVerdict() {
         return new LlmBacklogAnalyzer(
             WebClient.builder().baseUrl(mockWebServer.url("/").toString()).build(),
-            "fake-api-key", "ollama", "qwen3:8b", "litellm", "gemini-3.6-flash", "litellm-master-key");
+            "fake-api-key", "ollama", "qwen3:8b", "litellm", "gemini-2.5-flash", "litellm-master-key");
     }
 
     private MockResponse ollamaStructure(String storyTitle, boolean aiReady) {
@@ -386,7 +413,7 @@ class LlmBacklogAnalyzerTest {
         assertEquals("/v1/chat/completions", verdict.getPath());
         assertEquals("Bearer litellm-master-key", verdict.getHeader("Authorization"));
         String body = verdict.getBody().readUtf8();
-        assertTrue(body.contains("\"model\":\"gemini-3.6-flash\""));
+        assertTrue(body.contains("\"model\":\"gemini-2.5-flash\""));
         assertTrue(body.contains("Formater une taille"));
     }
 

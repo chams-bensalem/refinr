@@ -39,6 +39,8 @@ public class LlmBacklogAnalyzer implements LlmPort {
     private final String apiKey;
     // gemini (API Google) ou ollama (local, gratuit) : prompt et parsing sont communs
     private final String provider;
+    // Modele Gemini de l'analyse (gemini.model) ; le verdict confie a Gemini utilise ai.verdict.model
+    private final String geminiModel;
     private final String ollamaModel;
     // Verdict ai-ready / validation-necessaire (a l'analyse et a la reevaluation) : peut etre confie a un autre
     // fournisseur que la structure Epic/Story/Task, ex. structure par Ollama local et verdict par le pool Gemini
@@ -55,6 +57,9 @@ public class LlmBacklogAnalyzer implements LlmPort {
     // une autre cle du pool.
     private static final int VERDICT_ATTEMPTS = 3;
 
+    // Defaut de gemini.model et ai.verdict.model (meme valeur dans application-example.properties et le README)
+    static final String DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+
     private static final String READINESS_RULES = """
             - aiReady = true UNIQUEMENT si un agent de code peut implémenter la story sans aucune décision humaine:
               périmètre clair, critères d'acceptation testables, pas d'ambiguïté fonctionnelle, pas de dépendance
@@ -67,12 +72,13 @@ public class LlmBacklogAnalyzer implements LlmPort {
     public LlmBacklogAnalyzer(
             @Value("${gemini.api-key:}") String apiKey,
             @Value("${gemini.base-url:https://generativelanguage.googleapis.com}") String baseUrl,
+            @Value("${gemini.model:gemini-2.5-flash}") String geminiModel,
             @Value("${ai.provider:ollama}") String provider,
             @Value("${ollama.base-url:http://localhost:11434}") String ollamaBaseUrl,
             @Value("${ollama.model:qwen3:8b}") String ollamaModel,
             @Value("${ai.verdict.provider:}") String verdictProvider,
             @Value("${ai.verdict.base-url:http://localhost:4000}") String verdictBaseUrl,
-            @Value("${ai.verdict.model:gemini-3.6-flash}") String verdictModel,
+            @Value("${ai.verdict.model:gemini-2.5-flash}") String verdictModel,
             @Value("${ai.verdict.api-key:}") String verdictApiKey,
             @Value("${ai.verdict.retry-delay-ms:2000}") long verdictRetryDelayMs,
             @Value("${ai.verdict.timeout-seconds:90}") long verdictTimeoutSeconds) {
@@ -80,6 +86,7 @@ public class LlmBacklogAnalyzer implements LlmPort {
         this.objectMapper = JsonMapper.builderWithJackson2Defaults().build();
         this.apiKey = apiKey;
         this.provider = provider;
+        this.geminiModel = geminiModel;
         this.ollamaModel = ollamaModel;
         this.verdictProvider = verdictProvider == null ? "" : verdictProvider.trim();
         this.verdictModel = verdictModel;
@@ -101,7 +108,7 @@ public class LlmBacklogAnalyzer implements LlmPort {
                 .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(16 * 1024 * 1024))
                 .build();
 
-        log.info("Document analyzer: {}", isOllama() ? "Ollama (" + ollamaModel + ")" : "Gemini 2.5 Flash");
+        log.info("Document analyzer: {}", isOllama() ? "Ollama (" + ollamaModel + ")" : "Gemini (" + geminiModel + ")");
         log.info("Readiness verdict: {}", hasSeparateVerdict()
                 ? this.verdictProvider + " (" + verdictModel + ")" : "same provider as the analysis");
     }
@@ -113,15 +120,22 @@ public class LlmBacklogAnalyzer implements LlmPort {
 
     // Constructor for testing with a chosen provider (the WebClient serves both providers)
     LlmBacklogAnalyzer(WebClient webClient, String apiKey, String provider, String ollamaModel) {
-        this(webClient, apiKey, provider, ollamaModel, "", "gemini-3.6-flash", "");
+        this(webClient, apiKey, provider, ollamaModel, "", DEFAULT_GEMINI_MODEL, "");
     }
 
     // Constructor for testing a separate verdict provider (the WebClient serves every provider)
     LlmBacklogAnalyzer(WebClient webClient, String apiKey, String provider, String ollamaModel,
                            String verdictProvider, String verdictModel, String verdictApiKey) {
+        this(webClient, apiKey, provider, DEFAULT_GEMINI_MODEL, ollamaModel, verdictProvider, verdictModel, verdictApiKey);
+    }
+
+    // Constructor for testing with chosen models (the WebClient serves every provider)
+    LlmBacklogAnalyzer(WebClient webClient, String apiKey, String provider, String geminiModel, String ollamaModel,
+                           String verdictProvider, String verdictModel, String verdictApiKey) {
         this.objectMapper = JsonMapper.builderWithJackson2Defaults().build();
         this.apiKey = apiKey;
         this.provider = provider;
+        this.geminiModel = geminiModel;
         this.ollamaModel = ollamaModel;
         this.geminiClient = webClient;
         this.ollamaClient = webClient;
@@ -157,7 +171,7 @@ public class LlmBacklogAnalyzer implements LlmPort {
         String prompt = buildAnalysisPrompt(documentContent);
 
         try {
-            String aiResponse = isOllama() ? callOllamaAPI(prompt) : callGeminiAPI(prompt);
+            String aiResponse = isOllama() ? callOllamaAPI(prompt) : callGeminiAPI(prompt, geminiModel);
             List<Epic> epics = parseAIResponse(aiResponse);
             if (hasSeparateVerdict()) {
                 applyVerdicts(epics);
@@ -258,12 +272,12 @@ public class LlmBacklogAnalyzer implements LlmPort {
 
     private String callVerdictAPI(String prompt) {
         if (!hasSeparateVerdict()) {
-            return isOllama() ? callOllamaAPI(prompt) : callGeminiAPI(prompt);
+            return isOllama() ? callOllamaAPI(prompt) : callGeminiAPI(prompt, geminiModel);
         }
         return switch (verdictProvider.toLowerCase()) {
             case "litellm" -> callLitellmAPI(prompt);
             case "ollama" -> callOllamaAPI(prompt);
-            case "gemini" -> callGeminiAPI(prompt);
+            case "gemini" -> callGeminiAPI(prompt, verdictModel);
             default -> throw new IllegalStateException("Unknown ai.verdict.provider: " + verdictProvider);
         };
     }
@@ -433,8 +447,8 @@ public class LlmBacklogAnalyzer implements LlmPort {
             """;
     }
 
-    private String callGeminiAPI(String prompt) {
-        log.info("🌟 Calling Gemini API...");
+    private String callGeminiAPI(String prompt, String model) {
+        log.info("Calling Gemini API ({})...", model);
 
         Map<String, Object> requestBody = Map.of(
                 "contents", List.of(
@@ -453,7 +467,7 @@ public class LlmBacklogAnalyzer implements LlmPort {
 
         try {
             Map<String, Object> response = geminiClient.post()
-                    .uri("/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey)
+                    .uri("/v1beta/models/" + model + ":generateContent?key=" + apiKey)
                     .bodyValue(requestBody)
                     .retrieve()
                     .bodyToMono(Map.class)
