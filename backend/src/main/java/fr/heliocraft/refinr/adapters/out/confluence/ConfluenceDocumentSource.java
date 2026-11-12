@@ -84,7 +84,7 @@ public class ConfluenceDocumentSource implements DocumentSourcePort {
 
     @Override
     public List<DocumentSummary> searchDocuments(String spaceKey, String title) {
-        // Validation hors du try : une entree invalide reste une IllegalArgumentException (400), jamais un appel CQL
+        // Garde defensive (le cas d'usage valide deja l'entree) : jamais de CQL construit sur une entree invalide
         String cql = searchCql(spaceKey, title);
         log.info("Searching pages in space {} with title: {}", spaceKey, title);
 
@@ -109,7 +109,7 @@ public class ConfluenceDocumentSource implements DocumentSourcePort {
     }
 
     /**
-     * Requete CQL de recherche : cle d'espace validee (liste blanche) puis citee, titre echappe dans sa chaine CQL
+     * Requete CQL de recherche : cle d'espace verifiee (liste blanche) puis citee, titre echappe dans sa chaine CQL
      * ({@code \\} et {@code "}) pour qu'aucune entree ne puisse sortir de la chaine et ajouter des clauses.
      */
     static String searchCql(String spaceKey, String title) {

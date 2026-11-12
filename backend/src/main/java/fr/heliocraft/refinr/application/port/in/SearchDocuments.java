@@ -7,5 +7,6 @@ import java.util.List;
 /** Recherche de documents source par espace et titre. */
 public interface SearchDocuments {
 
+    /** @throws InvalidRequestException si la cle d'espace est invalide ou le titre vide */
     List<DocumentSummary> search(String spaceKey, String title);
 }
