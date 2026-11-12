@@ -1,6 +1,7 @@
 package fr.heliocraft.refinr.application.service;
 
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
+import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.CreateBacklog;
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
 import fr.heliocraft.refinr.application.port.out.LlmPort;
@@ -25,7 +26,7 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
     }
 
     @Override
-    public List<Epic> analyzeAndCreate(String documentId, String project) {
+    public BacklogCreationResult analyzeAndCreate(String documentId, String project) {
         log.info("Step 1: Reading source document...");
         String content = documentSource.getDocumentContent(documentId);
 
@@ -33,7 +34,6 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
         List<Epic> epics = llm.analyzeDocument(content);
 
         log.info("Step 3: Creating issue hierarchy ({} epics)...", epics.size());
-        createBacklog.create(epics, project);
-        return epics;
+        return createBacklog.create(epics, project);
     }
 }

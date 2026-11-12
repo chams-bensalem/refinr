@@ -1,6 +1,7 @@
 package fr.heliocraft.refinr.adapters.in.rest;
 
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
+import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.CreateBacklog;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
@@ -26,6 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -84,6 +86,7 @@ class RestJsonContractTest {
     @DisplayName("create-jira reads every Epic/Story/Task field of the request")
     @SuppressWarnings("unchecked")
     void createJiraRequestReadsEveryField() throws Exception {
+        stubCreationResult();
         mockMvc.perform(post("/api/v1/mvp/create-jira")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(resource("contract/create-jira-request.json")))
@@ -99,6 +102,7 @@ class RestJsonContractTest {
     @DisplayName("create-jira ignores unknown properties sent by the client (Spring Boot defaults)")
     @SuppressWarnings("unchecked")
     void createJiraIgnoresUnknownProperties() throws Exception {
+        stubCreationResult();
         mockMvc.perform(post("/api/v1/mvp/create-jira")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("[{\"name\":\"E\",\"color\":\"red\",\"stories\":[{\"title\":\"S\",\"mood\":\"ok\","
@@ -108,6 +112,12 @@ class RestJsonContractTest {
         ArgumentCaptor<List<Epic>> captor = ArgumentCaptor.forClass(List.class);
         verify(createBacklog).create(captor.capture(), isNull());
         assertEquals("T", captor.getValue().get(0).getStories().get(0).getTasks().get(0).getTitle());
+    }
+
+    /** create renvoie desormais le resultat de la creation (crees / echoues) : ici, tout est cree. */
+    private void stubCreationResult() {
+        when(createBacklog.create(any(), any())).thenAnswer(invocation ->
+            new BacklogCreationResult(invocation.getArgument(0), List.of(), List.of()));
     }
 
     private static void assertEpicFields(Epic epic) {

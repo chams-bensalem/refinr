@@ -2,6 +2,7 @@ package fr.heliocraft.refinr.adapters.in.rest;
 
 import fr.heliocraft.refinr.adapters.in.rest.dto.EpicDto;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
+import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.CreateBacklog;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
@@ -16,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -59,18 +61,38 @@ public class MvpController {
         log.info("Received request to analyze Confluence page: {}", confluencePageId);
 
         try {
-            List<Epic> epics = analyzeDocument.analyzeAndCreate(confluencePageId, projectKey);
-            
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Successfully created " + epics.size() + " epics with stories and tasks",
-                    "epics", RestBacklogMapper.toDto(epics)
-            ));
-            
+            return creationResponse(analyzeDocument.analyzeAndCreate(confluencePageId, projectKey));
+
         } catch (Exception e) {
             log.error("Error processing request", e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to analyze the document and create the issues"));
         }
+    }
+
+    /**
+     * Reponse de creation : 200 si tout est cree, 207 si la creation est partielle, 502 si rien n'a pu etre cree.
+     * Toujours les listes created / failed et les epics (avec la cle des tickets crees).
+     */
+    private static ResponseEntity<Map<String, Object>> creationResponse(BacklogCreationResult result) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        HttpStatus status;
+        if (result.isComplete()) {
+            status = HttpStatus.OK;
+            body.put("success", true);
+            body.put("message", "Successfully created " + result.created().size() + " issues");
+        } else if (!result.created().isEmpty()) {
+            status = HttpStatus.MULTI_STATUS;
+            body.put("success", false);
+            body.put("message", "Partially created: " + result.created().size() + " issues created, "
+                    + result.failed().size() + " not created");
+        } else {
+            status = HttpStatus.BAD_GATEWAY;
+            body.putAll(ErrorResponses.error("No issue could be created"));
+        }
+        body.put("created", result.created());
+        body.put("failed", result.failed());
+        body.put("epics", RestBacklogMapper.toDto(result.epics()));
+        return ResponseEntity.status(status).body(body);
     }
 
     /** Absent ou vide : projet par defaut ; sinon une cle de projet valide (ex. PROJ, DEMO2). */
@@ -115,13 +137,8 @@ public class MvpController {
 
         try {
             List<Epic> epics = RestBacklogMapper.toDomain(request);
-            createBacklog.create(epics, projectKey);
-            
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Successfully created " + epics.size() + " epics in Jira"
-            ));
-            
+            return creationResponse(createBacklog.create(epics, projectKey));
+
         } catch (Exception e) {
             log.error("Error creating Jira tickets", e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to create the issues"));

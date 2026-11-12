@@ -491,4 +491,32 @@ class JiraIssueTrackerTest {
         assertFalse(mockWebServer.takeRequest().getBody().readUtf8().contains("customfield_"));
         assertFalse(mockWebServer.takeRequest().getBody().readUtf8().contains("customfield_"));
     }
+
+    @Test
+    @DisplayName("A Jira rejection becomes an IssueTrackerException carrying the HTTP status and Jira's error messages")
+    void jiraRejectionIsReadable() {
+        Epic epic = new Epic();
+        epic.setName("E");
+        mockWebServer.enqueue(new MockResponse().setResponseCode(400).addHeader("Content-Type", "application/json")
+            .setBody("{\"errorMessages\":[\"Bad project\"],\"errors\":{\"priority\":\"Field 'priority' cannot be set.\"}}"));
+
+        var error = assertThrows(fr.heliocraft.refinr.application.port.out.IssueTrackerException.class,
+            () -> jiraService.createEpic(epic));
+
+        assertEquals("Jira rejected the epic (HTTP 400): Bad project; priority: Field 'priority' cannot be set.",
+            error.getMessage());
+    }
+
+    @Test
+    @DisplayName("An unreachable Jira gives a short IssueTrackerException without the URL")
+    void unreachableJira() throws IOException {
+        JiraIssueTracker unreachable = new JiraIssueTracker("http://127.0.0.1:1", "u", "t", "TEST");
+        Epic epic = new Epic();
+        epic.setName("E");
+
+        var error = assertThrows(fr.heliocraft.refinr.application.port.out.IssueTrackerException.class,
+            () -> unreachable.createEpic(epic));
+
+        assertEquals("Jira unreachable", error.getMessage());
+    }
 }
