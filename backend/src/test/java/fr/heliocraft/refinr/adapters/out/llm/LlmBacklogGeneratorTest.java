@@ -28,7 +28,7 @@ class LlmBacklogGeneratorTest {
         server.start();
         generator = new LlmBacklogGenerator(
                 LlmClients.create(LlmTestSettings.of(LlmProvider.OPENAI_COMPATIBLE, server.url("/v1").toString())),
-                new StructuredOutput());
+                new StructuredOutput(2));
     }
 
     @AfterEach

@@ -27,7 +27,7 @@ public class LlmBacklogGenerator implements BacklogGeneratorPort {
         log.info("Analyzing document with {}", client.settings().describe());
         LlmRequest request = LlmRequest.of(LlmPrompts.SYSTEM, LlmPrompts.analysis(documentContent),
                 LlmSchemas.BACKLOG, LlmSchemas.forProvider(schema));
-        List<Epic> epics = output.call(client, request,
+        List<Epic> epics = output.call(client, request, schema,
                 json -> GeneratedBacklogMapper.toDomain(output.mapper().treeToValue(json, GeneratedBacklog.class).getEpics()));
         log.info("Analysis complete. Generated {} epics", epics.size());
         return epics;

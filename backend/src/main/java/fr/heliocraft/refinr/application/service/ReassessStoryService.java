@@ -25,7 +25,7 @@ public class ReassessStoryService implements ReassessStory {
         if (!ReadinessPolicy.isAwaitingValidation(story.labels())) {
             throw new StoryNotAwaitingValidationException(storyKey);
         }
-        Readiness verdict = assessor.reassess(story.summary(), story.description(), precision);
+        Readiness verdict = LlmFailures.translate(() -> assessor.reassess(story.summary(), story.description(), precision));
         issueTracker.applyReassessment(story, precision, verdict);
         return verdict;
     }

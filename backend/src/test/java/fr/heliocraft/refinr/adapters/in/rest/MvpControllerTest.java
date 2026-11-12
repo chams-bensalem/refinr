@@ -3,6 +3,7 @@ package fr.heliocraft.refinr.adapters.in.rest;
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
 import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
+import fr.heliocraft.refinr.application.port.out.LlmException;
 import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
 import fr.heliocraft.refinr.config.UseCaseConfig;
 import fr.heliocraft.refinr.domain.model.*;
@@ -197,6 +198,46 @@ class MvpControllerTest {
         verify(confluenceService).getDocumentContent(pageId);
         verify(generator).generate(cdcContent);
         verifyNoInteractions(jiraService);
+    }
+
+    @Test
+    @DisplayName("An invalid model output (after repairs) gives a 502 with a generic message, on preview and analyze-and-create")
+    void invalidModelOutputIs502() throws Exception {
+        when(confluenceService.getDocumentContent("123")).thenReturn("cdc");
+        when(generator.generate("cdc")).thenThrow(new LlmException(LlmException.Reason.INVALID_OUTPUT,
+                "The analysis model did not produce a valid result after 3 attempt(s)"));
+
+        for (String endpoint : List.of("/api/v1/mvp/analyze-preview", "/api/v1/mvp/analyze-and-create")) {
+            mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content("{\"confluencePageId\":\"123\"}"))
+                    .andExpect(status().isBadGateway())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").value("The AI model did not produce a valid result, even after retries"));
+        }
+        verifyNoInteractions(jiraService);
+    }
+
+    @Test
+    @DisplayName("A truncated model output gives a 502 telling to raise max-output-tokens")
+    void truncatedModelOutputIs502() throws Exception {
+        when(confluenceService.getDocumentContent("123")).thenReturn("cdc");
+        when(generator.generate("cdc")).thenThrow(new LlmException(LlmException.Reason.TRUNCATED, "truncated"));
+
+        mockMvc.perform(post("/api/v1/mvp/analyze-preview").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confluencePageId\":\"123\"}"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.error").value("The AI model output was truncated: increase max-output-tokens"));
+    }
+
+    @Test
+    @DisplayName("An unavailable provider stays a 500 with a generic message")
+    void unavailableProviderIs500() throws Exception {
+        when(confluenceService.getDocumentContent("123")).thenReturn("cdc");
+        when(generator.generate("cdc")).thenThrow(new LlmException(LlmException.Reason.UNAVAILABLE, "HTTP 401"));
+
+        mockMvc.perform(post("/api/v1/mvp/analyze-preview").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confluencePageId\":\"123\"}"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.error").value("Failed to generate the preview"));
     }
 
     @Test

@@ -27,8 +27,6 @@ final class GeneratedBacklogMapper {
         epic.setPriority(dto.getPriority());
         epic.setLabels(dto.getLabels());
         epic.setStories(map(dto.getStories(), GeneratedBacklogMapper::toDomain));
-        epic.setTrackerKey(dto.getJiraKey());
-        epic.setTrackerUrl(dto.getJiraUrl());
         return epic;
     }
 
@@ -51,9 +49,6 @@ final class GeneratedBacklogMapper {
         story.setDependencies(dto.getDependencies());
         story.setAiReady(dto.getAiReady());
         story.setAiReadyReason(dto.getAiReadyReason());
-        story.setTrackerKey(dto.getJiraKey());
-        story.setTrackerUrl(dto.getJiraUrl());
-        story.setEpicTrackerKey(dto.getEpicKey());
         return story;
     }
 
@@ -66,9 +61,6 @@ final class GeneratedBacklogMapper {
         task.setDescription(dto.getDescription());
         task.setEstimatedHours(dto.getEstimatedHours());
         task.setLabels(dto.getLabels());
-        task.setTrackerKey(dto.getJiraKey());
-        task.setTrackerUrl(dto.getJiraUrl());
-        task.setParentTrackerKey(dto.getParentStoryKey());
         return task;
     }
 

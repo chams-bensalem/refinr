@@ -76,8 +76,9 @@ public abstract class LlmClient {
             } catch (WebClientResponseException e) {
                 int status = e.getStatusCode().value();
                 if (!isRetryable(status) || attempt >= attempts) {
-                    log.warn("LLM {} call failed: HTTP {} ({}) {}", settings.role(), status, settings.describe(),
-                            abbreviate(e.getResponseBodyAsString()));
+                    // Jamais le corps : certains fournisseurs y recopient une partie de la cle refusee
+                    log.warn("LLM {} call failed: HTTP {} ({}), error type: {}", settings.role(), status,
+                            settings.describe(), errorType(e.getResponseBodyAsString()));
                     throw new LlmException(Reason.UNAVAILABLE, failureMessage(status), e);
                 }
                 Duration delay = retryDelay(attempt, e.getHeaders().getFirst(HttpHeaders.RETRY_AFTER));
@@ -198,10 +199,22 @@ public abstract class LlmClient {
         }
     }
 
-    private static String abbreviate(String text) {
-        if (text == null) {
-            return "";
+    /**
+     * Type d'erreur annonce par le fournisseur, lu dans un champ connu ({@code error.type}, {@code error.status},
+     * {@code error.code}) et limite a un identifiant court ; jamais le message, qui peut contenir des donnees.
+     */
+    String errorType(String body) {
+        try {
+            JsonNode error = mapper.readTree(body == null || body.isBlank() ? "{}" : body).path("error");
+            for (String field : new String[] {"type", "status", "code"}) {
+                String value = error.path(field).asString("");
+                if (value.matches("[A-Za-z0-9_.-]{1,64}")) {
+                    return value;
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // Corps non JSON : rien a en extraire
         }
-        return text.length() > 500 ? text.substring(0, 500) + "..." : text;
+        return "unknown";
     }
 }

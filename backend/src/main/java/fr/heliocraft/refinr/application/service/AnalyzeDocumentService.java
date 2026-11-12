@@ -36,7 +36,7 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
         String content = documentSource.getDocumentContent(documentId);
 
         log.info("Step 2: Analyzing document with AI...");
-        List<Epic> epics = generator.generate(content);
+        List<Epic> epics = LlmFailures.translate(() -> generator.generate(content));
         if (separateAssessor != null) {
             StoryVerdicts.apply(epics, separateAssessor);
         }

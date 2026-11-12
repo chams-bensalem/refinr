@@ -39,7 +39,8 @@ class ConfigurationDefaultsTest {
                 exampleDefault("refinr.llm.analysis.max-output-tokens"));
         assertEquals(String.valueOf(LlmConfiguration.DEFAULT_VERDICT_MAX_OUTPUT_TOKENS),
                 exampleDefault("refinr.llm.verdict.max-output-tokens"));
-        for (String key : new String[] {"refinr.llm.analysis.timeout", "refinr.llm.verdict.timeout",
+        assertEquals(String.valueOf(LlmConfiguration.DEFAULT_MAX_REPAIR_ATTEMPTS), exampleDefault("refinr.llm.max-repair-attempts"));
+        for (String key : new String[] {"refinr.llm.max-repair-attempts", "refinr.llm.analysis.timeout", "refinr.llm.verdict.timeout",
                 "refinr.llm.analysis.max-output-tokens", "refinr.llm.verdict.max-output-tokens"}) {
             assertEquals(exampleDefault(key), readmeTableDefault(key), key);
         }
