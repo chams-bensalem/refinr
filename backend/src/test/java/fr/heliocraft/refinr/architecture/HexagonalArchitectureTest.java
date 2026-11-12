@@ -91,7 +91,10 @@ class HexagonalArchitectureTest {
     @ArchTest
     static final ArchRule outbound_ports_are_interfaces = classes()
             .that().resideInAPackage(ROOT + ".application.port.out..")
-            .should().beInterfaces();
+            .should().beInterfaces()
+            .orShould().beAssignableTo(RuntimeException.class)
+            .because("un port sortant est une interface ; seules les exceptions de son contrat (ex. IssueTrackerException,"
+                    + " levee par l'adaptateur et lue par le cas d'usage) l'accompagnent");
 
     @ArchTest
     static final ArchRule no_jira_identifier_in_domain_and_application = classes()

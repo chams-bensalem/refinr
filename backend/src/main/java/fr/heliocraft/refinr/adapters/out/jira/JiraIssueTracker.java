@@ -1,5 +1,6 @@
 package fr.heliocraft.refinr.adapters.out.jira;
 
+import fr.heliocraft.refinr.application.port.out.IssueTrackerException;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Readiness;
@@ -17,6 +18,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.nio.charset.StandardCharsets;
@@ -74,8 +76,8 @@ public class JiraIssueTracker implements IssueTrackerPort {
         return createEpic(epic, null);
     }
 
-    // Pas de @Retryable : l'appel passait par this (createFullHierarchy), le retry n'a jamais ete actif sur la creation.
-    // Le reactiver (POST non idempotent : risque de doublon apres un 500) est une decision de la phase 4.
+    // Pas de @Retryable : POST non idempotent (un 500 peut survenir apres creation -> doublon). Un echec est signale
+    // dans la reponse partielle (crees / echoues) de CreateBacklog.
     @Override
     public String createEpic(Epic epic, String project) {
         log.info("Creating Jira Epic: {}", epic.getName());
@@ -90,34 +92,15 @@ public class JiraIssueTracker implements IssueTrackerPort {
 
         Map<String, Object> requestBody = Map.of("fields", fields);
 
-        try {
-            Map<String, Object> response = webClient.post()
-                    .uri("/rest/api/3/issue")
-                    .bodyValue(requestBody)
-                    .retrieve()
-                    .bodyToMono(Map.class)
-                    .block();
-
-            String epicKey = (String) response.get("key");
-
-            log.info("Epic created successfully: {}", epicKey);
-            return epicKey;
-        } catch (WebClientResponseException e) {
-            log.error("Jira API Error: Status={}, Response={}", e.getStatusCode(), e.getResponseBodyAsString());
-            log.error("Error creating Epic", e);
-            throw new RuntimeException("Failed to create Epic: " + e.getResponseBodyAsString(), e);
-        } catch (Exception e) {
-            log.error("Error creating Epic", e);
-            throw new RuntimeException("Failed to create Epic: " + e.getMessage(), e);
-        }
+        return createIssue("epic", requestBody);
     }
 
     public String createStory(Story story, String epicKey) {
         return createStory(story, epicKey, null);
     }
 
-    // Pas de @Retryable : l'appel passait par this (createFullHierarchy), le retry n'a jamais ete actif sur la creation.
-    // Le reactiver (POST non idempotent : risque de doublon apres un 500) est une decision de la phase 4.
+    // Pas de @Retryable : POST non idempotent (un 500 peut survenir apres creation -> doublon). Un echec est signale
+    // dans la reponse partielle (crees / echoues) de CreateBacklog.
     @Override
     public String createStory(Story story, String epicKey, String project) {
         log.info("Creating Jira Story: {} under Epic: {}", story.getTitle(), epicKey);
@@ -153,34 +136,15 @@ public class JiraIssueTracker implements IssueTrackerPort {
 
         Map<String, Object> requestBody = Map.of("fields", fields);
 
-        try {
-            Map<String, Object> response = webClient.post()
-                    .uri("/rest/api/3/issue")
-                    .bodyValue(requestBody)
-                    .retrieve()
-                    .bodyToMono(Map.class)
-                    .block();
-
-            String storyKey = (String) response.get("key");
-
-            log.info("Story created successfully: {}", storyKey);
-            return storyKey;
-        } catch (WebClientResponseException e) {
-            log.error("Jira API Error: Status={}, Response={}", e.getStatusCode(), e.getResponseBodyAsString());
-            log.error("Error creating Story", e);
-            throw new RuntimeException("Failed to create Story: " + e.getResponseBodyAsString(), e);
-        } catch (Exception e) {
-            log.error("Error creating Story", e);
-            throw new RuntimeException("Failed to create Story: " + e.getMessage(), e);
-        }
+        return createIssue("story", requestBody);
     }
 
     public String createSubtask(Task task, String parentStoryKey) {
         return createSubtask(task, parentStoryKey, null);
     }
 
-    // Pas de @Retryable : l'appel passait par this (createFullHierarchy), le retry n'a jamais ete actif sur la creation.
-    // Le reactiver (POST non idempotent : risque de doublon apres un 500) est une decision de la phase 4.
+    // Pas de @Retryable : POST non idempotent (un 500 peut survenir apres creation -> doublon). Un echec est signale
+    // dans la reponse partielle (crees / echoues) de CreateBacklog.
     @Override
     public String createSubtask(Task task, String parentStoryKey, String project) {
         log.info("Creating Jira Task: {} under Story: {}", task.getTitle(), parentStoryKey);
@@ -196,6 +160,14 @@ public class JiraIssueTracker implements IssueTrackerPort {
 
         Map<String, Object> requestBody = Map.of("fields", fields);
 
+        return createIssue("subtask", requestBody);
+    }
+
+    /**
+     * POST de creation d'un ticket, sans nouvel essai (non idempotent). Tout echec devient une
+     * {@link IssueTrackerException} au message sur : statut HTTP et erreurs de validation de Jira, jamais d'URL.
+     */
+    private String createIssue(String kind, Map<String, Object> requestBody) {
         try {
             Map<String, Object> response = webClient.post()
                     .uri("/rest/api/3/issue")
@@ -203,19 +175,40 @@ public class JiraIssueTracker implements IssueTrackerPort {
                     .retrieve()
                     .bodyToMono(Map.class)
                     .block();
-
-            String taskKey = (String) response.get("key");
-
-            log.info("Task created successfully: {}", taskKey);
-            return taskKey;
+            Object key = response != null ? response.get("key") : null;
+            if (!(key instanceof String issueKey) || issueKey.isBlank()) {
+                throw new IssueTrackerException("Jira returned no key for the " + kind);
+            }
+            log.info("{} created successfully: {}", kind, issueKey);
+            return issueKey;
         } catch (WebClientResponseException e) {
-            log.error("Jira API Error: Status={}, Response={}", e.getStatusCode(), e.getResponseBodyAsString());
-            log.error("Error creating Task", e);
-            throw new RuntimeException("Failed to create Task: " + e.getResponseBodyAsString(), e);
-        } catch (Exception e) {
-            log.error("Error creating Task", e);
-            throw new RuntimeException("Failed to create Task: " + e.getMessage(), e);
+            log.error("Jira API Error creating {}: Status={}, Response={}", kind, e.getStatusCode(),
+                    e.getResponseBodyAsString());
+            String details = jiraErrors(e);
+            throw new IssueTrackerException("Jira rejected the " + kind + " (HTTP " + e.getStatusCode().value() + ")"
+                    + (details.isEmpty() ? "" : ": " + details), e);
+        } catch (WebClientRequestException e) {
+            log.error("Jira unreachable while creating {}", kind, e);
+            throw new IssueTrackerException("Jira unreachable", e);
         }
+    }
+
+    /** errorMessages et errors (champ: message) du corps d'erreur Jira, joints ; vide si illisible. */
+    private static String jiraErrors(WebClientResponseException e) {
+        List<String> messages = new ArrayList<>();
+        try {
+            Map<?, ?> body = e.getResponseBodyAs(Map.class);
+            if (body != null && body.get("errorMessages") instanceof List<?> list) {
+                list.forEach(message -> messages.add(String.valueOf(message)));
+            }
+            if (body != null && body.get("errors") instanceof Map<?, ?> errors) {
+                errors.forEach((field, message) -> messages.add(field + ": " + message));
+            }
+        } catch (RuntimeException unreadable) {
+            return "";
+        }
+        String joined = String.join("; ", messages);
+        return joined.length() > 500 ? joined.substring(0, 500) + "..." : joined;
     }
 
     private String projet(String project) {

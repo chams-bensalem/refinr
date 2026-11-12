@@ -359,6 +359,63 @@ class MvpControllerTest {
     }
 
     @Test
+    @DisplayName("A failure during creation gives a 207 partial response listing created and failed issues")
+    void partialCreationResponse() throws Exception {
+        when(jiraService.createEpic(any(Epic.class), any())).thenReturn("TEST-1");
+        when(jiraService.createStory(any(Story.class), anyString(), any()))
+            .thenThrow(new fr.heliocraft.refinr.application.port.out.IssueTrackerException(
+                "Rejected by Jira (HTTP 400): priority: Field 'priority' cannot be set"));
+
+        mockMvc.perform(post("/api/v1/mvp/create-jira")
+                .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
+                .andExpect(status().isMultiStatus())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.created.length()").value(1))
+                .andExpect(jsonPath("$.created[0].type").value("epic"))
+                .andExpect(jsonPath("$.created[0].title").value("E"))
+                .andExpect(jsonPath("$.created[0].key").value("TEST-1"))
+                .andExpect(jsonPath("$.failed.length()").value(2))
+                .andExpect(jsonPath("$.failed[0].type").value("story"))
+                .andExpect(jsonPath("$.failed[0].reason").value("Rejected by Jira (HTTP 400): priority: Field 'priority' cannot be set"))
+                .andExpect(jsonPath("$.failed[1].type").value("subtask"))
+                .andExpect(jsonPath("$.epics[0].jiraKey").value("TEST-1"));
+    }
+
+    @Test
+    @DisplayName("When nothing could be created the response is 502 with the failures")
+    void nothingCreatedResponse() throws Exception {
+        when(jiraService.createEpic(any(Epic.class), any()))
+            .thenThrow(new fr.heliocraft.refinr.application.port.out.IssueTrackerException("Jira unreachable"));
+
+        mockMvc.perform(post("/api/v1/mvp/create-jira")
+                .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.created.length()").value(0))
+                .andExpect(jsonPath("$.failed.length()").value(3))
+                .andExpect(jsonPath("$.failed[0].reason").value("Jira unreachable"));
+    }
+
+    @Test
+    @DisplayName("A complete creation answers 200 with the created issues and no failure")
+    void completeCreationResponse() throws Exception {
+        when(jiraService.createEpic(any(Epic.class), any())).thenReturn("TEST-1");
+        when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("TEST-2");
+        when(jiraService.createSubtask(any(Task.class), anyString(), any())).thenReturn("TEST-3");
+
+        when(confluenceService.getDocumentContent("1")).thenReturn("cdc");
+        when(geminiAnalyzer.analyzeDocument("cdc")).thenReturn(testEpics);
+
+        mockMvc.perform(post("/api/v1/mvp/analyze-and-create").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"confluencePageId\":\"1\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.created.length()").value(3))
+                .andExpect(jsonPath("$.failed.length()").value(0))
+                .andExpect(jsonPath("$.epics[0].stories[0].tasks[0].jiraKey").value("TEST-3"));
+    }
+
+    @Test
     @DisplayName("The debug endpoint test-issue-types no longer exists")
     void debugIssueTypesEndpointIsGone() throws Exception {
         mockMvc.perform(post("/api/v1/mvp/test-issue-types"))

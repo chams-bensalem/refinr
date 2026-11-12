@@ -440,12 +440,29 @@ Base URL : `http://localhost:8080/api/v1`
 | `GET` | `/mvp/health` | — | Ping simple du service |
 | `GET` | `/health` | — | Santé détaillée Confluence / Jira / IA |
 
-**Réponse type (`analyze-and-create`) :**
+**Réponse de création (`analyze-and-create` et `create-jira`) :**
+
+| Statut | Cas | `success` |
+|---|---|---|
+| `200` | Tous les tickets ont été créés | `true` |
+| `207` | Création partielle : certains tickets créés, d'autres non | `false` |
+| `502` | Aucun ticket n'a pu être créé | `false` |
+
+Un échec n'interrompt pas la création : l'élément est listé dans `failed` (avec une raison : statut HTTP et
+erreurs de validation de Jira), ses enfants aussi (`Not created: parent … failed`), et les éléments suivants sont créés.
 
 ```json
 {
-  "success": true,
-  "message": "Successfully created 3 epics with stories and tasks",
+  "success": false,
+  "message": "Partially created: 2 issues created, 2 not created",
+  "created": [
+    { "type": "epic",  "title": "Epic: Authentification", "key": "PROJ-1" },
+    { "type": "story", "title": "Connexion OAuth2",       "key": "PROJ-2" }
+  ],
+  "failed": [
+    { "type": "story",   "title": "Export PDF",  "reason": "Jira rejected the story (HTTP 400): priority: Field 'priority' cannot be set." },
+    { "type": "subtask", "title": "Générer le PDF", "reason": "Not created: parent story Export PDF failed" }
+  ],
   "epics": [ { "name": "Epic: Authentification", "jiraKey": "PROJ-1", "stories": [ … ] } ]
 }
 ```
