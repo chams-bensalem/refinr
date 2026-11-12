@@ -179,7 +179,7 @@ public class JiraIssueTracker implements IssueTrackerPort {
         Map<String, Object> fields = Map.of(
                 "project", Map.of("key", projet(project)),
                 "summary", task.getTitle(),
-                "description", convertToADF(task.getDescription() != null ? task.getDescription() : ""),
+                "description", convertToADF(task.getDescription()),
                 "issuetype", Map.of("name", "Subtask"),
                 "parent", Map.of("key", parentStoryKey),
                 "labels", LabelNormalizer.normalize(task.getLabels())  // ✅ BON
@@ -245,12 +245,12 @@ public class JiraIssueTracker implements IssueTrackerPort {
     private String formatStoryDescription(Story story) {
         StringBuilder sb = new StringBuilder();
 
-        sb.append("*As a* ").append(story.getAsA()).append("\n");
-        sb.append("*I want* ").append(story.getIWant()).append("\n");
-        sb.append("*So that* ").append(story.getSoThat()).append("\n\n");
+        sb.append("**As a** ").append(story.getAsA()).append("\n");
+        sb.append("**I want** ").append(story.getIWant()).append("\n");
+        sb.append("**So that** ").append(story.getSoThat()).append("\n\n");
 
         if (story.getDescription() != null && !story.getDescription().isEmpty()) {
-            sb.append("h3. Description\n");
+            sb.append("### Description\n\n");
             sb.append(story.getDescription()).append("\n");
         }
 
@@ -263,12 +263,11 @@ public class JiraIssueTracker implements IssueTrackerPort {
         }
 
         StringBuilder formatted = new StringBuilder();
-        formatted.append("h3. Acceptance Criteria\n\n");
+        formatted.append("### Acceptance Criteria\n\n");
 
         for (int i = 0; i < criteria.size(); i++) {
-            formatted.append("*AC").append(i + 1).append(":* ");
-            formatted.append(criteria.get(i));
-            formatted.append("\n\n");
+            formatted.append("- **AC").append(i + 1).append(":** ");
+            formatted.append(criteria.get(i)).append("\n");
         }
 
         return formatted.toString();
@@ -386,26 +385,8 @@ public class JiraIssueTracker implements IssueTrackerPort {
         return "\n\nAI readiness (" + verdict + "): " + reason;
     }
 
-    private Map<String, Object> convertToADF(String text) {
-        if (text == null || text.isEmpty()) {
-            text = "No description provided";
-        }
-
-        return Map.of(
-                "type", "doc",
-                "version", 1,
-                "content", List.of(
-                        Map.of(
-                                "type", "paragraph",
-                                "content", List.of(
-                                        Map.of(
-                                                "type", "text",
-                                                "text", text
-                                        )
-                                )
-                        )
-                )
-        );
+    /** Descriptions ecrites en Markdown (analyse et mise en forme ci-dessus) -> ADF structure. */
+    private Map<String, Object> convertToADF(String markdown) {
+        return MarkdownAdf.toDocument(markdown);
     }
-
 }

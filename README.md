@@ -75,6 +75,7 @@ Le projet est un monorepo :
 
 ### Création Jira
 - 🏗️ Création complète Epic → Story (liée via `parent`) → Subtask.
+- 📝 Descriptions écrites en Markdown et converties en **ADF** (titres, gras, italique, listes, code en ligne et blocs de code) : rendu natif dans Jira, critères d'acceptation en liste.
 - 🎯 Projet cible **configurable par requête** (`projectKey`) ou projet par défaut.
 - ⚙️ Compatible projets **team-managed** (sans champ *priority*) via `jira.priority-enabled=false`.
 - 👀 **Mode prévisualisation** : générer la structure sans rien créer, l'ajuster, puis l'envoyer à Jira.

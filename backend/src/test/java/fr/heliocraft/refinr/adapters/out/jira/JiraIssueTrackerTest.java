@@ -430,4 +430,29 @@ class JiraIssueTrackerTest {
             assertTrue(mockWebServer.takeRequest().getBody().readUtf8().contains("{\"key\":\"TEST\"}"));
         }
     }
+
+    @Test
+    @DisplayName("Story description is sent as structured ADF: headings, bold, acceptance criteria list")
+    void storyDescriptionIsStructuredAdf() throws InterruptedException {
+        Story story = new Story();
+        story.setTitle("Export");
+        story.setAsA("user");
+        story.setIWant("an export");
+        story.setSoThat("I can share");
+        story.setDescription("Export **PDF** via `pdf-lib`");
+        story.setAcceptanceCriteria(List.of("Given a list, When I export, Then I get a PDF"));
+        mockWebServer.enqueue(jsonResponse("{\"key\":\"TEST-2\"}"));
+
+        jiraService.createStory(story, "TEST-1");
+
+        String body = mockWebServer.takeRequest().getBody().readUtf8();
+        assertTrue(body.contains("\"heading\""), body);
+        assertTrue(body.contains("\"bulletList\""), body);
+        assertTrue(body.contains("{\"type\":\"strong\"}"), body);
+        assertTrue(body.contains("{\"type\":\"code\"}"), body);
+        // Plus de balisage brut (wiki Jira ou Markdown) dans le texte
+        assertFalse(body.contains("h3."), body);
+        assertFalse(body.contains("*As a*"), body);
+        assertFalse(body.contains("**"), body);
+    }
 }
