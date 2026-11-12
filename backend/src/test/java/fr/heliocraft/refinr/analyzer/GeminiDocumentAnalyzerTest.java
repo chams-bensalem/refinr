@@ -1,6 +1,7 @@
 package fr.heliocraft.refinr.analyzer;
 
-import fr.heliocraft.refinr.model.Epic;
+import fr.heliocraft.refinr.domain.model.Epic;
+import fr.heliocraft.refinr.domain.model.Readiness;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -316,7 +317,7 @@ class GeminiDocumentAnalyzerTest {
             .addHeader("Content-Type", "application/json")
             .setResponseCode(200));
 
-        GeminiDocumentAnalyzer.Readiness verdict =
+        Readiness verdict =
             analyzer.reassessStory("Export PDF", "Exporter en PDF", "format A4 uniquement");
 
         assertTrue(verdict.aiReady());
@@ -335,7 +336,7 @@ class GeminiDocumentAnalyzerTest {
             .addHeader("Content-Type", "application/json")
             .setResponseCode(200));
 
-        GeminiDocumentAnalyzer.Readiness verdict = analyzer.reassessStory("Export PDF", "Exporter", "precision");
+        Readiness verdict = analyzer.reassessStory("Export PDF", "Exporter", "precision");
 
         assertFalse(verdict.aiReady());
         assertEquals("incertain", verdict.aiReadyReason());
@@ -395,7 +396,7 @@ class GeminiDocumentAnalyzerTest {
         GeminiDocumentAnalyzer split = analyzerWithLitellmVerdict();
         mockWebServer.enqueue(litellmVerdict(true, "unites, arrondi et exemples precises"));
 
-        GeminiDocumentAnalyzer.Readiness verdict = split.reassessStory("Formater une taille", "desc", "1500 -> '1.5 Ko'");
+        Readiness verdict = split.reassessStory("Formater une taille", "desc", "1500 -> '1.5 Ko'");
 
         assertTrue(verdict.aiReady());
         assertEquals("unites, arrondi et exemples precises", verdict.aiReadyReason());
@@ -429,7 +430,7 @@ class GeminiDocumentAnalyzerTest {
         mockWebServer.enqueue(new MockResponse().setResponseCode(503).setBody("{\"error\":\"overloaded\"}"));
         mockWebServer.enqueue(litellmVerdict(true, "unites et arrondi precises"));
 
-        GeminiDocumentAnalyzer.Readiness verdict = split.reassessStory("Formater une taille", "desc", "1500 -> '1.5 Ko'");
+        Readiness verdict = split.reassessStory("Formater une taille", "desc", "1500 -> '1.5 Ko'");
 
         assertTrue(verdict.aiReady());
         assertEquals(2, mockWebServer.getRequestCount());

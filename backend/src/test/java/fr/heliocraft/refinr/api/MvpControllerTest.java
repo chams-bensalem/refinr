@@ -3,7 +3,7 @@ package fr.heliocraft.refinr.api;
 import fr.heliocraft.refinr.analyzer.GeminiDocumentAnalyzer;
 import fr.heliocraft.refinr.confluence.ConfluenceService;
 import fr.heliocraft.refinr.jira.JiraService;
-import fr.heliocraft.refinr.model.*;
+import fr.heliocraft.refinr.domain.model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -255,7 +255,7 @@ class MvpControllerTest {
             "TEST-7", "Export PDF", "Exporter", List.of("backend", "validation-necessaire"));
         when(jiraService.getStoryForReview("TEST-7")).thenReturn(story);
         when(geminiAnalyzer.reassessStory("Export PDF", "Exporter", "format A4"))
-            .thenReturn(new GeminiDocumentAnalyzer.Readiness(true, "Perimetre clair"));
+            .thenReturn(new Readiness(true, "Perimetre clair"));
 
         mockMvc.perform(post("/api/v1/mvp/reassess-story")
                 .contentType(MediaType.APPLICATION_JSON)

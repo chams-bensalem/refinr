@@ -1,8 +1,8 @@
 package fr.heliocraft.refinr.analyzer;
 
-import fr.heliocraft.refinr.model.Epic;
-import fr.heliocraft.refinr.model.Story;
-import fr.heliocraft.refinr.model.Task;
+import fr.heliocraft.refinr.domain.model.Epic;
+import fr.heliocraft.refinr.domain.model.Story;
+import fr.heliocraft.refinr.domain.model.Task;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterEach;
@@ -54,8 +54,8 @@ class LlmResponseContractTest {
         assertEquals("Gestion des stocks", epic.getDescription());
         assertEquals("High", epic.getPriority());
         assertEquals(List.of("backend", "api"), epic.getLabels());
-        assertEquals("PROJ-1", epic.getJiraKey());
-        assertEquals("https://your-site.atlassian.net/browse/PROJ-1", epic.getJiraUrl());
+        assertEquals("PROJ-1", epic.getTrackerKey());
+        assertEquals("https://your-site.atlassian.net/browse/PROJ-1", epic.getTrackerUrl());
 
         Story story = epic.getStories().get(0);
         assertEquals("Developer", story.getAsA());
@@ -71,18 +71,18 @@ class LlmResponseContractTest {
         assertEquals(List.of("PROJ-0"), story.getDependencies());
         assertEquals(Boolean.TRUE, story.getAiReady());
         assertEquals("Perimetre clair", story.getAiReadyReason());
-        assertEquals("PROJ-2", story.getJiraKey());
-        assertEquals("https://your-site.atlassian.net/browse/PROJ-2", story.getJiraUrl());
-        assertEquals("PROJ-1", story.getEpicKey());
+        assertEquals("PROJ-2", story.getTrackerKey());
+        assertEquals("https://your-site.atlassian.net/browse/PROJ-2", story.getTrackerUrl());
+        assertEquals("PROJ-1", story.getEpicTrackerKey());
 
         Task task = story.getTasks().get(0);
         assertEquals("Create service", task.getTitle());
         assertEquals("Task description", task.getDescription());
         assertEquals(4, task.getEstimatedHours());
         assertEquals(List.of("backend"), task.getLabels());
-        assertEquals("PROJ-3", task.getJiraKey());
-        assertEquals("https://your-site.atlassian.net/browse/PROJ-3", task.getJiraUrl());
-        assertEquals("PROJ-2", task.getParentStoryKey());
+        assertEquals("PROJ-3", task.getTrackerKey());
+        assertEquals("https://your-site.atlassian.net/browse/PROJ-3", task.getTrackerUrl());
+        assertEquals("PROJ-2", task.getParentTrackerKey());
     }
 
     @Test

@@ -3,9 +3,9 @@ package fr.heliocraft.refinr.api;
 import fr.heliocraft.refinr.analyzer.GeminiDocumentAnalyzer;
 import fr.heliocraft.refinr.confluence.ConfluenceService;
 import fr.heliocraft.refinr.jira.JiraService;
-import fr.heliocraft.refinr.model.Epic;
-import fr.heliocraft.refinr.model.Story;
-import fr.heliocraft.refinr.model.Task;
+import fr.heliocraft.refinr.domain.model.Epic;
+import fr.heliocraft.refinr.domain.model.Story;
+import fr.heliocraft.refinr.domain.model.Task;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -107,8 +107,8 @@ class RestJsonContractTest {
         assertEquals("Gestion des stocks", epic.getDescription());
         assertEquals("High", epic.getPriority());
         assertEquals(List.of("backend", "api"), epic.getLabels());
-        assertEquals("PROJ-1", epic.getJiraKey());
-        assertEquals("https://your-site.atlassian.net/browse/PROJ-1", epic.getJiraUrl());
+        assertEquals("PROJ-1", epic.getTrackerKey());
+        assertEquals("https://your-site.atlassian.net/browse/PROJ-1", epic.getTrackerUrl());
 
         Story story = epic.getStories().get(0);
         assertEquals("Developer", story.getAsA());
@@ -124,18 +124,18 @@ class RestJsonContractTest {
         assertEquals(List.of("PROJ-0"), story.getDependencies());
         assertEquals(Boolean.TRUE, story.getAiReady());
         assertEquals("Perimetre clair", story.getAiReadyReason());
-        assertEquals("PROJ-2", story.getJiraKey());
-        assertEquals("https://your-site.atlassian.net/browse/PROJ-2", story.getJiraUrl());
-        assertEquals("PROJ-1", story.getEpicKey());
+        assertEquals("PROJ-2", story.getTrackerKey());
+        assertEquals("https://your-site.atlassian.net/browse/PROJ-2", story.getTrackerUrl());
+        assertEquals("PROJ-1", story.getEpicTrackerKey());
 
         Task task = story.getTasks().get(0);
         assertEquals("Create service", task.getTitle());
         assertEquals("Task description", task.getDescription());
         assertEquals(4, task.getEstimatedHours());
         assertEquals(List.of("backend"), task.getLabels());
-        assertEquals("PROJ-3", task.getJiraKey());
-        assertEquals("https://your-site.atlassian.net/browse/PROJ-3", task.getJiraUrl());
-        assertEquals("PROJ-2", task.getParentStoryKey());
+        assertEquals("PROJ-3", task.getTrackerKey());
+        assertEquals("https://your-site.atlassian.net/browse/PROJ-3", task.getTrackerUrl());
+        assertEquals("PROJ-2", task.getParentTrackerKey());
     }
 
     private static Epic fullEpic() {
@@ -144,9 +144,9 @@ class RestJsonContractTest {
         task.setDescription("Task description");
         task.setEstimatedHours(4);
         task.setLabels(List.of("backend"));
-        task.setJiraKey("PROJ-3");
-        task.setJiraUrl("https://your-site.atlassian.net/browse/PROJ-3");
-        task.setParentStoryKey("PROJ-2");
+        task.setTrackerKey("PROJ-3");
+        task.setTrackerUrl("https://your-site.atlassian.net/browse/PROJ-3");
+        task.setParentTrackerKey("PROJ-2");
 
         Story story = new Story();
         story.setAsA("Developer");
@@ -163,9 +163,9 @@ class RestJsonContractTest {
         story.setDependencies(List.of("PROJ-0"));
         story.setAiReady(true);
         story.setAiReadyReason("Perimetre clair");
-        story.setJiraKey("PROJ-2");
-        story.setJiraUrl("https://your-site.atlassian.net/browse/PROJ-2");
-        story.setEpicKey("PROJ-1");
+        story.setTrackerKey("PROJ-2");
+        story.setTrackerUrl("https://your-site.atlassian.net/browse/PROJ-2");
+        story.setEpicTrackerKey("PROJ-1");
 
         Epic epic = new Epic();
         epic.setName("Epic: Inventaire");
@@ -173,8 +173,8 @@ class RestJsonContractTest {
         epic.setPriority("High");
         epic.setLabels(List.of("backend", "api"));
         epic.setStories(List.of(story));
-        epic.setJiraKey("PROJ-1");
-        epic.setJiraUrl("https://your-site.atlassian.net/browse/PROJ-1");
+        epic.setTrackerKey("PROJ-1");
+        epic.setTrackerUrl("https://your-site.atlassian.net/browse/PROJ-1");
         return epic;
     }
 

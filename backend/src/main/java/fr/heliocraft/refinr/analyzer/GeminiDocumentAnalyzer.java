@@ -3,8 +3,10 @@ package fr.heliocraft.refinr.analyzer;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
-import fr.heliocraft.refinr.model.Epic;
-import fr.heliocraft.refinr.model.Story;
+import fr.heliocraft.refinr.domain.model.Epic;
+import fr.heliocraft.refinr.domain.model.Readiness;
+import fr.heliocraft.refinr.domain.model.Story;
+import fr.heliocraft.refinr.domain.service.ReadinessPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -165,9 +167,6 @@ public class GeminiDocumentAnalyzer {
         }
     }
 
-    /** Verdict de preparation d'une story pour un agent de code. */
-    public record Readiness(boolean aiReady, String aiReadyReason) {}
-
     /** Reevalue une seule story (deja creee dans Jira) avec la precision apportee par l'utilisateur. */
     public Readiness reassessStory(String summary, String description, String precision) {
         log.info("Reassessing story '{}' with the user's precision ({})", summary, isOllama() ? "Ollama" : "Gemini");
@@ -222,9 +221,9 @@ public class GeminiDocumentAnalyzer {
                     story.setAiReadyReason(verdict.aiReadyReason());
                 } catch (Exception e) {
                     log.warn("Readiness verdict unavailable for '{}': {}", story.getTitle(), e.getMessage());
-                    story.setAiReady(false);
-                    story.setAiReadyReason("verdict indisponible (" + e.getClass().getSimpleName()
-                            + ") : validation humaine necessaire");
+                    Readiness fallback = ReadinessPolicy.unavailable(e.getClass().getSimpleName());
+                    story.setAiReady(fallback.aiReady());
+                    story.setAiReadyReason(fallback.aiReadyReason());
                 }
             }
         }
@@ -329,9 +328,7 @@ public class GeminiDocumentAnalyzer {
         Map<String, Object> verdict = objectMapper.readValue(
                 cleaned.substring(start, end + 1), new TypeReference<Map<String, Object>>() {});
         // Seul un true explicite rend la story codable : "yes", absent ou null -> validation humaine
-        boolean ready = Boolean.TRUE.equals(verdict.get("aiReady"));
-        Object reason = verdict.get("aiReadyReason");
-        return new Readiness(ready, reason instanceof String text ? text : "");
+        return ReadinessPolicy.fromModelAnswer(verdict.get("aiReady"), verdict.get("aiReadyReason"));
     }
 
     private String buildAnalysisPrompt(String documentContent) {
@@ -526,7 +523,8 @@ public class GeminiDocumentAnalyzer {
                 cleaned = cleaned.substring(startIdx, endIdx + 1);
             }
 
-            List<Epic> epics = objectMapper.readValue(cleaned, new TypeReference<List<Epic>>() {});
+            List<Epic> epics = GeneratedBacklogMapper.toDomain(
+                    objectMapper.readValue(cleaned, new TypeReference<List<GeneratedEpic>>() {}));
 
             log.info("Successfully parsed {} epics from Gemini response", epics.size());
             return epics;

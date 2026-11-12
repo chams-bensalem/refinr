@@ -1,10 +1,11 @@
-package fr.heliocraft.refinr.model;
+package fr.heliocraft.refinr.analyzer;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Story {
+/** Forme JSON attendue dans la reponse du LLM (memes proprietes que le contrat REST, inconnues refusees). */
+public class GeneratedStory {
     // User Story format: As a <role>, I want <goal>, So that <benefit>
     
     @JsonProperty("asA")
@@ -26,7 +27,7 @@ public class Story {
 
     private String priority;
     private List<String> labels = new ArrayList<>();
-    private List<Task> tasks = new ArrayList<>();
+    private List<GeneratedTask> tasks = new ArrayList<>();
     private List<String> dependencies = new ArrayList<>();
     
     // Jira fields
@@ -34,7 +35,7 @@ public class Story {
     private String jiraUrl;
     private String epicKey;
     
-    public Story() {}
+    public GeneratedStory() {}
     
     // Getters and Setters
     @JsonProperty("asA")
@@ -123,11 +124,11 @@ public class Story {
         this.labels = labels;
     }
 
-    public List<Task> getTasks() {
+    public List<GeneratedTask> getTasks() {
         return tasks;
     }
 
-    public void setTasks(List<Task> tasks) {
+    public void setTasks(List<GeneratedTask> tasks) {
         this.tasks = tasks;
     }
 

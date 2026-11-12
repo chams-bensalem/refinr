@@ -1,8 +1,10 @@
 package fr.heliocraft.refinr.jira;
 
-import fr.heliocraft.refinr.model.Epic;
-import fr.heliocraft.refinr.model.Story;
-import fr.heliocraft.refinr.model.Task;
+import fr.heliocraft.refinr.domain.model.Epic;
+import fr.heliocraft.refinr.domain.model.Story;
+import fr.heliocraft.refinr.domain.model.Task;
+import fr.heliocraft.refinr.domain.service.LabelNormalizer;
+import fr.heliocraft.refinr.domain.service.ReadinessPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,16 +22,11 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 public class JiraService {
 
     private static final Logger log = LoggerFactory.getLogger(JiraService.class);
-
-    // Labels destines a alimenter un agent de code via JQL : labels = "ai-ready"
-    public static final String LABEL_AI_READY = "ai-ready";
-    public static final String LABEL_VALIDATION = "validation-necessaire";
 
     private final WebClient webClient;
     private final String projectKey;
@@ -82,7 +79,7 @@ public class JiraService {
         fields.put("description", convertToADF(epic.getDescription()));
         fields.put("issuetype", Map.of("name", "Epic"));
         putPriority(fields, epic.getPriority());
-        fields.put("labels", cleanLabels(epic.getLabels()));
+        fields.put("labels", LabelNormalizer.normalize(epic.getLabels()));
 
         Map<String, Object> requestBody = Map.of("fields", fields);
 
@@ -95,7 +92,7 @@ public class JiraService {
                     .block();
 
             String epicKey = (String) response.get("key");
-            epic.setJiraKey(epicKey);
+            epic.setTrackerKey(epicKey);
 
             log.info("Epic created successfully: {}", epicKey);
             return epicKey;
@@ -146,9 +143,9 @@ public class JiraService {
 //            fields.put("customfield_10016", story.getEstimatedStoryPoints());
 //        }
 
-        List<String> cleanedLabels = new ArrayList<>(cleanLabels(labels));
+        List<String> cleanedLabels = new ArrayList<>(LabelNormalizer.normalize(labels));
         // Seul un "true" explicite de l'analyse rend la story codable par l'agent : dans le doute, validation humaine
-        cleanedLabels.add(Boolean.TRUE.equals(story.getAiReady()) ? LABEL_AI_READY : LABEL_VALIDATION);
+        cleanedLabels.add(ReadinessPolicy.verdictLabel(story.getAiReady()));
         fields.put("labels", cleanedLabels);
 
         Map<String, Object> requestBody = Map.of("fields", fields);
@@ -162,8 +159,8 @@ public class JiraService {
                     .block();
 
             String storyKey = (String) response.get("key");
-            story.setJiraKey(storyKey);
-            story.setEpicKey(epicKey);
+            story.setTrackerKey(storyKey);
+            story.setEpicTrackerKey(epicKey);
 
             log.info("Story created successfully: {}", storyKey);
             return storyKey;
@@ -197,7 +194,7 @@ public class JiraService {
                 "description", convertToADF(task.getDescription() != null ? task.getDescription() : ""),
                 "issuetype", Map.of("name", "Subtask"),
                 "parent", Map.of("key", parentStoryKey),
-                "labels", cleanLabels(task.getLabels())  // ✅ BON
+                "labels", LabelNormalizer.normalize(task.getLabels())  // ✅ BON
         );
 
         Map<String, Object> requestBody = Map.of("fields", fields);
@@ -211,8 +208,8 @@ public class JiraService {
                     .block();
 
             String taskKey = (String) response.get("key");
-            task.setJiraKey(taskKey);
-            task.setParentStoryKey(parentStoryKey);
+            task.setTrackerKey(taskKey);
+            task.setParentTrackerKey(parentStoryKey);
 
             log.info("Task created successfully: {}", taskKey);
             return taskKey;
@@ -361,7 +358,7 @@ public class JiraService {
      * texte brut (images, tableaux, liens et mise en forme gardes) ; les autres labels sont conserves.
      */
     public void applyReassessment(StoryForReview story, String precision, boolean aiReady, String reason) {
-        String verdict = aiReady ? LABEL_AI_READY : LABEL_VALIDATION;
+        String verdict = ReadinessPolicy.verdictLabel(aiReady);
         String justification = reason != null && !reason.isBlank() ? reason : "non precise par l'analyse";
         List<Object> content = new ArrayList<>();
         if (story.descriptionAdf() != null && story.descriptionAdf().get("content") instanceof List<?> original) {
@@ -375,10 +372,7 @@ public class JiraService {
         description.put("type", "doc");
         description.put("version", 1);
         description.put("content", content);
-        List<String> labels = new ArrayList<>(story.labels().stream()
-                .filter(label -> !label.equals(LABEL_AI_READY) && !label.equals(LABEL_VALIDATION))
-                .toList());
-        labels.add(verdict);
+        List<String> labels = ReadinessPolicy.replaceVerdictLabel(story.labels(), aiReady);
 
         log.info("Applying reassessment to {}: {}", story.key(), verdict);
         try {
@@ -417,7 +411,7 @@ public class JiraService {
     }
 
     private String formatAiReadiness(Story story) {
-        String verdict = Boolean.TRUE.equals(story.getAiReady()) ? LABEL_AI_READY : LABEL_VALIDATION;
+        String verdict = ReadinessPolicy.verdictLabel(story.getAiReady());
         String reason = story.getAiReadyReason() != null ? story.getAiReadyReason() : "non evalue par l'analyse";
         return "\n\nAI readiness (" + verdict + "): " + reason;
     }
@@ -444,22 +438,4 @@ public class JiraService {
         );
     }
 
-
-    private List<String> cleanLabels(List<String> labels) {
-        if (labels == null || labels.isEmpty()) {
-            return List.of();
-        }
-
-        return labels.stream()
-            .map(label -> label
-                .replaceAll("\\s+", "-")  // Remplacer espaces par tirets
-                .replaceAll("[^a-zA-Z0-9-_]", "")  // Supprimer caractères spéciaux
-                .toLowerCase())  // Tout en minuscules
-            .filter(label -> !label.isEmpty())
-            // Labels de verdict reserves a createStory (aiReady explicite) : jamais repris de l'analyse,
-            // sinon un Epic ou une Subtask "AI Ready" serait pris pour une story codable par l'agent
-            .filter(label -> !label.equals(LABEL_AI_READY) && !label.equals(LABEL_VALIDATION))
-            .distinct()
-            .collect(Collectors.toList());
-    }
 }

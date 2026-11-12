@@ -32,7 +32,6 @@ class HexagonalArchitectureTest {
     private static final String ADAPTERS = ROOT + ".adapters..";
     private static final String CONFIG = ROOT + ".config..";
 
-    @ArchIgnore(reason = "active a l'etape 2 (creation du domaine)")
     @ArchTest
     static final ArchRule domain_depends_only_on_the_jdk = classes()
             .that().resideInAPackage(DOMAIN)
