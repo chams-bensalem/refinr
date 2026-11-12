@@ -9,8 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
+import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -68,10 +67,11 @@ public class JiraService {
     }
 
     @Retryable(
-        retryFor = {WebClientResponseException.TooManyRequests.class,
+        includes = {WebClientResponseException.TooManyRequests.class,
                     WebClientResponseException.InternalServerError.class},
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 1000, multiplier = 2)
+        maxRetries = 2,
+        delay = 1000,
+        multiplier = 2
     )
     public String createEpic(Epic epic, String project) {
         log.info("Creating Jira Epic: {}", epic.getName());
@@ -114,10 +114,11 @@ public class JiraService {
     }
 
     @Retryable(
-        retryFor = {WebClientResponseException.TooManyRequests.class,
+        includes = {WebClientResponseException.TooManyRequests.class,
                     WebClientResponseException.InternalServerError.class},
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 1000, multiplier = 2)
+        maxRetries = 2,
+        delay = 1000,
+        multiplier = 2
     )
     public String createStory(Story story, String epicKey, String project) {
         log.info("Creating Jira Story: {} under Epic: {}", story.getTitle(), epicKey);
@@ -181,10 +182,11 @@ public class JiraService {
     }
 
     @Retryable(
-        retryFor = {WebClientResponseException.TooManyRequests.class,
+        includes = {WebClientResponseException.TooManyRequests.class,
                     WebClientResponseException.InternalServerError.class},
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 1000, multiplier = 2)
+        maxRetries = 2,
+        delay = 1000,
+        multiplier = 2
     )
     public String createTask(Task task, String parentStoryKey, String project) {
         log.info("Creating Jira Task: {} under Story: {}", task.getTitle(), parentStoryKey);
