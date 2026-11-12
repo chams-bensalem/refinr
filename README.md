@@ -533,13 +533,14 @@ mvn test
 
 | Suite | Couverture |
 |---|---|
-| `LlmBacklogAnalyzerTest` | Prompt, parsing JSON, Ollama/Gemini, verdict LiteLLM, retry et timeout du verdict, réévaluation |
-| `JiraIssueTrackerTest` | Création Epic/Story/Subtask, labels, priorité, ADF, réévaluation, projet cible |
-| `ConfluenceDocumentSourceTest` | Lecture de page, erreurs 404/401, contenu vide, volumineux ou à caractères spéciaux |
-| `MvpControllerTest` | Endpoints, validation `projectKey`, réévaluation (409), gestion des erreurs |
+| `LlmBacklogAnalyzerTest` | Prompt, parsing JSON, Ollama/Gemini (modèle configurable, clé en en-tête), verdict d'une story, verdict LiteLLM, retry et timeout du verdict, réévaluation |
+| `JiraIssueTrackerTest`, `MarkdownAdfTest` | Création Epic/Story/Subtask, labels, priorité, story points, conversion Markdown → ADF, erreurs Jira, réévaluation, projet cible |
+| `ConfluenceDocumentSourceTest` | Lecture de page, erreurs 404/401, contenu vide, volumineux ou à caractères spéciaux, recherche typée et échappement CQL |
+| `MvpControllerTest`, `HealthCheckControllerTest` | Endpoints, validation `projectKey`, réponse partielle (207/502), verdict recalculé à la création, réévaluation (409), erreurs sans message brut |
 | `RestJsonContractTest`, `LlmResponseContractTest` | Contrat JSON figé de l'API REST et du parsing de la réponse LLM |
-| `CreateBacklogServiceTest`, `ReassessStoryServiceTest`, `domain.service.*Test` | Cas d'usage et règles métier, sans framework |
-| `ApplicationWiringTest` | Démarrage du contexte Spring, câblage des cas d'usage, comportement de retry |
+| `CreateBacklogServiceTest`, `CreateEditedBacklogServiceTest`, `ReassessStoryServiceTest`, `domain.service.*Test` | Cas d'usage et règles métier, sans framework |
+| `ApplicationWiringTest` | Démarrage du contexte Spring, câblage des cas d'usage, comportement de retry (tel que décrit plus haut) |
+| `ConfigurationDefaultsTest` | Valeurs par défaut identiques dans le code, la configuration d'exemple, `.env.example` et ce README |
 | `HexagonalArchitectureTest` | Règles d'architecture (ArchUnit) : domaine/application sans framework, sens des dépendances |
 | `FullFlowIntegrationTest` | Parcours complet Confluence → IA → Jira et pannes de chaque service |
 

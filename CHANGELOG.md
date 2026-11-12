@@ -44,8 +44,14 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   `unreachable`…) pour `/health`.
 
 ### Fixed
+- Frontend : page Results alignée sur la vraie réponse de l'API (plus de `undefined` / `NaN`, éléments non créés
+  affichés avec leur raison, lien inexistant vers le board retiré) ; redirection par `<Navigate>` au lieu d'un
+  `navigate()` pendant le rendu ; client API typé sur le contrat réel (message d'erreur et `correlationId` affichés).
+- Frontend : `npm run lint` fonctionne (dépendances ESLint déclarées, option `--ext` retirée).
 - README : description exacte des nouveaux essais. La création Jira n'a jamais été retentée (le README l'annonçait),
   seuls `429` et `500` le sont pour la lecture Confluence et l'analyse IA (pas tous les `5xx`).
 
 ### Removed
+- Frontend : mention « Powered by Gemini AI » et chiffres marketing inventés (90 % de temps gagné, 2 min, 100 %
+  de précision), bouton « View Demo » sans action.
 - Endpoint de debug `POST /api/v1/mvp/test-issue-types`.
