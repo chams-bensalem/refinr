@@ -8,6 +8,7 @@ import fr.heliocraft.refinr.application.port.in.ReassessStory;
 import fr.heliocraft.refinr.application.port.in.SearchDocuments;
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
+import fr.heliocraft.refinr.application.port.out.LlmPort;
 import fr.heliocraft.refinr.domain.model.Epic;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -26,8 +27,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Contexte Spring complet : cablage des cas d'usage sur les adaptateurs, et comportement de retry tel qu'il etait
- * avant le passage en hexagonal (caracterisation ; sa correction est prevue en phase 4).
+ * Contexte Spring complet : cablage des cas d'usage sur les adaptateurs, et comportement de retry (proxies Spring
+ * actifs) tel que decrit dans le README : lectures et analyse IA retentees, creation Jira jamais.
  */
 @SpringBootTest
 class ApplicationWiringTest {
@@ -39,6 +40,8 @@ class ApplicationWiringTest {
         server.start();
         registry.add("jira.base-url", () -> server.url("/").toString());
         registry.add("confluence.base-url", () -> server.url("/").toString());
+        registry.add("ai.provider", () -> "gemini");
+        registry.add("gemini.base-url", () -> server.url("/").toString());
     }
 
     @AfterAll
@@ -54,6 +57,9 @@ class ApplicationWiringTest {
 
     @Autowired
     private IssueTrackerPort issueTracker;
+
+    @Autowired
+    private LlmPort llm;
 
     @Test
     @DisplayName("Every use case is wired")
@@ -85,6 +91,54 @@ class ApplicationWiringTest {
         epic.setName("E");
 
         assertThrows(RuntimeException.class, () -> issueTracker.createEpic(epic, null));
+        assertEquals(1, server.getRequestCount() - before);
+    }
+
+    // Comportement documente dans le README (section « Nouveaux essais ») : chaque cas ci-dessous y figure.
+
+    @Test
+    @DisplayName("Reading a document is retried on HTTP 500, but not on 503")
+    void documentReadRetriesOnlyOn429And500() {
+        int before = server.getRequestCount();
+        server.enqueue(new MockResponse().setResponseCode(500));
+        server.enqueue(new MockResponse().setResponseCode(200).addHeader("Content-Type", "application/json")
+            .setBody("{\"body\":{\"storage\":{\"value\":\"ok\"}}}"));
+        assertEquals("ok", documentSource.getDocumentContent("42"));
+        assertEquals(2, server.getRequestCount() - before);
+
+        before = server.getRequestCount();
+        server.enqueue(new MockResponse().setResponseCode(503));
+        assertThrows(RuntimeException.class, () -> documentSource.getDocumentContent("42"));
+        assertEquals(1, server.getRequestCount() - before);
+    }
+
+    @Test
+    @DisplayName("Searching documents is not retried")
+    void documentSearchIsNotRetried() {
+        int before = server.getRequestCount();
+        server.enqueue(new MockResponse().setResponseCode(429));
+        assertThrows(RuntimeException.class, () -> documentSource.searchDocuments("SPACE", "t"));
+        assertEquals(1, server.getRequestCount() - before);
+    }
+
+    @Test
+    @DisplayName("The LLM analysis is retried on HTTP 429")
+    void llmAnalysisIsRetried() {
+        int before = server.getRequestCount();
+        server.enqueue(new MockResponse().setResponseCode(429));
+        server.enqueue(new MockResponse().setResponseCode(200).addHeader("Content-Type", "application/json")
+            .setBody("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"[]\"}]}}]}"));
+
+        assertEquals(List.of(), llm.analyzeDocument("cdc"));
+        assertEquals(2, server.getRequestCount() - before);
+    }
+
+    @Test
+    @DisplayName("A single-story verdict (create-jira, reassess-story) is not retried by Spring")
+    void storyVerdictIsNotRetried() {
+        int before = server.getRequestCount();
+        server.enqueue(new MockResponse().setResponseCode(429));
+        assertThrows(RuntimeException.class, () -> llm.reassessStory("S", "D", "P"));
         assertEquals(1, server.getRequestCount() - before);
     }
 }

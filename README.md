@@ -83,7 +83,17 @@ Le projet est un monorepo :
 - 👀 **Mode prévisualisation** : générer la structure sans rien créer, l'ajuster, puis l'envoyer à Jira.
 
 ### Fiabilité & observabilité
-- 🔄 **Retry automatique** avec backoff exponentiel sur les erreurs 429 / 5xx (Confluence, Jira, Gemini, LiteLLM).
+- 🔄 **Nouveaux essais ciblés** (lectures et appels IA uniquement) ; la création Jira n'est **jamais** rejouée, pour ne pas créer de doublons :
+
+  | Appel | Nouvel essai | Détail |
+  |---|---|---|
+  | Lecture d'une page Confluence | ✅ sur HTTP `429` et `500` | 2 nouveaux essais, après 1 s puis 2 s (`503` et autres erreurs : pas de nouvel essai) |
+  | Analyse IA du document (Gemini / Ollama) | ✅ sur HTTP `429` et `500` | idem : 2 nouveaux essais, 1 s puis 2 s |
+  | Verdict via LiteLLM (`ai.verdict.provider=litellm`) | ✅ sur `429`, `5xx` et proxy injoignable | 3 tentatives au total, pause `ai.verdict.retry-delay-ms` × n° de tentative, délai `ai.verdict.timeout-seconds` par tentative (pas de nouvel essai après un délai dépassé) |
+  | Verdict par Gemini / Ollama (`create-jira`, `reassess-story`) | ❌ | un échec ⇒ `validation-necessaire` (`create-jira`) ou erreur `500` (`reassess-story`) |
+  | Recherche Confluence | ❌ | |
+  | **Création Jira** (Epic, Story, Subtask) | ❌ | POST non idempotent : un échec est listé dans la réponse partielle (`created` / `failed`, statut `207` ou `502`), les autres éléments sont créés ; relancez seulement ce qui a échoué |
+  | Lecture / mise à jour Jira (`reassess-story`), health check | ❌ | |
 - ⏱️ Timeout borné sur le fournisseur de verdict (90 s par défaut).
 - 🩺 **Health check détaillé** : état de Confluence, Jira et du fournisseur IA (présence du modèle Ollama incluse).
 - 📊 **Logs JSON structurés** (Logstash) avec `correlationId` par requête.
