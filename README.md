@@ -99,7 +99,7 @@ Le projet est un monorepo :
 - 📊 **Logs JSON structurés** (Logstash) avec `correlationId` par requête.
 
 ### Interface web
-- 🏠 Page d'accueil, page **Analyze** (saisie de l'ID de page Confluence, suivi des étapes), page **Results** (compteurs Epics / Stories / Subtasks).
+- 🏠 Page d'accueil, page **Analyze** (saisie de l'ID de page Confluence, suivi des étapes), page **Results** (compteurs Epics / Stories / Subtasks, tickets créés et, en cas de création partielle, éléments non créés avec leur raison).
 - 🟢 Indicateurs d'état des services dans l'en-tête.
 
 ---
