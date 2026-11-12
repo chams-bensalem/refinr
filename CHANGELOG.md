@@ -13,6 +13,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 - `POST /api/v1/mvp/create-jira?projectKey=PROJ` : projet cible optionnel, validé comme pour `analyze-and-create`
   (`^[A-Z][A-Z0-9]{1,9}$`, `400` sinon) ; sans paramètre, le projet par défaut (`jira.project-key`).
 
+- Descriptions Jira : conversion Markdown → ADF (titres, gras, italique, listes à puces et numérotées, code en ligne,
+  blocs de code) au lieu d'un unique paragraphe de texte brut contenant du balisage wiki (`h3.`, `*…*`).
+
 ### Changed
 - `ai.provider` vaut `ollama` par défaut partout (code, configuration d'exemple, README) ; le code utilisait `gemini`.
 - Modèle Gemini configurable (`gemini.model`, défaut `gemini-2.5-flash`), utilisé par l'analyse et le health check ;
