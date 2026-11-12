@@ -315,6 +315,49 @@ class MvpControllerTest {
         }
     }
 
+    private static final String CREATE_BODY = "[{\"name\":\"E\",\"stories\":[{\"title\":\"S\",\"tasks\":[{\"title\":\"T\"}]}]}]";
+
+    @Test
+    @DisplayName("create-jira creates the issues in the optional projectKey")
+    void createJiraInRequestedProject() throws Exception {
+        when(jiraService.createEpic(any(Epic.class), any())).thenReturn("DEMO-1");
+        when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("DEMO-2");
+        when(jiraService.createSubtask(any(Task.class), anyString(), any())).thenReturn("DEMO-3");
+
+        mockMvc.perform(post("/api/v1/mvp/create-jira").param("projectKey", "DEMO")
+                .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
+                .andExpect(status().isOk());
+
+        verify(jiraService).createEpic(any(Epic.class), eq("DEMO"));
+        verify(jiraService).createStory(any(Story.class), eq("DEMO-1"), eq("DEMO"));
+        verify(jiraService).createSubtask(any(Task.class), eq("DEMO-2"), eq("DEMO"));
+    }
+
+    @Test
+    @DisplayName("create-jira without projectKey uses the default project")
+    void createJiraInDefaultProject() throws Exception {
+        when(jiraService.createEpic(any(Epic.class), any())).thenReturn("TEST-1");
+        when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("TEST-2");
+
+        mockMvc.perform(post("/api/v1/mvp/create-jira")
+                .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
+                .andExpect(status().isOk());
+
+        verify(jiraService).createEpic(any(Epic.class), isNull());
+    }
+
+    @Test
+    @DisplayName("create-jira rejects an invalid projectKey with 400, like analyze-and-create")
+    void createJiraRejectsInvalidProjectKey() throws Exception {
+        mockMvc.perform(post("/api/v1/mvp/create-jira").param("projectKey", "demo; drop")
+                .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("Invalid projectKey: demo; drop"));
+
+        verifyNoInteractions(jiraService);
+    }
+
     @Test
     @DisplayName("The debug endpoint test-issue-types no longer exists")
     void debugIssueTypesEndpointIsGone() throws Exception {
