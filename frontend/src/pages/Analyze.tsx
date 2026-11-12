@@ -89,7 +89,7 @@ export default function Analyze() {
                                     <div className="flex-shrink-0 w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center animate-pulse">
                                         <div className="w-2 h-2 bg-white rounded-full" />
                                     </div>
-                                    <span className="text-gray-700 font-medium">Analyzing with Gemini AI</span>
+                                    <span className="text-gray-700 font-medium">Analyzing with AI</span>
                                 </div>
                                 <div className="flex items-center space-x-3 text-sm">
                                     <div className="flex-shrink-0 w-6 h-6 bg-gray-300 rounded-full" />
@@ -156,7 +156,7 @@ export default function Analyze() {
                                 </div>
                                 <div className="flex items-start">
                                     <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5 mr-2 flex-shrink-0" />
-                                    <span>AI analysis with Gemini</span>
+                                    <span>AI analysis of the document</span>
                                 </div>
                                 <div className="flex items-start">
                                     <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5 mr-2 flex-shrink-0" />
