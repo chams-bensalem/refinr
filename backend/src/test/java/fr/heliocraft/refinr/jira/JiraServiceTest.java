@@ -1,8 +1,9 @@
 package fr.heliocraft.refinr.jira;
 
-import fr.heliocraft.refinr.model.Epic;
-import fr.heliocraft.refinr.model.Story;
-import fr.heliocraft.refinr.model.Task;
+import fr.heliocraft.refinr.domain.model.Epic;
+import fr.heliocraft.refinr.domain.model.Readiness;
+import fr.heliocraft.refinr.domain.model.Story;
+import fr.heliocraft.refinr.domain.model.Task;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -63,7 +64,7 @@ class JiraServiceTest {
 
         // Then
         assertEquals("TEST-1", epicKey);
-        assertEquals("TEST-1", epic.getJiraKey());
+        assertEquals("TEST-1", epic.getTrackerKey());
 
         // Verify request
         RecordedRequest request = mockWebServer.takeRequest();

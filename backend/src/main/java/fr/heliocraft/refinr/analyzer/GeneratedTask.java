@@ -1,11 +1,12 @@
-package fr.heliocraft.refinr.model;
+package fr.heliocraft.refinr.analyzer;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class Task {
+/** Forme JSON attendue dans la reponse du LLM (memes proprietes que le contrat REST, inconnues refusees). */
+public class GeneratedTask {
     private String title;
     private String description;
     
@@ -24,7 +25,7 @@ public class Task {
     private String parentStoryKey;
     
     // Constructors
-    public Task() {}
+    public GeneratedTask() {}
     
     // Getters and Setters
     public String getTitle() {

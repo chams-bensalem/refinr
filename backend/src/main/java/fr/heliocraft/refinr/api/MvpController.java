@@ -1,9 +1,13 @@
 package fr.heliocraft.refinr.api;
 
+import fr.heliocraft.refinr.adapters.in.rest.RestBacklogMapper;
+import fr.heliocraft.refinr.adapters.in.rest.dto.EpicDto;
 import fr.heliocraft.refinr.analyzer.GeminiDocumentAnalyzer;
 import fr.heliocraft.refinr.confluence.ConfluenceService;
+import fr.heliocraft.refinr.domain.model.Epic;
+import fr.heliocraft.refinr.domain.model.Readiness;
+import fr.heliocraft.refinr.domain.service.ReadinessPolicy;
 import fr.heliocraft.refinr.jira.JiraService;
-import fr.heliocraft.refinr.model.Epic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -75,7 +79,7 @@ public class MvpController {
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "Successfully created " + epics.size() + " epics with stories and tasks",
-                    "epics", epics
+                    "epics", RestBacklogMapper.toDto(epics)
             ));
             
         } catch (Exception e) {
@@ -100,7 +104,7 @@ public class MvpController {
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "Preview generated successfully",
-                    "epics", epics
+                    "epics", RestBacklogMapper.toDto(epics)
             ));
             
         } catch (Exception e) {
@@ -113,10 +117,11 @@ public class MvpController {
     }
 
     @PostMapping("/create-jira")
-    public ResponseEntity<Map<String, Object>> createJira(@RequestBody List<Epic> epics) {
-        log.info("Received request to create {} epics in Jira", epics.size());
+    public ResponseEntity<Map<String, Object>> createJira(@RequestBody List<EpicDto> request) {
+        log.info("Received request to create {} epics in Jira", request.size());
 
         try {
+            List<Epic> epics = RestBacklogMapper.toDomain(request);
             jiraService.createFullHierarchy(epics);
             
             return ResponseEntity.ok(Map.of(
@@ -152,14 +157,14 @@ public class MvpController {
         try {
             JiraService.StoryForReview story = jiraService.getStoryForReview(issueKey);
             // Seules les stories en attente de validation sont reevaluees : une story ai-ready ne regresse pas ici
-            if (!story.labels().contains(JiraService.LABEL_VALIDATION)) {
+            if (!ReadinessPolicy.isAwaitingValidation(story.labels())) {
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
                         "success", false,
                         "error", "Issue " + issueKey + " is not awaiting validation (label "
-                                + JiraService.LABEL_VALIDATION + " absent)"
+                                + ReadinessPolicy.LABEL_VALIDATION + " absent)"
                 ));
             }
-            GeminiDocumentAnalyzer.Readiness verdict =
+            Readiness verdict =
                     documentAnalyzer.reassessStory(story.summary(), story.description(), precision);
             jiraService.applyReassessment(story, precision, verdict.aiReady(), verdict.aiReadyReason());
             return ResponseEntity.ok(Map.of(

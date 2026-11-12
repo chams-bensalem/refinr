@@ -1,18 +1,19 @@
-package fr.heliocraft.refinr.model;
+package fr.heliocraft.refinr.adapters.in.rest.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class Epic {
+/** Contrat JSON de l'API REST (noms de proprietes figes, cf. contract/analyze-preview-response.json). */
+public class EpicDto {
     private String name;
     private String description;
     private String priority;
     private List<String> labels = new ArrayList<>();
     
     @JsonProperty("stories")
-    private List<Story> stories = new ArrayList<>();
+    private List<StoryDto> stories = new ArrayList<>();
     
     @JsonProperty("jiraKey")
     private String jiraKey;
@@ -21,7 +22,7 @@ public class Epic {
     private String jiraUrl;
     
     // Constructors
-    public Epic() {}
+    public EpicDto() {}
     
     // Getters and Setters
     public String getName() {
@@ -56,11 +57,11 @@ public class Epic {
         this.labels = labels;
     }
 
-    public List<Story> getStories() {
+    public List<StoryDto> getStories() {
         return stories;
     }
 
-    public void setStories(List<Story> stories) {
+    public void setStories(List<StoryDto> stories) {
         this.stories = stories;
     }
 
