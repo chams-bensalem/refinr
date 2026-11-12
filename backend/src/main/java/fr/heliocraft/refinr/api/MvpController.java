@@ -1,6 +1,5 @@
 package fr.heliocraft.refinr.api;
 
-import fr.heliocraft.refinr.analyzer.DocumentAnalyzer;
 import fr.heliocraft.refinr.analyzer.GeminiDocumentAnalyzer;
 import fr.heliocraft.refinr.confluence.ConfluenceService;
 import fr.heliocraft.refinr.jira.JiraService;
@@ -39,13 +38,11 @@ public class MvpController {
 
     private final ConfluenceService confluenceService;
     private final GeminiDocumentAnalyzer documentAnalyzer;
-    //private final DocumentAnalyzer documentAnalyzer;
     private final JiraService jiraService;
 
     public MvpController(
             ConfluenceService confluenceService,
             GeminiDocumentAnalyzer documentAnalyzer,
-            //DocumentAnalyzer documentAnalyzer,
             JiraService jiraService) {
         this.confluenceService = confluenceService;
         this.documentAnalyzer = documentAnalyzer;

@@ -6,10 +6,10 @@
 
 Epics · User Stories · Sous-tâches · Critères d'acceptation · Story points · Verdict « prêt pour un agent de code »
 
-![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2-6DB33F?logo=springboot&logoColor=white)
+![Java](https://img.shields.io/badge/Java-25-ED8B00?logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1-6DB33F?logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
-![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
 ![Ollama](https://img.shields.io/badge/Ollama-local-000000?logo=ollama&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Gemini-2.5%20Flash-4285F4?logo=googlegemini&logoColor=white)
 ![Jira](https://img.shields.io/badge/Jira-Cloud-0052CC?logo=jira&logoColor=white)
@@ -52,7 +52,7 @@ Le projet est un monorepo :
 
 | Dossier | Rôle | Stack |
 |---|---|---|
-| [`backend/`](backend) | API backend | Java 21 · Spring Boot 3.2 · WebClient · Spring Retry |
+| [`backend/`](backend) | API backend | Java 25 · Spring Boot 4.1 · WebClient · Spring Resilience (`@Retryable`) |
 | [`frontend/`](frontend) | Interface web | React 18 · TypeScript · Vite · Tailwind · TanStack Query |
 
 ---
@@ -149,8 +149,7 @@ refinr/
         │   │   │   ├── MvpController.java           # Endpoints /api/v1/mvp/*
         │   │   │   └── HealthCheckController.java   # Santé détaillée /api/v1/health
         │   │   ├── analyzer/
-        │   │   │   ├── GeminiDocumentAnalyzer.java  # Analyse IA (Ollama/Gemini) + verdict (LiteLLM/Ollama/Gemini)
-        │   │   │   └── DocumentAnalyzer.java        # Ancien analyseur Ollama (non utilisé par l'API)
+        │   │   │   └── GeminiDocumentAnalyzer.java  # Analyse IA (Ollama/Gemini) + verdict (LiteLLM/Ollama/Gemini)
         │   │   ├── confluence/ConfluenceService.java
         │   │   ├── jira/JiraService.java            # Création hiérarchie, labels, ADF, réévaluation
         │   │   ├── model/                           # Epic, Story, Task
@@ -171,7 +170,7 @@ refinr/
 
 | Outil | Version | Usage |
 |---|---|---|
-| **JDK** | 21+ | Backend |
+| **JDK** | 25 | Backend |
 | **Maven** | 3.9+ | Build backend |
 | **Node.js** + npm | 18+ | Frontend |
 | **Ollama** | récent | Analyse IA locale (fournisseur par défaut) |

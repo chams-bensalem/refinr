@@ -6,8 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
+import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -46,10 +45,11 @@ public class ConfluenceService {
     }
 
     @Retryable(
-        retryFor = {WebClientResponseException.TooManyRequests.class,
+        includes = {WebClientResponseException.TooManyRequests.class,
                     WebClientResponseException.InternalServerError.class},
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 1000, multiplier = 2)
+        maxRetries = 2,
+        delay = 1000,
+        multiplier = 2
     )
     public String getPageContent(String pageId) {
         log.info("Reading Confluence page: {}", pageId);

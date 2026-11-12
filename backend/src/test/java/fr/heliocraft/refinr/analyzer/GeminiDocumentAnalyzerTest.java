@@ -353,7 +353,7 @@ class GeminiDocumentAnalyzerTest {
             + "\"acceptanceCriteria\":[\"Given 1500, Then '1.5 Ko'\"],\"aiReady\":" + aiReady
             + ",\"aiReadyReason\":\"avis du modele local\",\"tasks\":[]}]}]";
         return new MockResponse()
-            .setBody("{\"response\":" + com.fasterxml.jackson.databind.node.TextNode.valueOf(epics) + "}")
+            .setBody("{\"response\":" + tools.jackson.databind.node.StringNode.valueOf(epics) + "}")
             .addHeader("Content-Type", "application/json")
             .setResponseCode(200);
     }
@@ -362,7 +362,7 @@ class GeminiDocumentAnalyzerTest {
         String content = "{\"aiReady\": " + aiReady + ", \"aiReadyReason\": \"" + reason + "\"}";
         return new MockResponse()
             .setBody("{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":"
-                + com.fasterxml.jackson.databind.node.TextNode.valueOf(content) + "}}]}")
+                + tools.jackson.databind.node.StringNode.valueOf(content) + "}}]}")
             .addHeader("Content-Type", "application/json")
             .setResponseCode(200);
     }

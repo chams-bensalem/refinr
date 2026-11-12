@@ -1,7 +1,8 @@
 package fr.heliocraft.refinr.analyzer;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import fr.heliocraft.refinr.model.Epic;
 import fr.heliocraft.refinr.model.Story;
 import org.slf4j.Logger;
@@ -11,8 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
+import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
@@ -72,7 +72,7 @@ public class GeminiDocumentAnalyzer {
             @Value("${ai.verdict.retry-delay-ms:2000}") long verdictRetryDelayMs,
             @Value("${ai.verdict.timeout-seconds:90}") long verdictTimeoutSeconds) {
         this.verdictTimeout = Duration.ofSeconds(verdictTimeoutSeconds);
-        this.objectMapper = new ObjectMapper();
+        this.objectMapper = JsonMapper.builderWithJackson2Defaults().build();
         this.apiKey = apiKey;
         this.provider = provider;
         this.ollamaModel = ollamaModel;
@@ -114,7 +114,7 @@ public class GeminiDocumentAnalyzer {
     // Constructor for testing a separate verdict provider (the WebClient serves every provider)
     GeminiDocumentAnalyzer(WebClient webClient, String apiKey, String provider, String ollamaModel,
                            String verdictProvider, String verdictModel, String verdictApiKey) {
-        this.objectMapper = new ObjectMapper();
+        this.objectMapper = JsonMapper.builderWithJackson2Defaults().build();
         this.apiKey = apiKey;
         this.provider = provider;
         this.ollamaModel = ollamaModel;
@@ -139,10 +139,11 @@ public class GeminiDocumentAnalyzer {
 
 
     @Retryable(
-        retryFor = {WebClientResponseException.TooManyRequests.class,
+        includes = {WebClientResponseException.TooManyRequests.class,
                     WebClientResponseException.InternalServerError.class},
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 1000, multiplier = 2)
+        maxRetries = 2,
+        delay = 1000,
+        multiplier = 2
     )
     public List<Epic> analyzeDocument(String documentContent) {
         log.info("Analyzing document with {}...", isOllama() ? "Ollama" : "Gemini");
