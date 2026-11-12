@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { analyzeAndCreate } from '../api/client';
+import { analyzeAndCreate, ApiError } from '../api/client';
 import { Play, CheckCircle, Loader2, AlertCircle, FileText, Sparkles } from 'lucide-react';
 
 export default function Analyze() {
@@ -48,7 +48,10 @@ export default function Analyze() {
                             <div className="ml-3 flex-1">
                                 <h3 className="text-sm font-medium text-red-800">Analysis Failed</h3>
                                 <div className="mt-2 text-sm text-red-700">
-                                    <p>{(mutation.error as Error).message || 'Failed to analyze document. Please check your Confluence permissions and try again.'}</p>
+                                    <p>{mutation.error.message || 'Failed to analyze document. Please check your Confluence permissions and try again.'}</p>
+                                    {mutation.error instanceof ApiError && mutation.error.correlationId && (
+                                        <p className="mt-1 text-xs text-red-500">Reference: {mutation.error.correlationId}</p>
+                                    )}
                                 </div>
                                 <div className="mt-4">
                                     <button
