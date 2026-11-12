@@ -1,0 +1,53 @@
+[
+  {
+    "name": "Epic: Inventaire",
+    "description": "Gestion des stocks",
+    "priority": "High",
+    "labels": [
+      "backend",
+      "api"
+    ],
+    "stories": [
+      {
+        "title": "Track Stock",
+        "description": "Story description",
+        "acceptanceCriteria": [
+          "AC1",
+          "AC2"
+        ],
+        "storyPoints": 3,
+        "priority": "Medium",
+        "labels": [
+          "api"
+        ],
+        "tasks": [
+          {
+            "title": "Create service",
+            "description": "Task description",
+            "labels": [
+              "backend"
+            ],
+            "estimatedHours": 4,
+            "jiraKey": "PROJ-3",
+            "jiraUrl": "https://your-site.atlassian.net/browse/PROJ-3",
+            "parentStoryKey": "PROJ-2"
+          }
+        ],
+        "dependencies": [
+          "PROJ-0"
+        ],
+        "jiraKey": "PROJ-2",
+        "jiraUrl": "https://your-site.atlassian.net/browse/PROJ-2",
+        "epicKey": "PROJ-1",
+        "asA": "Developer",
+        "iWant": "track stock levels",
+        "soThat": "avoid stock-outs",
+        "estimatedStoryPoints": 5,
+        "aiReady": true,
+        "aiReadyReason": "Perimetre clair"
+      }
+    ],
+    "jiraKey": "PROJ-1",
+    "jiraUrl": "https://your-site.atlassian.net/browse/PROJ-1"
+  }
+]
