@@ -15,14 +15,16 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ### Changed — contrat REST
 - `analyze-preview`, `analyze-and-create`, `reassess-story` : `502` (message générique) quand la sortie de l'IA est
-  inexploitable — non conforme au schéma JSON même après relances, ou tronquée par la limite de tokens (auparavant `500`).
-  Un fournisseur indisponible reste un `500`.
+  inexploitable — non conforme au schéma JSON même après relances, ou tronquée par la limite de tokens — et quand le
+  fournisseur IA est indisponible après les nouveaux essais (injoignable, clé refusée, quota, délai) ; auparavant `500`.
+- `analyze-preview`, `analyze-and-create` : `400` explicite (« The document is empty or contains no text to analyze »)
+  quand le document est vide ou sans texte utile (balises vides, images seules), sans appel à l'IA.
 - `GET /api/v1/health` : `services.ai` (fournisseur d'analyse) indique `provider` = `anthropic`, `google` ou
   `openai-compatible` ; `services.aiVerdict` apparaît quand un fournisseur de verdict distinct est configuré.
   Réponse mise en cache 45 s (`refinr.health.cache-ttl`).
 
 ### Added
-- Clients `anthropic` (API Messages, sans streaming), `google` (Gemini) et `openai-compatible` (OpenAI, DeepSeek,
+- Clients `anthropic` (API Messages, sans streaming ; non testé en conditions réelles), `google` (Gemini) et `openai-compatible` (OpenAI, DeepSeek,
   Mistral, Groq, OpenRouter, Ollama, LiteLLM, vLLM…), avec le mode JSON natif de chaque fournisseur.
 - Sorties IA validées par JSON Schema (`backend/src/main/resources/llm/schemas`) ; sortie invalide ⇒ relance avec la
   liste des erreurs (`refinr.llm.max-repair-attempts`, 2), puis `502`. Sortie tronquée (`max_tokens`, `MAX_TOKENS`,

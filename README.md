@@ -60,8 +60,9 @@ Le projet est un monorepo :
 ## 🚀 Fonctionnalités
 
 ### Analyse IA du cahier des charges
-- 🔌 **Fournisseurs au choix**, configurés séparément pour l'analyse et le verdict : `anthropic` (Claude), `google` (Gemini) ou `openai-compatible` (OpenAI, DeepSeek, Mistral, Groq, OpenRouter, Ollama, LiteLLM, vLLM…).
-- 📐 **Sortie validée par JSON Schema** (mode JSON natif du fournisseur quand il existe) ; sortie invalide ⇒ jusqu'à 2 relances avec la liste des erreurs, puis erreur `502` propre. Sortie tronquée par la limite de tokens ⇒ erreur explicite, sans relance.
+- 🔌 **Fournisseurs au choix**, configurés séparément pour l'analyse et le verdict : `anthropic` (Claude — ⚠️ *non testé en conditions réelles* : seuls des tests sur serveur HTTP simulé existent, aucun appel à l'API Anthropic n'a encore été fait), `google` (Gemini) ou `openai-compatible` (OpenAI, DeepSeek, Mistral, Groq, OpenRouter, Ollama, LiteLLM, vLLM…).
+- 📐 **Sortie validée par JSON Schema** (mode JSON natif du fournisseur quand il existe) ; sortie invalide ⇒ jusqu'à 2 relances avec la liste des erreurs, puis erreur `502` propre. Sortie tronquée par la limite de tokens ⇒ erreur explicite, sans relance. Fournisseur indisponible (après les nouveaux essais) ⇒ `502`.
+- 🚫 **Document vide refusé** : une page sans texte utile (vide, balises vides, images seules) donne un `400` explicite, sans appel à l'IA.
 - 📖 **Lecture Confluence** : récupération du contenu d'une page via son ID (format *storage*) et recherche de pages par espace + titre (CQL).
 - 🧠 **Découpage Scrum proportionné** : 1 Epic pour un besoin court, un Epic par module pour un cahier des charges complet — sans jamais inventer de fonctionnalités absentes du document.
 - 📝 **User stories normalisées** : format *As a / I want / So that*, titre, description.
@@ -201,7 +202,7 @@ refinr/
 - Un **token API Atlassian** : <https://id.atlassian.com/manage-profile/security/api-tokens>.
 - Les droits de **lecture** sur l'espace Confluence et de **création de tickets** dans le projet Jira.
 - Le projet Jira doit proposer les types de tickets **`Epic`**, **`Story`** et **`Subtask`**.
-- *(Fournisseur `google`)* une clé **Google AI Studio** : <https://aistudio.google.com/apikey> ; *(fournisseur `anthropic`)* une clé API Anthropic.
+- *(Fournisseur `google`)* une clé **Google AI Studio** : <https://aistudio.google.com/apikey> ; *(fournisseur `anthropic`, non testé en conditions réelles)* une clé API Anthropic.
 
 ### Matériel (mode Ollama)
 
@@ -493,7 +494,8 @@ Base URL : `http://localhost:8080/api/v1`
 |---|---|---|
 | `200` | Tous les tickets ont été créés | `true` |
 | `207` | Création partielle : certains tickets créés, d'autres non | `false` |
-| `502` | Aucun ticket n'a pu être créé, ou sortie IA inexploitable (invalide après relances, ou tronquée) | `false` |
+| `400` | `projectKey` invalide, ou document vide / sans texte à analyser (`analyze-and-create`, sans appel à l'IA) | `false` |
+| `502` | Aucun ticket n'a pu être créé, sortie IA inexploitable (invalide après relances, ou tronquée), ou fournisseur IA indisponible | `false` |
 
 Un échec n'interrompt pas la création : l'élément est listé dans `failed` (avec une raison : statut HTTP et
 erreurs de validation de Jira), ses enfants aussi (`Not created: parent … failed`), et les éléments suivants sont créés.
@@ -573,7 +575,7 @@ mvn test
 | `LlmConfigurationTest` | Défauts par fournisseur, erreurs de configuration au démarrage, refus des anciennes clés |
 | `JiraIssueTrackerTest`, `MarkdownAdfTest` | Création Epic/Story/Subtask, labels, priorité, story points, conversion Markdown → ADF, erreurs Jira, réévaluation, projet cible |
 | `ConfluenceDocumentSourceTest` | Lecture de page, erreurs 404/401, contenu vide, volumineux ou à caractères spéciaux, recherche typée et échappement CQL |
-| `MvpControllerTest`, `HealthCheckControllerTest`, `CheckHealthServiceTest` | Endpoints, validation `projectKey`, réponse partielle (207/502), sortie IA inexploitable (502), verdict recalculé à la création, réévaluation (409), erreurs sans message brut, health check en cache |
+| `MvpControllerTest`, `HealthCheckControllerTest`, `CheckHealthServiceTest` | Endpoints, validation `projectKey`, réponse partielle (207/502), sortie IA inexploitable et fournisseur indisponible (502, y compris `reassess-story`), document vide (400 sans appel IA), verdict recalculé à la création, réévaluation (409), erreurs sans message brut, health check en cache |
 | `RestJsonContractTest`, `LlmResponseContractTest` | Contrat JSON figé de l'API REST et du parsing de la réponse LLM |
 | `CreateBacklogServiceTest`, `CreateEditedBacklogServiceTest`, `ReassessStoryServiceTest`, `domain.service.*Test` | Cas d'usage et règles métier, sans framework |
 | `ApplicationWiringTest` | Démarrage du contexte Spring, câblage des cas d'usage, comportement de retry (tel que décrit plus haut) |
@@ -599,6 +601,8 @@ Les appels HTTP externes sont simulés avec **OkHttp MockWebServer** : aucun acc
 | `issuetype … invalid` | Types `Epic` / `Story` / `Subtask` absents | Vérifier la configuration du projet Jira |
 | `502` *did not produce a valid result* | Sortie IA non conforme au schéma, même après relances | Utiliser un modèle plus capable ; `json-mode=json_schema` si le fournisseur le permet |
 | `502` *output was truncated* | Limite de tokens atteinte | Augmenter `refinr.llm.analysis.max-output-tokens` |
+| `502` *The AI provider is unavailable* | Fournisseur injoignable, clé refusée, quota épuisé ou délai dépassé (après les nouveaux essais) | Voir `GET /api/v1/health` et les logs (`correlationId`) |
+| `400` *The document is empty or contains no text to analyze* | Page Confluence vide, non publiée ou sans texte (images seules) | Publier le contenu de la page, puis relancer |
 | Toutes les stories en `validation-necessaire` | Fournisseur de verdict injoignable | Vérifier `LLM_VERDICT_BASE_URL` / `LLM_VERDICT_API_KEY` ou vider `LLM_VERDICT_PROVIDER` |
 | `git fetch` : *HTTP Basic: Access denied* | Token GitLab expiré | Recréer un Personal Access Token ou passer en SSH |
 
