@@ -1,6 +1,5 @@
-package fr.heliocraft.refinr.api;
+package fr.heliocraft.refinr.adapters.in.rest;
 
-import fr.heliocraft.refinr.adapters.in.rest.RestBacklogMapper;
 import fr.heliocraft.refinr.adapters.in.rest.dto.EpicDto;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.CreateBacklog;

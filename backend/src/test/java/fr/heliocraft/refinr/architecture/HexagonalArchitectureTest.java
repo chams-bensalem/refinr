@@ -4,7 +4,6 @@ import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaMember;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
-import com.tngtech.archunit.junit.ArchIgnore;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
@@ -44,7 +43,6 @@ class HexagonalArchitectureTest {
             .should().onlyDependOnClassesThat().resideInAnyPackage("java..", "org.slf4j..", DOMAIN, APPLICATION)
             .because("l'application ne connait que le domaine et ses ports (SLF4J autorise : simple facade de logs)");
 
-    @ArchIgnore(reason = "active a l'etape 5 (adaptateur REST)")
     @ArchTest
     static final ArchRule dependencies_point_inwards = layeredArchitecture()
             .consideringOnlyDependenciesInLayers()
@@ -57,7 +55,6 @@ class HexagonalArchitectureTest {
             .whereLayer("Application").mayOnlyBeAccessedByLayers("Adapters", "Config")
             .whereLayer("Domain").mayOnlyBeAccessedByLayers("Application", "Adapters", "Config");
 
-    @ArchIgnore(reason = "active a l'etape 5 (adaptateur REST)")
     @ArchTest
     static final ArchRule inbound_adapters_do_not_use_outbound_adapters = noClasses()
             .that().resideInAPackage(ROOT + ".adapters.in..")
