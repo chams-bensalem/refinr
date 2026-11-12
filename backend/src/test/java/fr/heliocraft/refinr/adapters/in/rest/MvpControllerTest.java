@@ -278,15 +278,30 @@ class MvpControllerTest {
     }
 
     @Test
-    @DisplayName("Confluence search answers 400 on invalid input")
+    @DisplayName("Confluence search answers 400 on invalid input, without calling the document source")
     void searchRejectsInvalidInput() throws Exception {
-        when(confluenceService.searchDocuments(any(), any()))
-            .thenThrow(new IllegalArgumentException("Invalid spaceKey"));
-
         mockMvc.perform(get("/api/v1/mvp/confluence/search").param("spaceKey", "SPACE OR x").param("title", "t"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error").value("Invalid spaceKey"));
+        mockMvc.perform(get("/api/v1/mvp/confluence/search").param("spaceKey", "SPACE").param("title", "  "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("title is required"));
+
+        verifyNoInteractions(confluenceService);
+    }
+
+    @Test
+    @DisplayName("An IllegalArgumentException from a library is a 500 with a generic message, never a 400 echoing it")
+    void libraryIllegalArgumentIsNotEchoed() throws Exception {
+        when(confluenceService.searchDocuments(any(), any()))
+            .thenThrow(new IllegalArgumentException("Illegal character in query at index 42: https://internal.example.net"));
+
+        String body = mockMvc.perform(get("/api/v1/mvp/confluence/search").param("spaceKey", "SPACE").param("title", "t"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.error").value("Failed to search the documents"))
+                .andReturn().getResponse().getContentAsString();
+        assertFalse(body.contains("internal.example.net"), body);
     }
 
     @Test

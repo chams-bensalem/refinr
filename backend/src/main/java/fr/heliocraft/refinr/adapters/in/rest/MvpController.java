@@ -4,6 +4,7 @@ import fr.heliocraft.refinr.adapters.in.rest.dto.EpicDto;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
+import fr.heliocraft.refinr.application.port.in.InvalidRequestException;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
 import fr.heliocraft.refinr.application.port.in.SearchDocuments;
@@ -192,8 +193,8 @@ public class MvpController {
                     "results", results
             ));
 
-        } catch (IllegalArgumentException e) {
-            // Message de validation produit par l'application (sans donnee externe) : renvoye tel quel
+        } catch (InvalidRequestException e) {
+            // Message ecrit par le cas d'usage (sans donnee technique) : renvoye tel quel
             return ResponseEntity.badRequest().body(ErrorResponses.error(e.getMessage()));
         } catch (Exception e) {
             log.error("Error searching Confluence", e);
