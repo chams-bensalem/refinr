@@ -6,6 +6,10 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 ## [Unreleased]
 
 ### Changed — contrat REST
+- `create-jira` : le serveur **recalcule** le verdict `ai-ready` de chaque story sur son contenu final (le contenu a pu
+  être modifié depuis l'aperçu) ; les champs `aiReady` et `aiReadyReason` envoyés par le client sont **ignorés**.
+  Verdict indisponible ⇒ `validation-necessaire`. Coût : un appel au fournisseur de verdict par story.
+  La réponse renvoie les `epics` avec le verdict recalculé.
 - `analyze-and-create` et `create-jira` : réponse de création avec `created` (`type`, `title`, `key`) et `failed`
   (`type`, `title`, `reason`) ; un échec n'interrompt plus la création des éléments suivants. Statut `200` si tout
   est créé, `207` si la création est partielle, `502` si rien n'a pu être créé (auparavant : `500` au premier échec,

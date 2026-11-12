@@ -416,6 +416,27 @@ class MvpControllerTest {
     }
 
     @Test
+    @DisplayName("create-jira recomputes the verdict on the final story content and ignores aiReady sent by the client")
+    void createJiraRecomputesVerdict() throws Exception {
+        when(geminiAnalyzer.assessStory(any(Story.class))).thenReturn(new Readiness(false, "Critere flou"));
+        when(jiraService.createEpic(any(Epic.class), any())).thenReturn("TEST-1");
+        when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("TEST-2");
+
+        mockMvc.perform(post("/api/v1/mvp/create-jira").contentType(MediaType.APPLICATION_JSON)
+                .content("[{\"name\":\"E\",\"stories\":[{\"title\":\"S\",\"description\":\"modifiee\","
+                    + "\"aiReady\":true,\"aiReadyReason\":\"verdict de l'apercu\"}]}]"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.epics[0].stories[0].aiReady").value(false))
+                .andExpect(jsonPath("$.epics[0].stories[0].aiReadyReason").value("Critere flou"));
+
+        ArgumentCaptor<Story> sent = ArgumentCaptor.forClass(Story.class);
+        verify(geminiAnalyzer).assessStory(argThat(story -> "modifiee".equals(story.getDescription())));
+        verify(jiraService).createStory(sent.capture(), eq("TEST-1"), isNull());
+        assertEquals(Boolean.FALSE, sent.getValue().getAiReady());
+        assertEquals("Critere flou", sent.getValue().getAiReadyReason());
+    }
+
+    @Test
     @DisplayName("The debug endpoint test-issue-types no longer exists")
     void debugIssueTypesEndpointIsGone() throws Exception {
         mockMvc.perform(post("/api/v1/mvp/test-issue-types"))

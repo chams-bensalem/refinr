@@ -59,8 +59,7 @@ public final class RestBacklogMapper {
         story.setLabels(dto.getLabels());
         story.setTasks(map(dto.getTasks(), RestBacklogMapper::toDomain));
         story.setDependencies(dto.getDependencies());
-        story.setAiReady(dto.getAiReady());
-        story.setAiReadyReason(dto.getAiReadyReason());
+        // aiReady / aiReadyReason du client ignores : le serveur recalcule le verdict sur le contenu final (create-jira)
         story.setTrackerKey(dto.getJiraKey());
         story.setTrackerUrl(dto.getJiraUrl());
         story.setEpicTrackerKey(dto.getEpicKey());
