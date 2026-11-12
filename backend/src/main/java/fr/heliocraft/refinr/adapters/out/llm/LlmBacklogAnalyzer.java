@@ -67,7 +67,7 @@ public class LlmBacklogAnalyzer implements LlmPort {
     public LlmBacklogAnalyzer(
             @Value("${gemini.api-key:}") String apiKey,
             @Value("${gemini.base-url:https://generativelanguage.googleapis.com}") String baseUrl,
-            @Value("${ai.provider:gemini}") String provider,
+            @Value("${ai.provider:ollama}") String provider,
             @Value("${ollama.base-url:http://localhost:11434}") String ollamaBaseUrl,
             @Value("${ollama.model:qwen3:8b}") String ollamaModel,
             @Value("${ai.verdict.provider:}") String verdictProvider,

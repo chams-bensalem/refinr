@@ -280,7 +280,7 @@ ai.verdict.retry-delay-ms=2000
 | `confluence.token` / `jira.token` | — | Token API Atlassian |
 | `jira.project-key` | — | Clé du projet utilisé si `projectKey` n'est pas fourni |
 | `jira.priority-enabled` | `true` | Envoie le champ `priority` (désactiver en team-managed) |
-| `ai.provider` | `gemini` | Fournisseur de l'analyse : `ollama` ou `gemini` |
+| `ai.provider` | `ollama` | Fournisseur de l'analyse : `ollama` ou `gemini` |
 | `ollama.model` | `qwen3:8b` | Modèle Ollama utilisé |
 | `gemini.api-key` | — | Clé API Google Gemini (modèle `gemini-2.5-flash`) |
 | `ai.verdict.provider` | *(vide)* | Fournisseur dédié au verdict `ai-ready` |

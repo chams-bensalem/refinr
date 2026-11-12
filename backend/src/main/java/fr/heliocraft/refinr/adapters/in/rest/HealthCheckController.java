@@ -29,7 +29,7 @@ public class HealthCheckController {
     @Value("${gemini.api-key:}")
     private String geminiApiKey;
 
-    @Value("${ai.provider:gemini}")
+    @Value("${ai.provider:ollama}")
     private String aiProvider;
 
     @Value("${ollama.base-url:http://localhost:11434}")
