@@ -52,6 +52,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   seuls `429` et `500` le sont pour la lecture Confluence et l'analyse IA (pas tous les `5xx`).
 
 ### Removed
+- Réglage provisoire `spring.jackson.use-jackson2-defaults=true` : la sérialisation REST utilise les défauts Jackson 3
+  de Spring Boot 4, contrat JSON inchangé (vérifié par les tests de contrat).
 - Frontend : mention « Powered by Gemini AI » et chiffres marketing inventés (90 % de temps gagné, 2 min, 100 %
   de précision), bouton « View Demo » sans action.
 - Endpoint de debug `POST /api/v1/mvp/test-issue-types`.
