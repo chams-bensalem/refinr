@@ -144,7 +144,7 @@ public class LlmConfiguration {
         }
     }
 
-    /** Valeurs ecrites en JSON (true, 1, {"a":1}) ; sinon chaines. */
+    /** Valeurs ecrites en JSON (true, 1, {"a":1}) ; sinon chaines. Valeur vide = propriete non envoyee. */
     static Map<String, Object> extraBody(Map<String, String> raw) {
         Map<String, Object> body = new LinkedHashMap<>();
         if (raw == null) {
@@ -152,6 +152,9 @@ public class LlmConfiguration {
         }
         JsonMapper mapper = JsonMapper.builder().build();
         raw.forEach((key, value) -> {
+            if (value == null || value.isBlank()) {
+                return;
+            }
             try {
                 body.put(key, mapper.readValue(value, Object.class));
             } catch (JacksonException e) {
