@@ -1,28 +1,19 @@
 package fr.heliocraft.refinr.config;
 
-import fr.heliocraft.refinr.adapters.in.rest.HealthCheckController;
-import fr.heliocraft.refinr.adapters.out.llm.LlmBacklogAnalyzer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.Parameter;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Les valeurs par defaut d'une propriete doivent etre les memes partout : dans le code ({@code @Value}), dans la
- * configuration d'exemple, dans {@code .env.example} et dans le README.
+ * Les valeurs par defaut d'une propriete doivent etre les memes partout : dans le code ({@link LlmConfiguration}),
+ * dans la configuration d'exemple, dans {@code .env.example} et dans le README.
  */
 class ConfigurationDefaultsTest {
 
@@ -32,45 +23,53 @@ class ConfigurationDefaultsTest {
     private static final Path README = Path.of("../README.md");
 
     @Test
-    @DisplayName("ai.provider has the same default in the code, the example config, .env.example and the README")
-    void aiProviderDefaultIsAligned() throws IOException {
-        String expected = exampleDefault("ai.provider");
-        assertEquals("ollama", expected, "default AI provider of the example configuration");
-
-        for (String codeDefault : codeDefaults("ai.provider")) {
-            assertEquals(expected, codeDefault, "@Value default of ai.provider");
-        }
-        assertEquals(expected, envExample("AI_PROVIDER"));
-        assertEquals(expected, readmeTableDefault("ai.provider"));
+    @DisplayName("The default analysis provider (local Ollama, OpenAI-compatible API) is aligned everywhere")
+    void analysisDefaultsAreAligned() throws IOException {
+        assertAligned("refinr.llm.analysis.provider", "LLM_ANALYSIS_PROVIDER", LlmConfiguration.DEFAULT_PROVIDER);
+        assertAligned("refinr.llm.analysis.base-url", "LLM_ANALYSIS_BASE_URL", LlmConfiguration.DEFAULT_BASE_URL);
+        assertAligned("refinr.llm.analysis.model", "LLM_ANALYSIS_MODEL", LlmConfiguration.DEFAULT_MODEL);
     }
 
     @Test
-    @DisplayName("One Gemini model everywhere: code, example config, .env.example, README table, badge and examples")
+    @DisplayName("Timeouts and output token limits have the same defaults in the code, the example config and the README")
+    void limitsAreAligned() throws IOException {
+        assertEquals(LlmConfiguration.DEFAULT_ANALYSIS_TIMEOUT.toSeconds() + "s", exampleDefault("refinr.llm.analysis.timeout"));
+        assertEquals(LlmConfiguration.DEFAULT_VERDICT_TIMEOUT.toSeconds() + "s", exampleDefault("refinr.llm.verdict.timeout"));
+        assertEquals(String.valueOf(LlmConfiguration.DEFAULT_ANALYSIS_MAX_OUTPUT_TOKENS),
+                exampleDefault("refinr.llm.analysis.max-output-tokens"));
+        assertEquals(String.valueOf(LlmConfiguration.DEFAULT_VERDICT_MAX_OUTPUT_TOKENS),
+                exampleDefault("refinr.llm.verdict.max-output-tokens"));
+        for (String key : new String[] {"refinr.llm.analysis.timeout", "refinr.llm.verdict.timeout",
+                "refinr.llm.analysis.max-output-tokens", "refinr.llm.verdict.max-output-tokens"}) {
+            assertEquals(exampleDefault(key), readmeTableDefault(key), key);
+        }
+    }
+
+    @Test
+    @DisplayName("No separate verdict provider by default")
+    void verdictIsOptional() throws IOException {
+        assertEquals("", exampleDefault("refinr.llm.verdict.provider"));
+        assertEquals("", envExample("LLM_VERDICT_PROVIDER"));
+    }
+
+    @Test
+    @DisplayName("One Gemini model everywhere it is mentioned: README (badge, examples) and .env.example")
     void geminiModelIsAligned() throws IOException {
-        String model = exampleDefault("gemini.model");
-        assertEquals("gemini-2.5-flash", model, "default Gemini model of the example configuration");
-
-        for (String codeDefault : codeDefaults("gemini.model")) {
-            assertEquals(model, codeDefault, "@Value default of gemini.model");
-        }
-        assertEquals(model, envExample("GEMINI_MODEL"));
-        assertEquals(model, readmeTableDefault("gemini.model"));
-
-        // Le verdict confie a Gemini (ou a un pool Gemini derriere LiteLLM) utilise par defaut le meme modele
-        assertEquals(model, exampleDefault("ai.verdict.model"));
-        for (String codeDefault : codeDefaults("ai.verdict.model")) {
-            assertEquals(model, codeDefault, "@Value default of ai.verdict.model");
-        }
-        assertEquals(model, envExample("AI_VERDICT_MODEL"));
-
+        String model = "gemini-2.5-flash";
         String readme = Files.readString(README);
-        // Badge : gemini-2.5-flash -> "Gemini-2.5%20Flash"
-        String version = model.substring("gemini-".length()).replace("-flash", "%20Flash").replace("-pro", "%20Pro");
-        assertTrue(readme.contains("badge/Gemini-" + version + "-"), "README badge should show " + model);
-        Matcher mentioned = Pattern.compile("gemini-\\d[\\w.-]*").matcher(readme);
-        while (mentioned.find()) {
-            assertEquals(model, mentioned.group(), "Gemini model mentioned in the README");
+        assertTrue(readme.contains("badge/Gemini-2.5%20Flash-"), "README badge should show " + model);
+        for (Path file : new Path[] {README, ENV_EXAMPLE}) {
+            Matcher mentioned = Pattern.compile("gemini-\\d[\\w.-]*").matcher(Files.readString(file));
+            while (mentioned.find()) {
+                assertEquals(model, mentioned.group(), "Gemini model mentioned in " + file);
+            }
         }
+    }
+
+    private static void assertAligned(String key, String variable, String codeDefault) throws IOException {
+        assertEquals(codeDefault, exampleDefault(key), "default of " + key + " in " + EXAMPLE);
+        assertEquals(codeDefault, envExample(variable), variable + " in " + ENV_EXAMPLE);
+        assertEquals(codeDefault, readmeTableDefault(key), key + " in the README property table");
     }
 
     /** Defaut d'une propriete de application-example.properties ecrite {@code cle=${VAR:defaut}} ou {@code cle=valeur}. */
@@ -104,32 +103,7 @@ class ConfigurationDefaultsTest {
         throw new AssertionError(key + " missing from the README property table");
     }
 
-    /** Tous les defauts {@code @Value("${cle:defaut}")} declares pour cette propriete dans les beans concernes. */
-    static List<String> codeDefaults(String key) {
-        List<String> defaults = new ArrayList<>();
-        for (Class<?> type : List.of(LlmBacklogAnalyzer.class, HealthCheckController.class)) {
-            for (Constructor<?> constructor : type.getDeclaredConstructors()) {
-                if (constructor.isAnnotationPresent(Autowired.class) || type.getDeclaredConstructors().length == 1) {
-                    for (Parameter parameter : constructor.getParameters()) {
-                        collect(parameter.getAnnotation(Value.class), key, defaults);
-                    }
-                }
-            }
-            for (Field field : type.getDeclaredFields()) {
-                collect(field.getAnnotation(Value.class), key, defaults);
-            }
-        }
-        assertFalse(defaults.isEmpty(), "no @Value default found for " + key);
-        return defaults;
-    }
-
-    private static void collect(Value value, String key, List<String> defaults) {
-        if (value != null && value.value().startsWith("${" + key + ":")) {
-            defaults.add(placeholderDefault(value.value()));
-        }
-    }
-
-    /** {@code ${cle:defaut}} -> defaut (imbrication {@code ${VAR:${x}}} non geree : inutile ici) ; sinon la valeur. */
+    /** {@code ${cle:defaut}} -> defaut (le premier ':' separe la variable de son defaut) ; sinon la valeur. */
     static String placeholderDefault(String expression) {
         if (!expression.startsWith("${")) {
             return expression;
@@ -138,5 +112,4 @@ class ConfigurationDefaultsTest {
         int colon = inner.indexOf(':');
         return colon < 0 ? "" : inner.substring(colon + 1);
     }
-
 }

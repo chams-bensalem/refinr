@@ -1,0 +1,144 @@
+package fr.heliocraft.refinr.config;
+
+import fr.heliocraft.refinr.adapters.out.llm.JsonMode;
+import fr.heliocraft.refinr.adapters.out.llm.LlmBacklogGenerator;
+import fr.heliocraft.refinr.adapters.out.llm.LlmClient;
+import fr.heliocraft.refinr.adapters.out.llm.LlmClients;
+import fr.heliocraft.refinr.adapters.out.llm.LlmProvider;
+import fr.heliocraft.refinr.adapters.out.llm.LlmReadinessAssessor;
+import fr.heliocraft.refinr.adapters.out.llm.LlmSettings;
+import fr.heliocraft.refinr.adapters.out.llm.StructuredOutput;
+import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
+import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.ConfigurableEnvironment;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
+
+import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * Cablage des fournisseurs de modele. Analyse : {@code refinr.llm.analysis.*} (defaut : Ollama local via son API
+ * compatible OpenAI). Verdict : {@code refinr.llm.verdict.*}, optionnel ; sans fournisseur de verdict, le verdict
+ * vient de l'analyse et create-jira / reassess-story utilisent le fournisseur d'analyse.
+ */
+@Configuration
+@EnableConfigurationProperties(LlmProperties.class)
+public class LlmConfiguration {
+
+    private static final Logger log = LoggerFactory.getLogger(LlmConfiguration.class);
+
+    // Defauts (memes valeurs dans application-example.properties, .env.example et le README)
+    static final String DEFAULT_PROVIDER = "openai-compatible";
+    static final String DEFAULT_BASE_URL = "http://localhost:11434/v1";
+    static final String DEFAULT_MODEL = "qwen3:8b";
+    static final Duration DEFAULT_ANALYSIS_TIMEOUT = Duration.ofSeconds(300);
+    static final Duration DEFAULT_VERDICT_TIMEOUT = Duration.ofSeconds(90);
+    static final int DEFAULT_ANALYSIS_MAX_OUTPUT_TOKENS = 32768;
+    static final int DEFAULT_VERDICT_MAX_OUTPUT_TOKENS = 4096;
+    static final double DEFAULT_ANALYSIS_TEMPERATURE = 0.2;
+    static final double DEFAULT_VERDICT_TEMPERATURE = 0.1;
+    static final int DEFAULT_MAX_RETRIES = 2;
+    static final Duration DEFAULT_RETRY_BASE_DELAY = Duration.ofSeconds(1);
+    static final Duration DEFAULT_RETRY_MAX_DELAY = Duration.ofSeconds(30);
+    static final int DEFAULT_MAX_REPAIR_ATTEMPTS = 2;
+
+    private final LlmProperties properties;
+    private final LlmClient analysisClient;
+    private final LlmClient verdictClient;
+
+    public LlmConfiguration(LlmProperties properties, ConfigurableEnvironment environment) {
+        LegacyLlmProperties.rejectIn(environment);
+        this.properties = properties;
+        this.analysisClient = LlmClients.create(analysisSettings(properties.analysis()));
+        this.verdictClient = properties.verdict().isConfigured()
+                ? LlmClients.create(verdictSettings(properties.verdict()))
+                : analysisClient;
+        log.info("LLM analysis: {}", analysisClient.settings().describe());
+        log.info("LLM readiness verdict: {}", properties.verdict().isConfigured()
+                ? verdictClient.settings().describe() : "same provider as the analysis");
+    }
+
+    @Bean
+    public StructuredOutput structuredOutput() {
+        return new StructuredOutput();
+    }
+
+    @Bean
+    public BacklogGeneratorPort backlogGenerator(StructuredOutput structuredOutput) {
+        return new LlmBacklogGenerator(analysisClient, structuredOutput);
+    }
+
+    @Bean
+    public ReadinessAssessorPort readinessAssessor(StructuredOutput structuredOutput) {
+        return new LlmReadinessAssessor(verdictClient, structuredOutput);
+    }
+
+    static LlmSettings analysisSettings(LlmProperties.Role role) {
+        boolean defaultProvider = !role.isConfigured();
+        String provider = defaultProvider ? DEFAULT_PROVIDER : role.provider();
+        String baseUrl = blankToNull(role.baseUrl());
+        String model = blankToNull(role.model());
+        if (DEFAULT_PROVIDER.equalsIgnoreCase(provider.trim())) {
+            // Sans precision : Ollama local et son modele par defaut
+            baseUrl = baseUrl == null ? DEFAULT_BASE_URL : baseUrl;
+            model = model == null && baseUrl.equals(DEFAULT_BASE_URL) ? DEFAULT_MODEL : model;
+        }
+        return settings("analysis", role, provider, baseUrl, model, DEFAULT_ANALYSIS_TIMEOUT,
+                DEFAULT_ANALYSIS_MAX_OUTPUT_TOKENS, DEFAULT_ANALYSIS_TEMPERATURE);
+    }
+
+    static LlmSettings verdictSettings(LlmProperties.Role role) {
+        return settings("verdict", role, role.provider(), blankToNull(role.baseUrl()), blankToNull(role.model()),
+                DEFAULT_VERDICT_TIMEOUT, DEFAULT_VERDICT_MAX_OUTPUT_TOKENS, DEFAULT_VERDICT_TEMPERATURE);
+    }
+
+    private static LlmSettings settings(String name, LlmProperties.Role role, String provider, String baseUrl,
+                                        String model, Duration timeout, int maxOutputTokens, double temperature) {
+        try {
+            return new LlmSettings(
+                    name,
+                    LlmProvider.fromId(provider),
+                    baseUrl,
+                    model,
+                    role.apiKey(),
+                    role.timeout() != null ? role.timeout() : timeout,
+                    role.maxOutputTokens() != null ? role.maxOutputTokens() : maxOutputTokens,
+                    role.temperature() != null ? role.temperature() : temperature,
+                    JsonMode.fromId(role.jsonMode()),
+                    extraBody(role.extraBody()),
+                    role.maxRetries() != null ? role.maxRetries() : DEFAULT_MAX_RETRIES,
+                    role.retryBaseDelay() != null ? role.retryBaseDelay() : DEFAULT_RETRY_BASE_DELAY,
+                    role.retryMaxDelay() != null ? role.retryMaxDelay() : DEFAULT_RETRY_MAX_DELAY);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Invalid refinr.llm." + name + " configuration: " + e.getMessage(), e);
+        }
+    }
+
+    /** Valeurs ecrites en JSON (true, 1, {"a":1}) ; sinon chaines. */
+    static Map<String, Object> extraBody(Map<String, String> raw) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (raw == null) {
+            return body;
+        }
+        JsonMapper mapper = JsonMapper.builder().build();
+        raw.forEach((key, value) -> {
+            try {
+                body.put(key, mapper.readValue(value, Object.class));
+            } catch (JacksonException e) {
+                body.put(key, value);
+            }
+        });
+        return body;
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+}

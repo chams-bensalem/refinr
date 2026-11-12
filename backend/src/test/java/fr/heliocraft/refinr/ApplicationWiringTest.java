@@ -41,8 +41,11 @@ class ApplicationWiringTest {
         server.start();
         registry.add("jira.base-url", () -> server.url("/").toString());
         registry.add("confluence.base-url", () -> server.url("/").toString());
-        registry.add("ai.provider", () -> "gemini");
-        registry.add("gemini.base-url", () -> server.url("/").toString());
+        registry.add("refinr.llm.analysis.provider", () -> "google");
+        registry.add("refinr.llm.analysis.model", () -> "gemini-2.5-flash");
+        registry.add("refinr.llm.analysis.api-key", () -> "test-api-key");
+        registry.add("refinr.llm.analysis.base-url", () -> server.url("/").toString());
+        registry.add("refinr.llm.analysis.retry-base-delay", () -> "10ms");
     }
 
     @AfterAll
@@ -131,17 +134,30 @@ class ApplicationWiringTest {
         int before = server.getRequestCount();
         server.enqueue(new MockResponse().setResponseCode(429));
         server.enqueue(new MockResponse().setResponseCode(200).addHeader("Content-Type", "application/json")
-            .setBody("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"[]\"}]}}]}"));
+            .setBody("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"{\\\"epics\\\":[]}\"}]}}]}"));
 
         assertEquals(List.of(), generator.generate("cdc"));
         assertEquals(2, server.getRequestCount() - before);
     }
 
     @Test
-    @DisplayName("A single-story verdict (create-jira, reassess-story) is not retried by Spring")
-    void storyVerdictIsNotRetried() {
+    @DisplayName("A verdict call (create-jira, reassess-story) is retried on HTTP 429 like the analysis")
+    void storyVerdictIsRetried() {
         int before = server.getRequestCount();
         server.enqueue(new MockResponse().setResponseCode(429));
+        server.enqueue(new MockResponse().setResponseCode(200).addHeader("Content-Type", "application/json")
+            .setBody("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":"
+                + "\"{\\\"aiReady\\\":true,\\\"aiReadyReason\\\":\\\"ok\\\"}\"}]}}]}"));
+
+        assertEquals(true, assessor.reassess("S", "D", "P").aiReady());
+        assertEquals(2, server.getRequestCount() - before);
+    }
+
+    @Test
+    @DisplayName("A rejected key (HTTP 401) is never retried")
+    void rejectedKeyIsNotRetried() {
+        int before = server.getRequestCount();
+        server.enqueue(new MockResponse().setResponseCode(401));
         assertThrows(RuntimeException.class, () -> assessor.reassess("S", "D", "P"));
         assertEquals(1, server.getRequestCount() - before);
     }

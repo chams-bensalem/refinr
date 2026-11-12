@@ -58,8 +58,11 @@ class FullFlowIntegrationTest {
         registry.add("jira.username", () -> "test@example.com");
         registry.add("jira.token", () -> "fake-token");
         registry.add("jira.project-key", () -> "TEST");
-        registry.add("gemini.api-key", () -> "fake-api-key");
-        registry.add("gemini.base-url", () -> mockGeminiServer.url("/").toString());
+        registry.add("refinr.llm.analysis.provider", () -> "google");
+        registry.add("refinr.llm.analysis.model", () -> "gemini-2.5-flash");
+        registry.add("refinr.llm.analysis.api-key", () -> "fake-api-key");
+        registry.add("refinr.llm.analysis.base-url", () -> mockGeminiServer.url("/").toString());
+        registry.add("refinr.llm.analysis.retry-base-delay", () -> "10ms");
     }
 
     @Test
@@ -87,7 +90,7 @@ class FullFlowIntegrationTest {
               "candidates": [{
                 "content": {
                   "parts": [{
-                    "text": "[{\\"name\\":\\"Epic: Inventaire\\",\\"description\\":\\"Inventory management\\",\\"priority\\":\\"High\\",\\"labels\\":[\\"backend\\"],\\"stories\\":[{\\"asA\\":\\"Developer\\",\\"iWant\\":\\"track stock levels\\",\\"soThat\\":\\"avoid stock-outs\\",\\"title\\":\\"Track Stock Story\\",\\"acceptanceCriteria\\":[\\"AC1\\"],\\"priority\\":\\"High\\",\\"labels\\":[\\"api\\"],\\"tasks\\":[{\\"title\\":\\"Setup GitLab\\",\\"description\\":\\"Configure OAuth\\"}]}]}]"
+                    "text": "{\\"epics\\":[{\\"name\\":\\"Epic: Inventaire\\",\\"description\\":\\"Inventory management\\",\\"priority\\":\\"High\\",\\"labels\\":[\\"backend\\"],\\"stories\\":[{\\"description\\":\\"d\\",\\"aiReady\\":false,\\"aiReadyReason\\":\\"r\\",\\"asA\\":\\"Developer\\",\\"iWant\\":\\"track stock levels\\",\\"soThat\\":\\"avoid stock-outs\\",\\"title\\":\\"Track Stock Story\\",\\"acceptanceCriteria\\":[\\"AC1\\"],\\"priority\\":\\"High\\",\\"labels\\":[\\"api\\"],\\"tasks\\":[{\\"title\\":\\"Setup GitLab\\",\\"description\\":\\"Configure OAuth\\"}]}]}]}"
                   }]
                 }
               }]
@@ -157,11 +160,13 @@ class FullFlowIntegrationTest {
                 .addHeader("Content-Type", "application/json")
                 .setResponseCode(200));
 
-        // Given - Gemini fails
-        mockGeminiServer.enqueue(new MockResponse()
-                .setResponseCode(500)
-                .addHeader("Content-Type", "application/json")
-                .setBody("{\"error\":\"Internal error\"}"));
+        // Given - Gemini fails (HTTP 500 on the first try and on the 2 new attempts)
+        for (int i = 0; i < 3; i++) {
+            mockGeminiServer.enqueue(new MockResponse()
+                    .setResponseCode(500)
+                    .addHeader("Content-Type", "application/json")
+                    .setBody("{\"error\":\"Internal error\"}"));
+        }
 
         // When/Then
         mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
@@ -171,7 +176,7 @@ class FullFlowIntegrationTest {
 
         // Verify Jira was not called
         Assertions.assertEquals(1, mockConfluenceServer.getRequestCount());
-        Assertions.assertEquals(1, mockGeminiServer.getRequestCount());
+        Assertions.assertEquals(3, mockGeminiServer.getRequestCount(), "1 call + 2 new attempts on HTTP 500");
         Assertions.assertEquals(0, mockJiraServer.getRequestCount());
     }
 
@@ -186,7 +191,7 @@ class FullFlowIntegrationTest {
 
         // Given - Gemini succeeds
         mockGeminiServer.enqueue(new MockResponse()
-                .setBody("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"[]\"}]}}]}")
+                .setBody("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"{\\\"epics\\\":[]}\"}]}}]}")
                 .addHeader("Content-Type", "application/json")
                 .setResponseCode(200));
 
@@ -203,7 +208,7 @@ class FullFlowIntegrationTest {
                 .andExpect(status().isOk());  // Empty result, no error
 
         Assertions.assertEquals(1, mockConfluenceServer.getRequestCount());
-        Assertions.assertEquals(1, mockGeminiServer.getRequestCount());
+        Assertions.assertEquals(3, mockGeminiServer.getRequestCount(), "1 call + 2 new attempts on HTTP 500");
         Assertions.assertEquals(0, mockJiraServer.getRequestCount());  // No epics to create
     }
 
@@ -222,7 +227,7 @@ class FullFlowIntegrationTest {
               "candidates": [{
                 "content": {
                   "parts": [{
-                    "text": "[{\\"name\\":\\"Epic 1\\",\\"description\\":\\"D1\\",\\"priority\\":\\"High\\",\\"labels\\":[],\\"stories\\":[{\\"asA\\":\\"U\\",\\"iWant\\":\\"F\\",\\"soThat\\":\\"V\\",\\"title\\":\\"Story 1\\",\\"acceptanceCriteria\\":[],\\"priority\\":\\"High\\",\\"labels\\":[],\\"tasks\\":[{\\"title\\":\\"T1\\",\\"description\\":\\"D1\\"},{\\"title\\":\\"T2\\",\\"description\\":\\"D2\\"}]},{\\"asA\\":\\"U\\",\\"iWant\\":\\"F\\",\\"soThat\\":\\"V\\",\\"title\\":\\"Story 2\\",\\"acceptanceCriteria\\":[],\\"priority\\":\\"High\\",\\"labels\\":[],\\"tasks\\":[{\\"title\\":\\"T3\\",\\"description\\":\\"D3\\"}]}]},{\\"name\\":\\"Epic 2\\",\\"description\\":\\"D2\\",\\"priority\\":\\"Medium\\",\\"labels\\":[],\\"stories\\":[{\\"asA\\":\\"U\\",\\"iWant\\":\\"F\\",\\"soThat\\":\\"V\\",\\"title\\":\\"Story 3\\",\\"acceptanceCriteria\\":[],\\"priority\\":\\"Medium\\",\\"labels\\":[],\\"tasks\\":[{\\"title\\":\\"T4\\",\\"description\\":\\"D4\\"}]}]}]"
+                    "text": "{\\"epics\\":[{\\"name\\":\\"Epic 1\\",\\"description\\":\\"D1\\",\\"priority\\":\\"High\\",\\"labels\\":[],\\"stories\\":[{\\"description\\":\\"d\\",\\"aiReady\\":false,\\"aiReadyReason\\":\\"r\\",\\"asA\\":\\"U\\",\\"iWant\\":\\"F\\",\\"soThat\\":\\"V\\",\\"title\\":\\"Story 1\\",\\"acceptanceCriteria\\":[],\\"priority\\":\\"High\\",\\"labels\\":[],\\"tasks\\":[{\\"title\\":\\"T1\\",\\"description\\":\\"D1\\"},{\\"title\\":\\"T2\\",\\"description\\":\\"D2\\"}]},{\\"description\\":\\"d\\",\\"aiReady\\":false,\\"aiReadyReason\\":\\"r\\",\\"asA\\":\\"U\\",\\"iWant\\":\\"F\\",\\"soThat\\":\\"V\\",\\"title\\":\\"Story 2\\",\\"acceptanceCriteria\\":[],\\"priority\\":\\"High\\",\\"labels\\":[],\\"tasks\\":[{\\"title\\":\\"T3\\",\\"description\\":\\"D3\\"}]}]},{\\"name\\":\\"Epic 2\\",\\"description\\":\\"D2\\",\\"priority\\":\\"Medium\\",\\"labels\\":[],\\"stories\\":[{\\"description\\":\\"d\\",\\"aiReady\\":false,\\"aiReadyReason\\":\\"r\\",\\"asA\\":\\"U\\",\\"iWant\\":\\"F\\",\\"soThat\\":\\"V\\",\\"title\\":\\"Story 3\\",\\"acceptanceCriteria\\":[],\\"priority\\":\\"Medium\\",\\"labels\\":[],\\"tasks\\":[{\\"title\\":\\"T4\\",\\"description\\":\\"D4\\"}]}]}]}"
                   }]
                 }
               }]
