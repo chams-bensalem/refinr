@@ -175,7 +175,13 @@ public class MvpController {
                     "success", true,
                     "results", results
             ));
-            
+
+        } catch (IllegalArgumentException e) {
+            // Message de validation produit par l'application (sans donnee externe) : renvoye tel quel
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
         } catch (Exception e) {
             log.error("Error searching Confluence", e);
             return ResponseEntity.internalServerError().body(Map.of(
