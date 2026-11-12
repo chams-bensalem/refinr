@@ -1,11 +1,12 @@
 package fr.heliocraft.refinr.application.service;
 
 import fr.heliocraft.refinr.application.port.in.ModelOutputException;
+import fr.heliocraft.refinr.application.port.in.ModelUnavailableException;
 import fr.heliocraft.refinr.application.port.out.LlmException;
 
 import java.util.function.Supplier;
 
-/** Traduit une sortie de modele inexploitable (invalide ou tronquee) en erreur du cas d'usage. */
+/** Traduit un echec du modele (sortie invalide ou tronquee, fournisseur indisponible) en erreur du cas d'usage. */
 final class LlmFailures {
 
     private LlmFailures() {}
@@ -20,7 +21,7 @@ final class LlmFailures {
             if (e.reason() == LlmException.Reason.TRUNCATED) {
                 throw new ModelOutputException(true, e);
             }
-            throw e;
+            throw new ModelUnavailableException(e);
         }
     }
 }
