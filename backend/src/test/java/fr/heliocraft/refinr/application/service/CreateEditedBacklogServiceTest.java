@@ -2,7 +2,7 @@ package fr.heliocraft.refinr.application.service;
 
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.CreateBacklog;
-import fr.heliocraft.refinr.application.port.out.LlmPort;
+import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Readiness;
 import fr.heliocraft.refinr.domain.model.Story;
@@ -17,24 +17,27 @@ import static org.junit.jupiter.api.Assertions.*;
 class CreateEditedBacklogServiceTest {
 
     /** Modele de langage simule : verdict par titre de story, ou echec si le titre commence par "down". */
-    static class FakeLlm implements LlmPort {
+    static class FakeLlm implements ReadinessAssessorPort {
         final List<String> assessed = new ArrayList<>();
 
         @Override
-        public List<Epic> analyzeDocument(String documentContent) {
+        public Readiness reassess(String summary, String description, String precision) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public Readiness reassessStory(String summary, String description, String precision) {
-            throw new UnsupportedOperationException();
+        public List<Readiness> assess(List<Story> stories) {
+            List<Readiness> verdicts = new ArrayList<>();
+            for (Story story : stories) {
+                verdicts.add(assessOne(story));
+            }
+            return verdicts;
         }
 
-        @Override
-        public Readiness assessStory(Story story) {
+        private Readiness assessOne(Story story) {
             assessed.add(story.getTitle() + "|" + story.getDescription());
             if (story.getTitle().startsWith("down")) {
-                throw new IllegalStateException("LLM unreachable");
+                return null;  // verdict indisponible pour cette story
             }
             return story.getTitle().startsWith("clear")
                 ? new Readiness(true, "Perimetre clair")

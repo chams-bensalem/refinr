@@ -1,8 +1,9 @@
 package fr.heliocraft.refinr.application.service;
 
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
+import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
-import fr.heliocraft.refinr.application.port.out.LlmPort;
+import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
 import fr.heliocraft.refinr.domain.model.Epic;
 
 import java.util.List;
@@ -10,16 +11,24 @@ import java.util.List;
 public class PreviewBacklogService implements PreviewBacklog {
 
     private final DocumentSourcePort documentSource;
-    private final LlmPort llm;
+    private final BacklogGeneratorPort generator;
+    // Fournisseur de verdict distinct, ou null : le verdict produit par l'analyse est alors conserve
+    private final ReadinessAssessorPort separateAssessor;
 
-    public PreviewBacklogService(DocumentSourcePort documentSource, LlmPort llm) {
+    public PreviewBacklogService(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
+                                 ReadinessAssessorPort separateAssessor) {
         this.documentSource = documentSource;
-        this.llm = llm;
+        this.generator = generator;
+        this.separateAssessor = separateAssessor;
     }
 
     @Override
     public List<Epic> preview(String documentId) {
         String content = documentSource.getDocumentContent(documentId);
-        return llm.analyzeDocument(content);
+        List<Epic> epics = generator.generate(content);
+        if (separateAssessor != null) {
+            StoryVerdicts.apply(epics, separateAssessor);
+        }
+        return epics;
     }
 }

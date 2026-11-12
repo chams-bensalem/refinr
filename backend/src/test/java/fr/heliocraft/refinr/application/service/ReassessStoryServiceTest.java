@@ -2,7 +2,7 @@ package fr.heliocraft.refinr.application.service;
 
 import fr.heliocraft.refinr.application.port.in.StoryNotAwaitingValidationException;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
-import fr.heliocraft.refinr.application.port.out.LlmPort;
+import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
 import fr.heliocraft.refinr.domain.model.Readiness;
 import fr.heliocraft.refinr.domain.model.TrackedStory;
 import org.junit.jupiter.api.DisplayName;
@@ -17,7 +17,7 @@ import static org.mockito.Mockito.*;
 class ReassessStoryServiceTest {
 
     private final IssueTrackerPort tracker = mock(IssueTrackerPort.class);
-    private final LlmPort llm = mock(LlmPort.class);
+    private final ReadinessAssessorPort llm = mock(ReadinessAssessorPort.class);
     private final ReassessStoryService service = new ReassessStoryService(tracker, llm);
 
     @Test
@@ -26,7 +26,7 @@ class ReassessStoryServiceTest {
         TrackedStory story = new TrackedStory("PROJ-7", "Export PDF", "Exporter", List.of("validation-necessaire"));
         Readiness verdict = new Readiness(true, "Perimetre clair");
         when(tracker.findStory("PROJ-7")).thenReturn(story);
-        when(llm.reassessStory("Export PDF", "Exporter", "format A4")).thenReturn(verdict);
+        when(llm.reassess("Export PDF", "Exporter", "format A4")).thenReturn(verdict);
 
         assertEquals(verdict, service.reassess("PROJ-7", "format A4"));
 

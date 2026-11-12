@@ -2,7 +2,8 @@ package fr.heliocraft.refinr.adapters.in.rest;
 
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
-import fr.heliocraft.refinr.application.port.out.LlmPort;
+import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
+import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
 import fr.heliocraft.refinr.config.UseCaseConfig;
 import fr.heliocraft.refinr.domain.model.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,7 +48,10 @@ class MvpControllerTest {
     private DocumentSourcePort confluenceService;
 
     @MockitoBean
-    private LlmPort geminiAnalyzer;
+    private BacklogGeneratorPort generator;
+
+    @MockitoBean
+    private ReadinessAssessorPort assessor;
 
     @MockitoBean
     private IssueTrackerPort jiraService;
@@ -92,7 +96,7 @@ class MvpControllerTest {
         String cdcContent = "# Refinr CDC\nModule Inventaire";
 
         when(confluenceService.getDocumentContent(pageId)).thenReturn(cdcContent);
-        when(geminiAnalyzer.analyzeDocument(cdcContent)).thenReturn(testEpics);
+        when(generator.generate(cdcContent)).thenReturn(testEpics);
         when(jiraService.createEpic(any(Epic.class), any())).thenReturn("PROJ-1");
         when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("PROJ-2");
         when(jiraService.createSubtask(any(Task.class), anyString(), any())).thenReturn("PROJ-3");
@@ -105,7 +109,7 @@ class MvpControllerTest {
 
         // Verify interactions
         verify(confluenceService).getDocumentContent(pageId);
-        verify(geminiAnalyzer).analyzeDocument(cdcContent);
+        verify(generator).generate(cdcContent);
         verify(jiraService).createEpic(any(Epic.class), isNull());
         verify(jiraService).createStory(any(Story.class), eq("PROJ-1"), isNull());
         verify(jiraService).createSubtask(any(Task.class), eq("PROJ-2"), isNull());
@@ -115,7 +119,7 @@ class MvpControllerTest {
     @DisplayName("Should create the Jira issues in the requested project")
     void shouldCreateInRequestedProject() throws Exception {
         when(confluenceService.getDocumentContent("42")).thenReturn("cdc");
-        when(geminiAnalyzer.analyzeDocument("cdc")).thenReturn(testEpics);
+        when(generator.generate("cdc")).thenReturn(testEpics);
         when(jiraService.createEpic(any(Epic.class), any())).thenReturn("DEMO-1");
         when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("DEMO-2");
 
@@ -169,7 +173,7 @@ class MvpControllerTest {
                 .andExpect(status().is5xxServerError());
 
         verify(confluenceService).getDocumentContent(pageId);
-        verifyNoInteractions(geminiAnalyzer);
+        verifyNoInteractions(generator, assessor);
         verifyNoInteractions(jiraService);
     }
 
@@ -181,7 +185,7 @@ class MvpControllerTest {
         String cdcContent = "Test content";
 
         when(confluenceService.getDocumentContent(pageId)).thenReturn(cdcContent);
-        when(geminiAnalyzer.analyzeDocument(cdcContent))
+        when(generator.generate(cdcContent))
             .thenThrow(new RuntimeException("Gemini API error"));
 
         // When/Then
@@ -191,7 +195,7 @@ class MvpControllerTest {
                 .andExpect(status().is5xxServerError());
 
         verify(confluenceService).getDocumentContent(pageId);
-        verify(geminiAnalyzer).analyzeDocument(cdcContent);
+        verify(generator).generate(cdcContent);
         verifyNoInteractions(jiraService);
     }
 
@@ -203,7 +207,7 @@ class MvpControllerTest {
         String cdcContent = "Test content";
 
         when(confluenceService.getDocumentContent(pageId)).thenReturn(cdcContent);
-        when(geminiAnalyzer.analyzeDocument(cdcContent)).thenReturn(testEpics);
+        when(generator.generate(cdcContent)).thenReturn(testEpics);
         when(jiraService.createEpic(any(Epic.class), any()))
             .thenThrow(new RuntimeException("Jira API error"));
 
@@ -214,7 +218,7 @@ class MvpControllerTest {
                 .andExpect(status().is5xxServerError());
 
         verify(confluenceService).getDocumentContent(pageId);
-        verify(geminiAnalyzer).analyzeDocument(cdcContent);
+        verify(generator).generate(cdcContent);
         verify(jiraService).createEpic(any(Epic.class), isNull());
         // L'Epic a echoue : rien n'est cree en dessous
         verify(jiraService, never()).createStory(any(), any(), any());
@@ -230,7 +234,7 @@ class MvpControllerTest {
         List<Epic> emptyEpics = List.of();
 
         when(confluenceService.getDocumentContent(pageId)).thenReturn(cdcContent);
-        when(geminiAnalyzer.analyzeDocument(cdcContent)).thenReturn(emptyEpics);
+        when(generator.generate(cdcContent)).thenReturn(emptyEpics);
 
         // When/Then
         mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
@@ -239,7 +243,7 @@ class MvpControllerTest {
                 .andExpect(status().isOk());
 
         verify(confluenceService).getDocumentContent(pageId);
-        verify(geminiAnalyzer).analyzeDocument(cdcContent);
+        verify(generator).generate(cdcContent);
     }
 
     @Test
@@ -419,7 +423,7 @@ class MvpControllerTest {
         when(jiraService.createSubtask(any(Task.class), anyString(), any())).thenReturn("TEST-3");
 
         when(confluenceService.getDocumentContent("1")).thenReturn("cdc");
-        when(geminiAnalyzer.analyzeDocument("cdc")).thenReturn(testEpics);
+        when(generator.generate("cdc")).thenReturn(testEpics);
 
         mockMvc.perform(post("/api/v1/mvp/analyze-and-create").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"confluencePageId\":\"1\"}"))
@@ -433,7 +437,7 @@ class MvpControllerTest {
     @Test
     @DisplayName("create-jira recomputes the verdict on the final story content and ignores aiReady sent by the client")
     void createJiraRecomputesVerdict() throws Exception {
-        when(geminiAnalyzer.assessStory(any(Story.class))).thenReturn(new Readiness(false, "Critere flou"));
+        when(assessor.assess(anyList())).thenReturn(List.of(new Readiness(false, "Critere flou")));
         when(jiraService.createEpic(any(Epic.class), any())).thenReturn("TEST-1");
         when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("TEST-2");
 
@@ -445,7 +449,7 @@ class MvpControllerTest {
                 .andExpect(jsonPath("$.epics[0].stories[0].aiReadyReason").value("Critere flou"));
 
         ArgumentCaptor<Story> sent = ArgumentCaptor.forClass(Story.class);
-        verify(geminiAnalyzer).assessStory(argThat(story -> "modifiee".equals(story.getDescription())));
+        verify(assessor).assess(argThat(stories -> stories.size() == 1 && "modifiee".equals(stories.get(0).getDescription())));
         verify(jiraService).createStory(sent.capture(), eq("TEST-1"), isNull());
         assertEquals(Boolean.FALSE, sent.getValue().getAiReady());
         assertEquals("Critere flou", sent.getValue().getAiReadyReason());
@@ -466,7 +470,7 @@ class MvpControllerTest {
         TrackedStory story = new TrackedStory(
             "TEST-7", "Export PDF", "Exporter", List.of("backend", "validation-necessaire"));
         when(jiraService.findStory("TEST-7")).thenReturn(story);
-        when(geminiAnalyzer.reassessStory("Export PDF", "Exporter", "format A4"))
+        when(assessor.reassess("Export PDF", "Exporter", "format A4"))
             .thenReturn(new Readiness(true, "Perimetre clair"));
 
         mockMvc.perform(post("/api/v1/mvp/reassess-story")
@@ -493,7 +497,7 @@ class MvpControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.success").value(false));
 
-        verifyNoInteractions(geminiAnalyzer);
+        verifyNoInteractions(generator, assessor);
         verify(jiraService, never()).applyReassessment(any(), any(), any());
     }
 
@@ -507,6 +511,6 @@ class MvpControllerTest {
                 .andExpect(jsonPath("$.success").value(false));
 
         verifyNoInteractions(jiraService);
-        verifyNoInteractions(geminiAnalyzer);
+        verifyNoInteractions(generator, assessor);
     }
 }

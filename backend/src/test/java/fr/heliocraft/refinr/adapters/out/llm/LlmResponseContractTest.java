@@ -46,7 +46,7 @@ class LlmResponseContractTest {
     void readsEveryField() throws IOException {
         mockWebServer.enqueue(geminiText(resource("contract/create-jira-request.json")));
 
-        List<Epic> epics = analyzer.analyzeDocument("cdc");
+        List<Epic> epics = analyzer.generate("cdc");
 
         assertEquals(1, epics.size());
         Epic epic = epics.get(0);
@@ -90,7 +90,7 @@ class LlmResponseContractTest {
     void rejectsUnknownProperty() {
         mockWebServer.enqueue(geminiText("[{\"name\":\"E\",\"color\":\"red\",\"stories\":[]}]"));
 
-        RuntimeException error = assertThrows(RuntimeException.class, () -> analyzer.analyzeDocument("cdc"));
+        RuntimeException error = assertThrows(RuntimeException.class, () -> analyzer.generate("cdc"));
         assertTrue(error.getMessage().contains("Unrecognized property"), error.getMessage());
     }
 

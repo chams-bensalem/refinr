@@ -93,8 +93,10 @@ class HexagonalArchitectureTest {
             .that().resideInAPackage(ROOT + ".application.port.out..")
             .should().beInterfaces()
             .orShould().beAssignableTo(RuntimeException.class)
+            .orShould().beEnums()
             .because("un port sortant est une interface ; seules les exceptions de son contrat (ex. IssueTrackerException,"
-                    + " levee par l'adaptateur et lue par le cas d'usage) l'accompagnent");
+                    + " levee par l'adaptateur et lue par le cas d'usage) et leurs enumerations (ex. LlmException.Reason)"
+                    + " l'accompagnent");
 
     @ArchTest
     static final ArchRule no_jira_identifier_in_domain_and_application = classes()

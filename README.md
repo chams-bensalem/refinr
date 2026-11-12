@@ -163,7 +163,7 @@ refinr/
         │   │   │   └── service/                     # Règles : labels réservés, verdict par défaut, normalisation
         │   │   ├── application/
         │   │   │   ├── port/in/                     # AnalyzeDocument, PreviewBacklog, CreateBacklog, ReassessStory, SearchDocuments
-        │   │   │   ├── port/out/                    # DocumentSourcePort, IssueTrackerPort, LlmPort
+        │   │   │   ├── port/out/                    # DocumentSourcePort, IssueTrackerPort, BacklogGeneratorPort, ReadinessAssessorPort
         │   │   │   └── service/                     # Implémentation des cas d'usage
         │   │   ├── adapters/
         │   │   │   ├── in/rest/                     # MvpController (/api/v1/mvp/*), HealthCheckController, DTO JSON

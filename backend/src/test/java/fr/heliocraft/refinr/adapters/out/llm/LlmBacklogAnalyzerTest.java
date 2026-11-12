@@ -66,7 +66,7 @@ class LlmBacklogAnalyzerTest {
             .setResponseCode(200));
 
         // When
-        List<Epic> epics = analyzer.analyzeDocument(cdcContent);
+        List<Epic> epics = analyzer.generate(cdcContent);
 
         // Then
         assertNotNull(epics);
@@ -98,7 +98,7 @@ class LlmBacklogAnalyzerTest {
             .setBody("{\"error\":\"Internal Server Error\"}"));
 
         // When/Then
-        assertThrows(RuntimeException.class, () -> analyzer.analyzeDocument(cdcContent));
+        assertThrows(RuntimeException.class, () -> analyzer.generate(cdcContent));
     }
 
     @Test
@@ -125,7 +125,7 @@ class LlmBacklogAnalyzerTest {
             .setResponseCode(200));
 
         // When
-        analyzer.analyzeDocument(cdcContent);
+        analyzer.generate(cdcContent);
 
         // Then
         RecordedRequest request = mockWebServer.takeRequest();
@@ -164,7 +164,7 @@ class LlmBacklogAnalyzerTest {
             .setResponseCode(200));
 
         // When
-        List<Epic> epics = analyzer.analyzeDocument(cdcContent);
+        List<Epic> epics = analyzer.generate(cdcContent);
 
         // Then
         assertNotNull(epics);
@@ -200,7 +200,7 @@ class LlmBacklogAnalyzerTest {
             .setResponseCode(200));
 
         // When
-        List<Epic> epics = analyzer.analyzeDocument(cdcContent);
+        List<Epic> epics = analyzer.generate(cdcContent);
 
         // Then
         assertNotNull(epics);
@@ -215,7 +215,7 @@ class LlmBacklogAnalyzerTest {
             .addHeader("Content-Type", "application/json")
             .setResponseCode(200));
 
-        analyzer.analyzeDocument("Ajouter un filtre par prix");
+        analyzer.generate("Ajouter un filtre par prix");
 
         String body = mockWebServer.takeRequest().getBody().readUtf8();
         assertTrue(body.contains("1 seul Epic"), "Le prompt doit limiter un besoin court a un Epic");
@@ -243,7 +243,7 @@ class LlmBacklogAnalyzerTest {
             .addHeader("Content-Type", "application/json")
             .setResponseCode(200));
 
-        List<Epic> epics = analyzer.analyzeDocument("Filtre par prix");
+        List<Epic> epics = analyzer.generate("Filtre par prix");
 
         assertEquals(Boolean.TRUE, epics.get(0).getStories().get(0).getAiReady());
         assertEquals("Perimetre clair", epics.get(0).getStories().get(0).getAiReadyReason());
@@ -260,7 +260,7 @@ class LlmBacklogAnalyzerTest {
             .addHeader("Content-Type", "application/json")
             .setResponseCode(200));
 
-        List<Epic> epics = ollama.analyzeDocument("Ajouter un filtre par prix");
+        List<Epic> epics = ollama.generate("Ajouter un filtre par prix");
 
         assertEquals(1, epics.size());
         assertEquals(Boolean.TRUE, epics.get(0).getStories().get(0).getAiReady());
@@ -282,7 +282,7 @@ class LlmBacklogAnalyzerTest {
             .addHeader("Content-Type", "application/json")
             .setResponseCode(200));
 
-        assertThrows(RuntimeException.class, () -> ollama.analyzeDocument("Un besoin"));
+        assertThrows(RuntimeException.class, () -> ollama.generate("Un besoin"));
     }
 
     @Test
@@ -297,7 +297,7 @@ class LlmBacklogAnalyzerTest {
             .setResponseCode(200));
 
         // When
-        analyzer.analyzeDocument(cdcContent);
+        analyzer.generate(cdcContent);
 
         // Then
         RecordedRequest request = mockWebServer.takeRequest();
@@ -317,7 +317,7 @@ class LlmBacklogAnalyzerTest {
             .addHeader("Content-Type", "application/json")
             .setResponseCode(200));
 
-        analyzer.analyzeDocument("Test");
+        analyzer.generate("Test");
 
         RecordedRequest request = mockWebServer.takeRequest();
         assertFalse(request.getPath().contains("fake-api-key"), request.getPath());
@@ -331,7 +331,7 @@ class LlmBacklogAnalyzerTest {
         mockWebServer.enqueue(new MockResponse().setResponseCode(400).setBody("{\"error\":\"bad\"}")
             .addHeader("Content-Type", "application/json"));
 
-        RuntimeException error = assertThrows(RuntimeException.class, () -> analyzer.analyzeDocument("Test"));
+        RuntimeException error = assertThrows(RuntimeException.class, () -> analyzer.generate("Test"));
         for (Throwable t = error; t != null; t = t.getCause()) {
             assertFalse(String.valueOf(t.getMessage()).contains("fake-api-key"), t.getMessage());
         }
@@ -348,7 +348,7 @@ class LlmBacklogAnalyzerTest {
             .addHeader("Content-Type", "application/json")
             .setResponseCode(200));
 
-        configured.reassessStory("Titre", "Description", "Precision");
+        configured.reassess("Titre", "Description", "Precision");
 
         String path = mockWebServer.takeRequest().getPath();
         assertTrue(path.startsWith("/v1beta/models/gemini-verdict-model:generateContent"), path);
@@ -358,14 +358,14 @@ class LlmBacklogAnalyzerTest {
             .addHeader("Content-Type", "application/json")
             .setResponseCode(200));
 
-        configured.analyzeDocument("Un besoin");
+        configured.generate("Un besoin");
 
         path = mockWebServer.takeRequest().getPath();
         assertTrue(path.startsWith("/v1beta/models/gemini-analysis-model:generateContent"), path);
     }
 
     @Test
-    @DisplayName("assessStory judges one story on its content (title, description, criteria)")
+    @DisplayName("assess judges each story on its content (title, description, criteria)")
     void assessStoryJudgesOneStory() throws InterruptedException {
         mockWebServer.enqueue(new MockResponse()
             .setBody("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":"
@@ -377,7 +377,7 @@ class LlmBacklogAnalyzerTest {
         story.setDescription("Exporter la liste en A4");
         story.setAcceptanceCriteria(List.of("Given une liste, When j'exporte, Then un PDF A4"));
 
-        Readiness verdict = analyzer.assessStory(story);
+        Readiness verdict = analyzer.assess(List.of(story)).get(0);
 
         assertEquals(new Readiness(true, "Complet"), verdict);
         String body = mockWebServer.takeRequest().getBody().readUtf8();
@@ -396,7 +396,7 @@ class LlmBacklogAnalyzerTest {
             .setResponseCode(200));
 
         Readiness verdict =
-            analyzer.reassessStory("Export PDF", "Exporter en PDF", "format A4 uniquement");
+            analyzer.reassess("Export PDF", "Exporter en PDF", "format A4 uniquement");
 
         assertTrue(verdict.aiReady());
         assertEquals("Le format est maintenant precise", verdict.aiReadyReason());
@@ -414,7 +414,7 @@ class LlmBacklogAnalyzerTest {
             .addHeader("Content-Type", "application/json")
             .setResponseCode(200));
 
-        Readiness verdict = analyzer.reassessStory("Export PDF", "Exporter", "precision");
+        Readiness verdict = analyzer.reassess("Export PDF", "Exporter", "precision");
 
         assertFalse(verdict.aiReady());
         assertEquals("incertain", verdict.aiReadyReason());
@@ -453,17 +453,18 @@ class LlmBacklogAnalyzerTest {
         mockWebServer.enqueue(ollamaStructure("Formater une taille", true));
         mockWebServer.enqueue(litellmVerdict(false, "le systeme d'unites n'est pas precise"));
 
-        List<Epic> epics = split.analyzeDocument("Besoin : formater une taille de fichier");
-
+        List<Epic> epics = split.generate("Besoin : formater une taille de fichier");
         var story = epics.get(0).getStories().get(0);
-        assertFalse(story.getAiReady());
-        assertEquals("le systeme d'unites n'est pas precise", story.getAiReadyReason());
+        Readiness verdict = split.assess(List.of(story)).get(0);
+
+        assertFalse(verdict.aiReady());
+        assertEquals("le systeme d'unites n'est pas precise", verdict.aiReadyReason());
         RecordedRequest structure = mockWebServer.takeRequest();
         assertEquals("/api/generate", structure.getPath());
-        RecordedRequest verdict = mockWebServer.takeRequest();
-        assertEquals("/v1/chat/completions", verdict.getPath());
-        assertEquals("Bearer litellm-master-key", verdict.getHeader("Authorization"));
-        String body = verdict.getBody().readUtf8();
+        RecordedRequest verdictCall = mockWebServer.takeRequest();
+        assertEquals("/v1/chat/completions", verdictCall.getPath());
+        assertEquals("Bearer litellm-master-key", verdictCall.getHeader("Authorization"));
+        String body = verdictCall.getBody().readUtf8();
         assertTrue(body.contains("\"model\":\"gemini-2.5-flash\""));
         assertTrue(body.contains("Formater une taille"));
     }
@@ -474,7 +475,7 @@ class LlmBacklogAnalyzerTest {
         LlmBacklogAnalyzer split = analyzerWithLitellmVerdict();
         mockWebServer.enqueue(litellmVerdict(true, "unites, arrondi et exemples precises"));
 
-        Readiness verdict = split.reassessStory("Formater une taille", "desc", "1500 -> '1.5 Ko'");
+        Readiness verdict = split.reassess("Formater une taille", "desc", "1500 -> '1.5 Ko'");
 
         assertTrue(verdict.aiReady());
         assertEquals("unites, arrondi et exemples precises", verdict.aiReadyReason());
@@ -492,13 +493,11 @@ class LlmBacklogAnalyzerTest {
             mockWebServer.enqueue(new MockResponse().setResponseCode(503).setBody("{\"error\":\"overloaded\"}"));
         }
 
-        List<Epic> epics = split.analyzeDocument("Besoin : formater une taille de fichier");
+        List<Epic> epics = split.generate("Besoin : formater une taille de fichier");
+        List<Readiness> verdicts = split.assess(epics.get(0).getStories());
 
         assertEquals(4, mockWebServer.getRequestCount());  // structure + 3 tentatives de verdict, jamais plus
-
-        var story = epics.get(0).getStories().get(0);
-        assertFalse(story.getAiReady());
-        assertTrue(story.getAiReadyReason().contains("verdict indisponible"));
+        assertEquals(java.util.Collections.singletonList(null), verdicts);  // pas de verdict : l'application applique la politique par defaut
     }
 
     @Test
@@ -508,7 +507,7 @@ class LlmBacklogAnalyzerTest {
         mockWebServer.enqueue(new MockResponse().setResponseCode(503).setBody("{\"error\":\"overloaded\"}"));
         mockWebServer.enqueue(litellmVerdict(true, "unites et arrondi precises"));
 
-        Readiness verdict = split.reassessStory("Formater une taille", "desc", "1500 -> '1.5 Ko'");
+        Readiness verdict = split.reassess("Formater une taille", "desc", "1500 -> '1.5 Ko'");
 
         assertTrue(verdict.aiReady());
         assertEquals(2, mockWebServer.getRequestCount());
@@ -525,11 +524,10 @@ class LlmBacklogAnalyzerTest {
             .addHeader("Content-Type", "application/json"));
         long start = System.nanoTime();
 
-        List<Epic> epics = split.analyzeDocument("Besoin : formater une taille de fichier");
+        List<Epic> epics = split.generate("Besoin : formater une taille de fichier");
+        List<Readiness> verdicts = split.assess(epics.get(0).getStories());
 
-        var story = epics.get(0).getStories().get(0);
-        assertFalse(story.getAiReady());
-        assertTrue(story.getAiReadyReason().contains("verdict indisponible"));
+        assertEquals(java.util.Collections.singletonList(null), verdicts);
         assertTrue(Duration.ofNanos(System.nanoTime() - start).toSeconds() < 4, "a hanging proxy must not block the analysis");
         assertEquals(2, mockWebServer.getRequestCount());  // pas de nouvel essai apres un delai depasse
     }
