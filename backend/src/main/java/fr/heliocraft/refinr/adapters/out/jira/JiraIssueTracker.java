@@ -15,7 +15,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -67,13 +66,8 @@ public class JiraIssueTracker implements IssueTrackerPort {
         return createEpic(epic, null);
     }
 
-    @Retryable(
-        includes = {WebClientResponseException.TooManyRequests.class,
-                    WebClientResponseException.InternalServerError.class},
-        maxRetries = 2,
-        delay = 1000,
-        multiplier = 2
-    )
+    // Pas de @Retryable : l'appel passait par this (createFullHierarchy), le retry n'a jamais ete actif sur la creation.
+    // Le reactiver (POST non idempotent : risque de doublon apres un 500) est une decision de la phase 4.
     @Override
     public String createEpic(Epic epic, String project) {
         log.info("Creating Jira Epic: {}", epic.getName());
@@ -114,13 +108,8 @@ public class JiraIssueTracker implements IssueTrackerPort {
         return createStory(story, epicKey, null);
     }
 
-    @Retryable(
-        includes = {WebClientResponseException.TooManyRequests.class,
-                    WebClientResponseException.InternalServerError.class},
-        maxRetries = 2,
-        delay = 1000,
-        multiplier = 2
-    )
+    // Pas de @Retryable : l'appel passait par this (createFullHierarchy), le retry n'a jamais ete actif sur la creation.
+    // Le reactiver (POST non idempotent : risque de doublon apres un 500) est une decision de la phase 4.
     @Override
     public String createStory(Story story, String epicKey, String project) {
         log.info("Creating Jira Story: {} under Epic: {}", story.getTitle(), epicKey);
@@ -181,13 +170,8 @@ public class JiraIssueTracker implements IssueTrackerPort {
         return createSubtask(task, parentStoryKey, null);
     }
 
-    @Retryable(
-        includes = {WebClientResponseException.TooManyRequests.class,
-                    WebClientResponseException.InternalServerError.class},
-        maxRetries = 2,
-        delay = 1000,
-        multiplier = 2
-    )
+    // Pas de @Retryable : l'appel passait par this (createFullHierarchy), le retry n'a jamais ete actif sur la creation.
+    // Le reactiver (POST non idempotent : risque de doublon apres un 500) est une decision de la phase 4.
     @Override
     public String createSubtask(Task task, String parentStoryKey, String project) {
         log.info("Creating Jira Task: {} under Story: {}", task.getTitle(), parentStoryKey);
@@ -223,37 +207,6 @@ public class JiraIssueTracker implements IssueTrackerPort {
             log.error("Error creating Task", e);
             throw new RuntimeException("Failed to create Task: " + e.getMessage(), e);
         }
-    }
-
-    public void createFullHierarchy(List<Epic> epics) {
-        createFullHierarchy(epics, null);
-    }
-
-    /**
-     * Cree epics, stories et sous-taches dans le projet donne (null ou vide : projet par defaut,
-     * jira.project-key). Permet a un outil appelant de remplir un projet qu'il vient de creer.
-     */
-    public void createFullHierarchy(List<Epic> epics, String project) {
-        log.info("Creating full Jira hierarchy: {} epics in project {}", epics.size(), projet(project));
-
-        for (Epic epic : epics) {
-            String epicKey = createEpic(epic, project);
-            epic.setTrackerKey(epicKey);
-
-            for (Story story : epic.getStories()) {
-                String storyKey = createStory(story, epicKey, project);
-                story.setTrackerKey(storyKey);
-                story.setEpicTrackerKey(epicKey);
-
-                for (Task task : story.getTasks()) {
-                    String taskKey = createSubtask(task, storyKey, project);
-                    task.setTrackerKey(taskKey);
-                    task.setParentTrackerKey(storyKey);
-                }
-            }
-        }
-
-        log.info("Full hierarchy created successfully");
     }
 
     private String projet(String project) {
