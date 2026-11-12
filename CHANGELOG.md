@@ -5,6 +5,41 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ## [Unreleased]
 
+### Changed — configuration IA (incompatible)
+- Fournisseurs IA configurés par `refinr.llm.analysis.*` et `refinr.llm.verdict.*` (`provider` : `anthropic`,
+  `google` ou `openai-compatible`, `base-url`, `model`, `api-key`, `timeout`, `max-output-tokens`…), variables
+  `LLM_ANALYSIS_*` / `LLM_VERDICT_*`. Les anciennes clés (`ai.provider`, `ollama.*`, `gemini.*`, `ai.verdict.*`,
+  `groq.*`, `anthropic.api-key` et `AI_PROVIDER`, `OLLAMA_*`, `GEMINI_*`, `AI_VERDICT_*` dans `.env`) sont **refusées
+  au démarrage**, avec la correspondance à appliquer (cf. README, « Migration depuis l'ancienne configuration IA »).
+  Ollama passe par son API compatible OpenAI : `base-url` avec `/v1`.
+
+### Changed — contrat REST
+- `analyze-preview`, `analyze-and-create`, `reassess-story` : `502` (message générique) quand la sortie de l'IA est
+  inexploitable — non conforme au schéma JSON même après relances, ou tronquée par la limite de tokens (auparavant `500`).
+  Un fournisseur indisponible reste un `500`.
+- `GET /api/v1/health` : `services.ai` (fournisseur d'analyse) indique `provider` = `anthropic`, `google` ou
+  `openai-compatible` ; `services.aiVerdict` apparaît quand un fournisseur de verdict distinct est configuré.
+  Réponse mise en cache 45 s (`refinr.health.cache-ttl`).
+
+### Added
+- Clients `anthropic` (API Messages, sans streaming), `google` (Gemini) et `openai-compatible` (OpenAI, DeepSeek,
+  Mistral, Groq, OpenRouter, Ollama, LiteLLM, vLLM…), avec le mode JSON natif de chaque fournisseur.
+- Sorties IA validées par JSON Schema (`backend/src/main/resources/llm/schemas`) ; sortie invalide ⇒ relance avec la
+  liste des erreurs (`refinr.llm.max-repair-attempts`, 2), puis `502`. Sortie tronquée (`max_tokens`, `MAX_TOKENS`,
+  `length`) ⇒ erreur explicite, sans relance.
+- Verdict par lots (`refinr.llm.verdict.batch-size`, 10 stories par appel) et cache des verdicts réussis par contenu de
+  story (`refinr.llm.verdict.cache.*`, 24 h) : `create-jira` après un aperçu ne rejuge que les stories modifiées.
+- Health check par port sortant (Confluence, Jira, chaque fournisseur IA), via des lectures gratuites.
+- `refinr.llm.*.extra-body.*` (`openai-compatible`) : propriétés ajoutées au corps de la requête ;
+  `LLM_ANALYSIS_REASONING_EFFORT=none` désactive la réflexion des modèles Ollama (équivalent de l'ancien `think: false`).
+
+### Changed
+- Appels IA : nouveaux essais sur `429`, `5xx` (dont `529`) et fournisseur injoignable, `Retry-After` respecté
+  (plafonné à 30 s) ; jamais après un délai dépassé. Le verdict (`create-jira`, `reassess-story`) est désormais
+  retenté comme l'analyse.
+- Le modèle ne peut plus fournir de clés de ticket (`jiraKey`, `epicKey`…) dans sa sortie : refusées par le schéma.
+- Les corps d'erreur des fournisseurs IA ne sont plus journalisés (certains recopient une partie de la clé refusée).
+
 ### Changed — contrat REST
 - `create-jira` : le serveur **recalcule** le verdict `ai-ready` de chaque story sur son contenu final (le contenu a pu
   être modifié depuis l'aperçu) ; les champs `aiReady` et `aiReadyReason` envoyés par le client sont **ignorés**.
