@@ -44,6 +44,9 @@ public record LlmSettings(
         if (provider != LlmProvider.OPENAI_COMPATIBLE && (apiKey == null || apiKey.isBlank())) {
             throw new IllegalArgumentException("api-key is required for the " + provider.id() + " provider (" + role + ")");
         }
+        if (provider != LlmProvider.OPENAI_COMPATIBLE && maxOutputTokens <= 0) {
+            throw new IllegalArgumentException("max-output-tokens must be > 0 for the " + provider.id() + " provider (" + role + ")");
+        }
         apiKey = apiKey == null ? "" : apiKey;
         jsonMode = jsonMode == null ? JsonMode.JSON_SCHEMA : jsonMode;
         extraBody = extraBody == null ? Map.of() : Map.copyOf(extraBody);

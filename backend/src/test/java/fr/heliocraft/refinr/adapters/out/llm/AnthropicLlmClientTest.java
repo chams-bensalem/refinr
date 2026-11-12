@@ -59,6 +59,36 @@ class AnthropicLlmClientTest extends AbstractLlmClientTest {
     }
 
     @Test
+    @DisplayName("The schema sent to Anthropic has no unsupported constraint (minLength, minimum...), local schema unchanged")
+    void unsupportedConstraintsAreStripped() throws Exception {
+        for (String name : new String[] {LlmSchemas.BACKLOG, LlmSchemas.READINESS_BATCH}) {
+            server.enqueue(success("{}"));
+            JsonNode local = LlmSchemas.forProvider(LlmSchemas.load(name));
+            client().complete(LlmRequest.of("s", "u", name, local));
+
+            String sent = json.readTree(server.takeRequest().getBody().readUtf8())
+                    .path("output_config").path("format").path("schema").toString();
+            for (String keyword : new String[] {"\"minLength\"", "\"minimum\"", "\"maxLength\"", "\"maximum\""}) {
+                assertFalse(sent.contains(keyword), name + " sent with " + keyword + ": " + sent);
+            }
+            assertTrue(sent.contains("\"additionalProperties\":false"), sent);
+            assertTrue(sent.contains("\"required\""), sent);
+            assertTrue(local.toString().contains("\"minLength\""), "the local schema keeps its constraints");
+        }
+    }
+
+    @Test
+    @DisplayName("A field named like a keyword (e.g. 'pattern') is kept: only keywords are stripped")
+    void propertyNamesAreKept() {
+        JsonNode schema = json.readTree("{\"type\":\"object\",\"properties\":{\"pattern\":{\"type\":\"string\",\"minLength\":1}}}");
+
+        JsonNode stripped = AnthropicLlmClient.supportedSchema(schema);
+
+        assertTrue(stripped.path("properties").has("pattern"));
+        assertFalse(stripped.path("properties").path("pattern").has("minLength"));
+    }
+
+    @Test
     @DisplayName("HTTP 529 (overloaded) is retried")
     void overloadedIsRetried() {
         server.enqueue(new MockResponse().setResponseCode(529));
