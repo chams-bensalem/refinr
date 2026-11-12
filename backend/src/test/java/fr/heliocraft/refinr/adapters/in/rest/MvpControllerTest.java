@@ -278,6 +278,18 @@ class MvpControllerTest {
     }
 
     @Test
+    @DisplayName("Confluence search answers 400 on invalid input")
+    void searchRejectsInvalidInput() throws Exception {
+        when(confluenceService.searchDocuments(any(), any()))
+            .thenThrow(new IllegalArgumentException("Invalid spaceKey"));
+
+        mockMvc.perform(get("/api/v1/mvp/confluence/search").param("spaceKey", "SPACE OR x").param("title", "t"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("Invalid spaceKey"));
+    }
+
+    @Test
     @DisplayName("The debug endpoint test-issue-types no longer exists")
     void debugIssueTypesEndpointIsGone() throws Exception {
         mockMvc.perform(post("/api/v1/mvp/test-issue-types"))

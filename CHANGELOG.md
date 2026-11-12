@@ -14,5 +14,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 - Modèle Gemini configurable (`gemini.model`, défaut `gemini-2.5-flash`), utilisé par l'analyse et le health check ;
   `ai.verdict.model` vaut aussi `gemini-2.5-flash` par défaut (au lieu de `gemini-3.6-flash`).
 
+### Security
+- Recherche Confluence : la clé d'espace est validée (liste blanche, `400` sinon) et le titre est échappé dans la
+  chaîne CQL ; un titre contenant `"` ne peut plus ajouter de clauses à la requête.
+
 ### Removed
 - Endpoint de debug `POST /api/v1/mvp/test-issue-types`.

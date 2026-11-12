@@ -18,11 +18,15 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @Service
 public class ConfluenceDocumentSource implements DocumentSourcePort {
 
     private static final Logger log = LoggerFactory.getLogger(ConfluenceDocumentSource.class);
+
+    // Cle d'espace Confluence : alphanumerique, ou espace personnel "~" + identifiant de compte (ex. ~557058:uuid)
+    private static final Pattern SPACE_KEY = Pattern.compile("^~?[A-Za-z0-9][A-Za-z0-9:_-]{0,254}$");
 
     private final WebClient webClient;
 
@@ -80,10 +84,11 @@ public class ConfluenceDocumentSource implements DocumentSourcePort {
 
     @Override
     public List<DocumentSummary> searchDocuments(String spaceKey, String title) {
+        // Validation hors du try : une entree invalide reste une IllegalArgumentException (400), jamais un appel CQL
+        String cql = searchCql(spaceKey, title);
         log.info("Searching pages in space {} with title: {}", spaceKey, title);
 
         try {
-            String cql = String.format("space=%s AND title~\"%s\"", spaceKey, title);
 
             Map<String, Object> response = webClient.get()
                     .uri(uriBuilder -> uriBuilder
@@ -101,6 +106,24 @@ public class ConfluenceDocumentSource implements DocumentSourcePort {
             log.error("Error searching Confluence pages", e);
             throw new RuntimeException("Failed to search Confluence pages: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Requete CQL de recherche : cle d'espace validee (liste blanche) puis citee, titre echappe dans sa chaine CQL
+     * ({@code \\} et {@code "}) pour qu'aucune entree ne puisse sortir de la chaine et ajouter des clauses.
+     */
+    static String searchCql(String spaceKey, String title) {
+        if (spaceKey == null || !SPACE_KEY.matcher(spaceKey).matches()) {
+            throw new IllegalArgumentException("Invalid spaceKey");
+        }
+        if (title == null || title.isBlank()) {
+            throw new IllegalArgumentException("title is required");
+        }
+        return "space=\"" + spaceKey + "\" AND title~\"" + escapeCqlString(title.strip()) + "\"";
+    }
+
+    private static String escapeCqlString(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     /** Resultats Confluence -> resumes ; lien absolu = _links.base de la reponse + _links.webui du resultat. */

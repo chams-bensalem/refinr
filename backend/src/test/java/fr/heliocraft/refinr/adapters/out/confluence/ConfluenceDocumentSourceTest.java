@@ -279,4 +279,40 @@ class ConfluenceDocumentSourceTest {
 
         assertEquals(List.of(), confluenceService.searchDocuments("SPACE", "absent"));
     }
+
+    @Test
+    @DisplayName("Search escapes quotes and backslashes of the title inside the CQL string")
+    void searchEscapesTitleInCql() throws InterruptedException {
+        mockWebServer.enqueue(jsonResponse("{\"results\": []}"));
+
+        confluenceService.searchDocuments("SPACE", "x\" OR space=\"OTHER\\");
+
+        String cql = mockWebServer.takeRequest().getRequestUrl().queryParameter("cql");
+        assertEquals("space=\"SPACE\" AND title~\"x\\\" OR space=\\\"OTHER\\\\\"", cql);
+    }
+
+    @Test
+    @DisplayName("Search rejects a space key that is not a Confluence space key, without calling Confluence")
+    void searchRejectsInvalidSpaceKey() {
+        // Reponses prevues pour ne pas bloquer si la validation manquait : le test echoue alors sur les assertions
+        mockWebServer.enqueue(jsonResponse("{\"results\": []}"));
+        mockWebServer.enqueue(jsonResponse("{\"results\": []}"));
+
+        assertThrows(IllegalArgumentException.class,
+            () -> confluenceService.searchDocuments("SPACE OR type=page", "cahier"));
+        assertThrows(IllegalArgumentException.class,
+            () -> confluenceService.searchDocuments("SPACE", "  "));
+        assertEquals(0, mockWebServer.getRequestCount());
+    }
+
+    @Test
+    @DisplayName("Search accepts personal space keys (~accountId)")
+    void searchAcceptsPersonalSpaceKey() throws InterruptedException {
+        mockWebServer.enqueue(jsonResponse("{\"results\": []}"));
+
+        confluenceService.searchDocuments("~557058:0a1b2c3d-4e5f", "notes");
+
+        assertEquals("space=\"~557058:0a1b2c3d-4e5f\" AND title~\"notes\"",
+            mockWebServer.takeRequest().getRequestUrl().queryParameter("cql"));
+    }
 }
