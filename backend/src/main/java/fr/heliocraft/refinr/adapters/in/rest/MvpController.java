@@ -5,6 +5,7 @@ import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
 import fr.heliocraft.refinr.application.port.in.InvalidRequestException;
+import fr.heliocraft.refinr.application.port.in.ModelOutputException;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
 import fr.heliocraft.refinr.application.port.in.SearchDocuments;
@@ -64,6 +65,8 @@ public class MvpController {
         try {
             return creationResponse(analyzeDocument.analyzeAndCreate(confluencePageId, projectKey));
 
+        } catch (ModelOutputException e) {
+            return modelOutputFailure(e);
         } catch (Exception e) {
             log.error("Error processing request", e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to analyze the document and create the issues"));
@@ -96,6 +99,14 @@ public class MvpController {
         return ResponseEntity.status(status).body(body);
     }
 
+    /** 502 : le modele n'a pas produit de resultat exploitable (sortie invalide apres relances, ou tronquee). */
+    private static ResponseEntity<Map<String, Object>> modelOutputFailure(ModelOutputException e) {
+        log.warn("Unusable model output: {}", e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ErrorResponses.error(e.isTruncated()
+                ? "The AI model output was truncated: increase max-output-tokens"
+                : "The AI model did not produce a valid result, even after retries"));
+    }
+
     /** Absent ou vide : projet par defaut ; sinon une cle de projet valide (ex. PROJ, DEMO2). */
     private static boolean isValidProjectKey(String projectKey) {
         return projectKey == null || projectKey.isBlank() || CLE_PROJET.matcher(projectKey).matches();
@@ -120,6 +131,8 @@ public class MvpController {
                     "epics", RestBacklogMapper.toDto(epics)
             ));
             
+        } catch (ModelOutputException e) {
+            return modelOutputFailure(e);
         } catch (Exception e) {
             log.error("Error generating preview", e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to generate the preview"));
@@ -173,6 +186,8 @@ public class MvpController {
             ));
         } catch (StoryNotAwaitingValidationException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponses.error(e.getMessage()));
+        } catch (ModelOutputException e) {
+            return modelOutputFailure(e);
         } catch (Exception e) {
             log.error("Error reassessing story {}", issueKey, e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to reassess the story"));

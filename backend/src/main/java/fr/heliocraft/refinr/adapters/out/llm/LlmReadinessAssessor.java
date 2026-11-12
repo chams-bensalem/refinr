@@ -51,7 +51,7 @@ public class LlmReadinessAssessor implements ReadinessAssessorPort {
 
     private Readiness call(String prompt) {
         LlmRequest request = LlmRequest.of(LlmPrompts.SYSTEM, prompt, LlmSchemas.READINESS, LlmSchemas.forProvider(schema));
-        return output.call(client, request, LlmReadinessAssessor::readiness);
+        return output.call(client, request, schema, LlmReadinessAssessor::readiness);
     }
 
     /** Seul un true explicite rend la story codable : "yes", absent ou null -> validation humaine. */

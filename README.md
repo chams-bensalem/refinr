@@ -304,6 +304,7 @@ refinr.llm.verdict.max-output-tokens=4096
 | `refinr.llm.analysis.api-key` | *(vide)* | Clé API (obligatoire pour `anthropic` et `google`) |
 | `refinr.llm.analysis.timeout` | `300s` | Délai maximal par appel d'analyse |
 | `refinr.llm.analysis.max-output-tokens` | `32768` | Limite de tokens de sortie (sortie tronquée ⇒ erreur explicite) |
+| `refinr.llm.max-repair-attempts` | `2` | Relances avec la liste des erreurs quand la sortie ne respecte pas le schema JSON, puis `502` |
 | `refinr.llm.verdict.provider` | *(vide)* | Fournisseur dédié au verdict `ai-ready` ; vide = celui de l'analyse |
 | `refinr.llm.verdict.timeout` | `90s` | Délai maximal par appel de verdict |
 | `refinr.llm.verdict.max-output-tokens` | `4096` | Limite de tokens de sortie du verdict |

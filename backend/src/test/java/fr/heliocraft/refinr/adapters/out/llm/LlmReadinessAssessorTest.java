@@ -27,7 +27,7 @@ class LlmReadinessAssessorTest {
         server.start();
         assessor = new LlmReadinessAssessor(
                 LlmClients.create(LlmTestSettings.of(LlmProvider.OPENAI_COMPATIBLE, server.url("/v1").toString())),
-                new StructuredOutput());
+                new StructuredOutput(2));
     }
 
     @AfterEach

@@ -82,6 +82,58 @@ abstract class AbstractLlmClientTest {
     }
 
     @Test
+    @DisplayName("Invalid JSON, then a repair request carrying the faulty answer and the errors, then success")
+    void invalidJsonIsRepaired() throws Exception {
+        server.enqueue(success("{\"aiReady\": \"oui\""));
+        server.enqueue(success("{\"aiReady\":true,\"aiReadyReason\":\"corrige\"}"));
+
+        String reason = structured().call(client(), request(), LlmSchemas.load(LlmSchemas.READINESS),
+                json -> json.path("aiReadyReason").asString());
+
+        assertEquals("corrige", reason);
+        assertEquals(2, server.getRequestCount());
+        server.takeRequest();
+        String repair = server.takeRequest().getBody().readUtf8();
+        assertTrue(repair.contains("n'est pas valide"), repair);
+        assertTrue(repair.contains("JSON invalide"), repair);
+        assertTrue(repair.contains("oui"), "the faulty answer is part of the conversation: " + repair);
+    }
+
+    @Test
+    @DisplayName("Output not matching the schema on every attempt: 1 call + 2 repairs, then INVALID_OUTPUT")
+    void schemaViolationsExhaustRepairs() throws Exception {
+        for (int i = 0; i < 3; i++) {
+            server.enqueue(success("{\"aiReady\":\"yes\"}"));
+        }
+
+        LlmException error = assertThrows(LlmException.class, () -> structured().call(client(), request(),
+                LlmSchemas.load(LlmSchemas.READINESS), json -> json));
+
+        assertEquals(LlmException.Reason.INVALID_OUTPUT, error.reason());
+        assertEquals(3, server.getRequestCount());
+        server.takeRequest();
+        String repair = server.takeRequest().getBody().readUtf8();
+        assertTrue(repair.contains("aiReadyReason"), "the missing property is reported: " + repair);
+        assertTrue(repair.contains("aiReady"), repair);
+    }
+
+    @Test
+    @DisplayName("A truncated output is never repaired")
+    void truncatedOutputIsNotRepaired() {
+        server.enqueue(truncated("{\"aiReady\":tr"));
+
+        LlmException error = assertThrows(LlmException.class, () -> structured().call(client(), request(),
+                LlmSchemas.load(LlmSchemas.READINESS), json -> json));
+
+        assertEquals(LlmException.Reason.TRUNCATED, error.reason());
+        assertEquals(1, server.getRequestCount());
+    }
+
+    protected static StructuredOutput structured() {
+        return new StructuredOutput(2);
+    }
+
+    @Test
     @DisplayName("HTTP 401: clean failure, never retried, no key nor body in the message")
     void unauthorizedIsNotRetried() {
         server.enqueue(new MockResponse().setResponseCode(401).setBody("{\"error\":\"invalid key fake-api-key\"}"));
@@ -93,6 +145,17 @@ abstract class AbstractLlmClientTest {
         assertFalse(error.getMessage().contains("fake-api-key"), error.getMessage());
         assertFalse(error.getMessage().contains(String.valueOf(server.getPort())), error.getMessage());
         assertEquals(1, server.getRequestCount());
+    }
+
+    @Test
+    @DisplayName("Only a short provider error type is kept from an error body, never its message")
+    void errorTypeOnly() {
+        LlmClient client = client();
+        assertEquals("authentication_error",
+                client.errorType("{\"error\":{\"type\":\"authentication_error\",\"message\":\"key sk-abc\"}}"));
+        assertEquals("UNAUTHENTICATED", client.errorType("{\"error\":{\"code\":401,\"status\":\"UNAUTHENTICATED\"}}"));
+        assertEquals("unknown", client.errorType("invalid key sk-abc"));
+        assertEquals("unknown", client.errorType("{\"error\":{\"type\":\"Incorrect API key provided: sk-abc\"}}"));
     }
 
     @Test

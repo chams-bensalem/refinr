@@ -67,7 +67,8 @@ public class LlmConfiguration {
 
     @Bean
     public StructuredOutput structuredOutput() {
-        return new StructuredOutput();
+        Integer repairs = properties.maxRepairAttempts();
+        return new StructuredOutput(repairs != null ? repairs : DEFAULT_MAX_REPAIR_ATTEMPTS);
     }
 
     @Bean

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Forme JSON attendue dans la reponse du LLM (memes proprietes que le contrat REST, inconnues refusees). */
+/** Forme JSON attendue dans la reponse du LLM (contenu seulement : jamais de cle de ticket ; inconnues refusees). */
 public class GeneratedStory {
     // User Story format: As a <role>, I want <goal>, So that <benefit>
     
@@ -30,11 +30,7 @@ public class GeneratedStory {
     private List<GeneratedTask> tasks = new ArrayList<>();
     private List<String> dependencies = new ArrayList<>();
     
-    // Jira fields
-    private String jiraKey;
-    private String jiraUrl;
-    private String epicKey;
-    
+        
     public GeneratedStory() {}
     
     // Getters and Setters
@@ -161,29 +157,5 @@ public class GeneratedStory {
 
     public void setAiReadyReason(String aiReadyReason) {
         this.aiReadyReason = aiReadyReason;
-    }
-
-    public String getJiraKey() {
-        return jiraKey;
-    }
-
-    public void setJiraKey(String jiraKey) {
-        this.jiraKey = jiraKey;
-    }
-
-    public String getJiraUrl() {
-        return jiraUrl;
-    }
-
-    public void setJiraUrl(String jiraUrl) {
-        this.jiraUrl = jiraUrl;
-    }
-
-    public String getEpicKey() {
-        return epicKey;
-    }
-
-    public void setEpicKey(String epicKey) {
-        this.epicKey = epicKey;
     }
 }
