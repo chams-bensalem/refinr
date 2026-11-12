@@ -10,8 +10,8 @@ export default function Analyze() {
 
     const mutation = useMutation({
         mutationFn: analyzeAndCreate,
-        onSuccess: () => {
-            navigate('/results', { state: { success: true } });
+        onSuccess: (data) => {
+            navigate('/results', { state: data });
         },
     });
 
@@ -110,7 +110,7 @@ export default function Analyze() {
                             Your Jira tickets have been created successfully. Ready to review your roadmap?
                         </p>
                         <button
-                            onClick={() => navigate('/results')}
+                            onClick={() => navigate('/results', { state: mutation.data })}
                             className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 transition-all"
                         >
                             View Results
