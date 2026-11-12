@@ -35,9 +35,15 @@ public class JiraIssueTracker implements IssueTrackerPort {
     private final String projectKey;
     // Les projets "team-managed" (next-gen) n'ont pas de champ priority : Jira refuse l'issue s'il est envoye
     private final boolean priorityEnabled;
+    // Champ personnalise des story points (ex. customfield_10016), propre a chaque instance Jira ; vide = non envoye
+    private final String storyPointsField;
 
     public JiraIssueTracker(String baseUrl, String username, String token, String projectKey) {
         this(baseUrl, username, token, projectKey, true);
+    }
+
+    public JiraIssueTracker(String baseUrl, String username, String token, String projectKey, boolean priorityEnabled) {
+        this(baseUrl, username, token, projectKey, priorityEnabled, "");
     }
 
     @Autowired
@@ -46,10 +52,12 @@ public class JiraIssueTracker implements IssueTrackerPort {
             @Value("${jira.username}") String username,
             @Value("${jira.token}") String token,
             @Value("${jira.project-key}") String projectKey,
-            @Value("${jira.priority-enabled:true}") boolean priorityEnabled) {
+            @Value("${jira.priority-enabled:true}") boolean priorityEnabled,
+            @Value("${jira.story-points-field:}") String storyPointsField) {
 
         this.projectKey = projectKey;
         this.priorityEnabled = priorityEnabled;
+        this.storyPointsField = storyPointsField == null ? "" : storyPointsField.strip();
 
         String auth = username + ":" + token;
         String encodedAuth = Base64.getEncoder()
@@ -132,10 +140,11 @@ public class JiraIssueTracker implements IssueTrackerPort {
             fields.put("parent", Map.of("key", epicKey));
         }
 
-//        // Story Points
-//        if (story.getEstimatedStoryPoints() != null) {
-//            fields.put("customfield_10016", story.getEstimatedStoryPoints());
-//        }
+        Integer storyPoints = story.getEstimatedStoryPoints() != null
+                ? story.getEstimatedStoryPoints() : story.getStoryPoints();
+        if (!storyPointsField.isEmpty() && storyPoints != null) {
+            fields.put(storyPointsField, storyPoints);
+        }
 
         List<String> cleanedLabels = new ArrayList<>(LabelNormalizer.normalize(labels));
         // Seul un "true" explicite de l'analyse rend la story codable par l'agent : dans le doute, validation humaine
@@ -216,29 +225,6 @@ public class JiraIssueTracker implements IssueTrackerPort {
     private void putPriority(Map<String, Object> fields, String priority) {
         if (priorityEnabled) {
             fields.put("priority", Map.of("name", priority != null ? priority : "Medium"));
-        }
-    }
-
-    private void updateStoryPoints(String issueKey, Integer storyPoints) {
-        log.info("Updating Story Points for {}: {}", issueKey, storyPoints);
-
-        Map<String, Object> fields = Map.of(
-                "customfield_10016", storyPoints
-        );
-
-        Map<String, Object> requestBody = Map.of("fields", fields);
-
-        try {
-            webClient.put()
-                    .uri("/rest/api/3/issue/{issueKey}", issueKey)
-                    .bodyValue(requestBody)
-                    .retrieve()
-                    .bodyToMono(Void.class)
-                    .block();
-
-            log.info("Story Points updated successfully");
-        } catch (Exception e) {
-            log.warn("Failed to update Story Points (field may not exist): {}", e.getMessage());
         }
     }
 
