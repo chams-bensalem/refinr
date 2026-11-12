@@ -2,6 +2,7 @@ package fr.heliocraft.refinr.adapters.out.llm;
 
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Readiness;
+import fr.heliocraft.refinr.domain.model.Story;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -361,6 +362,28 @@ class LlmBacklogAnalyzerTest {
 
         path = mockWebServer.takeRequest().getPath();
         assertTrue(path.startsWith("/v1beta/models/gemini-analysis-model:generateContent"), path);
+    }
+
+    @Test
+    @DisplayName("assessStory judges one story on its content (title, description, criteria)")
+    void assessStoryJudgesOneStory() throws InterruptedException {
+        mockWebServer.enqueue(new MockResponse()
+            .setBody("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":"
+                + "\"{\\\"aiReady\\\": true, \\\"aiReadyReason\\\": \\\"Complet\\\"}\"}]}}]}")
+            .addHeader("Content-Type", "application/json")
+            .setResponseCode(200));
+        Story story = new Story();
+        story.setTitle("Export PDF");
+        story.setDescription("Exporter la liste en A4");
+        story.setAcceptanceCriteria(List.of("Given une liste, When j'exporte, Then un PDF A4"));
+
+        Readiness verdict = analyzer.assessStory(story);
+
+        assertEquals(new Readiness(true, "Complet"), verdict);
+        String body = mockWebServer.takeRequest().getBody().readUtf8();
+        assertTrue(body.contains("Export PDF"), body);
+        assertTrue(body.contains("Exporter la liste en A4"), body);
+        assertTrue(body.contains("un PDF A4"), body);
     }
 
     @Test

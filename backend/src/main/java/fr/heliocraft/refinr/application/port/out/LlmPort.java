@@ -2,6 +2,7 @@ package fr.heliocraft.refinr.application.port.out;
 
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Readiness;
+import fr.heliocraft.refinr.domain.model.Story;
 
 import java.util.List;
 
@@ -10,6 +11,9 @@ public interface LlmPort {
 
     /** Epics, stories et sous-taches du document, chaque story portant son verdict de preparation. */
     List<Epic> analyzeDocument(String documentContent);
+
+    /** Verdict de preparation d'une story sur son contenu (titre, description, criteres) ; leve une exception si indisponible. */
+    Readiness assessStory(Story story);
 
     /** Reevalue une story deja creee avec la precision apportee par l'utilisateur. */
     Readiness reassessStory(String summary, String description, String precision);

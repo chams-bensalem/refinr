@@ -3,7 +3,7 @@ package fr.heliocraft.refinr.adapters.in.rest;
 import fr.heliocraft.refinr.adapters.in.rest.dto.EpicDto;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
-import fr.heliocraft.refinr.application.port.in.CreateBacklog;
+import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
 import fr.heliocraft.refinr.application.port.in.SearchDocuments;
@@ -32,19 +32,19 @@ public class MvpController {
 
     private final AnalyzeDocument analyzeDocument;
     private final PreviewBacklog previewBacklog;
-    private final CreateBacklog createBacklog;
+    private final CreateEditedBacklog createEditedBacklog;
     private final ReassessStory reassessStory;
     private final SearchDocuments searchDocuments;
 
     public MvpController(
             AnalyzeDocument analyzeDocument,
             PreviewBacklog previewBacklog,
-            CreateBacklog createBacklog,
+            CreateEditedBacklog createEditedBacklog,
             ReassessStory reassessStory,
             SearchDocuments searchDocuments) {
         this.analyzeDocument = analyzeDocument;
         this.previewBacklog = previewBacklog;
-        this.createBacklog = createBacklog;
+        this.createEditedBacklog = createEditedBacklog;
         this.reassessStory = reassessStory;
         this.searchDocuments = searchDocuments;
     }
@@ -137,7 +137,8 @@ public class MvpController {
 
         try {
             List<Epic> epics = RestBacklogMapper.toDomain(request);
-            return creationResponse(createBacklog.create(epics, projectKey));
+            // Verdict recalcule sur le contenu final : aiReady / aiReadyReason envoyes par le client sont ignores
+            return creationResponse(createEditedBacklog.create(epics, projectKey));
 
         } catch (Exception e) {
             log.error("Error creating Jira tickets", e);

@@ -227,6 +227,16 @@ public class LlmBacklogAnalyzer implements LlmPort {
             """;
     }
 
+    @Override
+    public Readiness assessStory(Story story) {
+        log.info("Assessing readiness of story '{}'", story.getTitle());
+        try {
+            return parseReadiness(callVerdictAPI(buildVerdictPrompt(story)));
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to assess story readiness", e);
+        }
+    }
+
     /** Un verdict par story, par le fournisseur de verdict ; sans verdict fiable, jamais ai-ready. */
     private void applyVerdicts(List<Epic> epics) {
         for (Epic epic : epics) {
@@ -235,12 +245,13 @@ public class LlmBacklogAnalyzer implements LlmPort {
             }
             for (Story story : epic.getStories()) {
                 try {
-                    Readiness verdict = parseReadiness(callVerdictAPI(buildVerdictPrompt(story)));
+                    Readiness verdict = assessStory(story);
                     story.setAiReady(verdict.aiReady());
                     story.setAiReadyReason(verdict.aiReadyReason());
                 } catch (Exception e) {
-                    log.warn("Readiness verdict unavailable for '{}': {}", story.getTitle(), e.getMessage());
-                    Readiness fallback = ReadinessPolicy.unavailable(e.getClass().getSimpleName());
+                    Throwable cause = e.getCause() != null ? e.getCause() : e;
+                    log.warn("Readiness verdict unavailable for '{}': {}", story.getTitle(), cause.getMessage());
+                    Readiness fallback = ReadinessPolicy.unavailable(cause.getClass().getSimpleName());
                     story.setAiReady(fallback.aiReady());
                     story.setAiReadyReason(fallback.aiReadyReason());
                 }

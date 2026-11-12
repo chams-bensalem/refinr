@@ -2,7 +2,7 @@ package fr.heliocraft.refinr.adapters.in.rest;
 
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
-import fr.heliocraft.refinr.application.port.in.CreateBacklog;
+import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
 import fr.heliocraft.refinr.application.port.in.SearchDocuments;
@@ -60,7 +60,7 @@ class RestJsonContractTest {
     private PreviewBacklog previewBacklog;
 
     @MockitoBean
-    private CreateBacklog createBacklog;
+    private CreateEditedBacklog createBacklog;
 
     @MockitoBean
     private ReassessStory reassessStory;
@@ -140,8 +140,9 @@ class RestJsonContractTest {
         assertEquals("Medium", story.getPriority());
         assertEquals(List.of("api"), story.getLabels());
         assertEquals(List.of("PROJ-0"), story.getDependencies());
-        assertEquals(Boolean.TRUE, story.getAiReady());
-        assertEquals("Perimetre clair", story.getAiReadyReason());
+        // Verdict du client ignore (contrat modifie en phase 4) : le serveur le recalcule sur le contenu final
+        assertNull(story.getAiReady());
+        assertNull(story.getAiReadyReason());
         assertEquals("PROJ-2", story.getTrackerKey());
         assertEquals("https://your-site.atlassian.net/browse/PROJ-2", story.getTrackerUrl());
         assertEquals("PROJ-1", story.getEpicTrackerKey());

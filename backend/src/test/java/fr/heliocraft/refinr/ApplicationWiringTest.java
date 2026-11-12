@@ -2,6 +2,7 @@ package fr.heliocraft.refinr;
 
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.CreateBacklog;
+import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
 import fr.heliocraft.refinr.application.port.in.SearchDocuments;
@@ -57,7 +58,7 @@ class ApplicationWiringTest {
     @Test
     @DisplayName("Every use case is wired")
     void wiresEveryUseCase() {
-        for (Class<?> useCase : List.of(AnalyzeDocument.class, PreviewBacklog.class, CreateBacklog.class,
+        for (Class<?> useCase : List.of(AnalyzeDocument.class, PreviewBacklog.class, CreateBacklog.class, CreateEditedBacklog.class,
                 ReassessStory.class, SearchDocuments.class)) {
             assertNotNull(context.getBean(useCase), useCase.getSimpleName());
         }

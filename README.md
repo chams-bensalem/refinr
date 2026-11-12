@@ -71,6 +71,7 @@ Le projet est un monorepo :
 - 🤖 Chaque story est évaluée : `aiReady = true` **uniquement** si le périmètre est clair, les critères testables et sans dépendance externe non précisée.
 - 🔀 Le verdict peut être confié à un **fournisseur IA distinct** de l'analyse (ex. structure par Ollama local, verdict par un pool Gemini via un proxy LiteLLM).
 - 🛡️ **Sécurité par défaut** : verdict absent, ambigu ou en erreur ⇒ `validation-necessaire`.
+- ♻️ **Verdict recalculé à la création** (`create-jira`) : le contenu a pu être modifié depuis l'aperçu, le serveur rejuge donc chaque story sur son contenu final (un appel au fournisseur de verdict par story) ; les champs `aiReady` / `aiReadyReason` envoyés par le client sont **ignorés**.
 - 🔁 **Réévaluation** : une story en attente peut être réévaluée avec une précision de l'utilisateur ; la description Jira d'origine est conservée (images, tableaux, liens) et complétée, le label est mis à jour.
 
 ### Création Jira
@@ -391,6 +392,7 @@ curl -s -X POST http://localhost:8080/api/v1/mvp/analyze-preview \
   -d '{"confluencePageId": "123456789"}' > preview.json
 
 # 2. (optionnel) Relire / modifier les epics dans preview.json
+#    (le verdict ai-ready sera recalculé à la création : inutile de modifier aiReady / aiReadyReason)
 
 # 3. Créer dans Jira à partir de la prévisualisation (projectKey optionnel)
 jq '.epics' preview.json | curl -s -X POST "http://localhost:8080/api/v1/mvp/create-jira?projectKey=PROJ" \
@@ -434,7 +436,7 @@ Base URL : `http://localhost:8080/api/v1`
 |---|---|---|---|
 | `POST` | `/mvp/analyze-and-create` | `{ "confluencePageId": "…", "projectKey": "PROJ" }` *(projectKey optionnel, format `^[A-Z][A-Z0-9]{1,9}$`)* | Lit, analyse et crée toute la hiérarchie dans Jira |
 | `POST` | `/mvp/analyze-preview` | `{ "confluencePageId": "…" }` | Analyse sans créer de tickets |
-| `POST` | `/mvp/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optionnel, même format)* | Crée une structure déjà générée, dans `projectKey` ou le projet par défaut |
+| `POST` | `/mvp/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optionnel, même format)* | Crée une structure déjà générée, dans `projectKey` ou le projet par défaut ; verdict `ai-ready` recalculé par le serveur (`aiReady` / `aiReadyReason` du client ignorés) |
 | `POST` | `/mvp/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Réévalue une story `validation-necessaire` (`409` si elle ne l'est pas) |
 | `GET` | `/mvp/confluence/search` | `?spaceKey=SPACE&title=…` | Recherche de pages Confluence (CQL) : `{ success, results: [{ id, title, url }] }` |
 | `GET` | `/mvp/health` | — | Ping simple du service |
