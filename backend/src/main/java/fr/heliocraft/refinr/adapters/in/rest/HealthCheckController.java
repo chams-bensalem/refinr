@@ -29,6 +29,9 @@ public class HealthCheckController {
     @Value("${gemini.api-key:}")
     private String geminiApiKey;
 
+    @Value("${gemini.model:gemini-2.5-flash}")
+    private String geminiModel;
+
     @Value("${ai.provider:ollama}")
     private String aiProvider;
 
@@ -117,12 +120,12 @@ public class HealthCheckController {
         try {
             // Sans cle, Gemini repond 403 meme si la cle configuree est valide
             geminiClient.get()
-                    .uri("/v1beta/models/gemini-2.5-flash")
+                    .uri("/v1beta/models/{model}", geminiModel)
                     .header("x-goog-api-key", geminiApiKey)
                     .retrieve()
                     .toBodilessEntity()
                     .block();
-            return Map.of("status", "UP", "provider", "gemini");
+            return Map.of("status", "UP", "provider", "gemini", "model", geminiModel);
         } catch (Exception e) {
             log.error("Gemini health check failed", e);
             return Map.of("status", "DOWN", "provider", "gemini", "error", String.valueOf(e.getMessage()));

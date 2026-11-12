@@ -44,6 +44,35 @@ class ConfigurationDefaultsTest {
         assertEquals(expected, readmeTableDefault("ai.provider"));
     }
 
+    @Test
+    @DisplayName("One Gemini model everywhere: code, example config, .env.example, README table, badge and examples")
+    void geminiModelIsAligned() throws IOException {
+        String model = exampleDefault("gemini.model");
+        assertEquals("gemini-2.5-flash", model, "default Gemini model of the example configuration");
+
+        for (String codeDefault : codeDefaults("gemini.model")) {
+            assertEquals(model, codeDefault, "@Value default of gemini.model");
+        }
+        assertEquals(model, envExample("GEMINI_MODEL"));
+        assertEquals(model, readmeTableDefault("gemini.model"));
+
+        // Le verdict confie a Gemini (ou a un pool Gemini derriere LiteLLM) utilise par defaut le meme modele
+        assertEquals(model, exampleDefault("ai.verdict.model"));
+        for (String codeDefault : codeDefaults("ai.verdict.model")) {
+            assertEquals(model, codeDefault, "@Value default of ai.verdict.model");
+        }
+        assertEquals(model, envExample("AI_VERDICT_MODEL"));
+
+        String readme = Files.readString(README);
+        // Badge : gemini-2.5-flash -> "Gemini-2.5%20Flash"
+        String version = model.substring("gemini-".length()).replace("-flash", "%20Flash").replace("-pro", "%20Pro");
+        assertTrue(readme.contains("badge/Gemini-" + version + "-"), "README badge should show " + model);
+        Matcher mentioned = Pattern.compile("gemini-\\d[\\w.-]*").matcher(readme);
+        while (mentioned.find()) {
+            assertEquals(model, mentioned.group(), "Gemini model mentioned in the README");
+        }
+    }
+
     /** Defaut d'une propriete de application-example.properties ecrite {@code cle=${VAR:defaut}} ou {@code cle=valeur}. */
     static String exampleDefault(String key) throws IOException {
         for (String line : Files.readAllLines(EXAMPLE)) {
