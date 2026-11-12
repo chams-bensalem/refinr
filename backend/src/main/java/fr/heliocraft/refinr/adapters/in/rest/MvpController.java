@@ -71,10 +71,7 @@ public class MvpController {
             
         } catch (Exception e) {
             log.error("Error processing request", e);
-            return ResponseEntity.internalServerError().body(Map.of(
-                    "success", false,
-                    "error", e.getMessage()
-            ));
+            return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to analyze the document and create the issues"));
         }
     }
 
@@ -95,10 +92,7 @@ public class MvpController {
             
         } catch (Exception e) {
             log.error("Error generating preview", e);
-            return ResponseEntity.internalServerError().body(Map.of(
-                    "success", false,
-                    "error", e.getMessage()
-            ));
+            return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to generate the preview"));
         }
     }
 
@@ -117,10 +111,7 @@ public class MvpController {
             
         } catch (Exception e) {
             log.error("Error creating Jira tickets", e);
-            return ResponseEntity.internalServerError().body(Map.of(
-                    "success", false,
-                    "error", e.getMessage()
-            ));
+            return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to create the issues"));
         }
     }
 
@@ -149,16 +140,10 @@ public class MvpController {
                     "aiReadyReason", verdict.aiReadyReason() != null ? verdict.aiReadyReason() : ""
             ));
         } catch (StoryNotAwaitingValidationException e) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
-                    "success", false,
-                    "error", e.getMessage()
-            ));
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponses.error(e.getMessage()));
         } catch (Exception e) {
             log.error("Error reassessing story {}", issueKey, e);
-            return ResponseEntity.internalServerError().body(Map.of(
-                    "success", false,
-                    "error", String.valueOf(e.getMessage())
-            ));
+            return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to reassess the story"));
         }
     }
 
@@ -178,16 +163,10 @@ public class MvpController {
 
         } catch (IllegalArgumentException e) {
             // Message de validation produit par l'application (sans donnee externe) : renvoye tel quel
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "error", e.getMessage()
-            ));
+            return ResponseEntity.badRequest().body(ErrorResponses.error(e.getMessage()));
         } catch (Exception e) {
             log.error("Error searching Confluence", e);
-            return ResponseEntity.internalServerError().body(Map.of(
-                    "success", false,
-                    "error", e.getMessage()
-            ));
+            return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to search the documents"));
         }
     }
 

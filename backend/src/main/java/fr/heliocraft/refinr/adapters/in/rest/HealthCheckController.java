@@ -76,7 +76,7 @@ public class HealthCheckController {
             return Map.of("status", "UP");
         } catch (Exception e) {
             log.error("Confluence health check failed", e);
-            return Map.of("status", "DOWN", "error", e.getMessage());
+            return Map.of("status", "DOWN", "error", ErrorResponses.cause(e));
         }
     }
 
@@ -90,7 +90,7 @@ public class HealthCheckController {
             return Map.of("status", "UP");
         } catch (Exception e) {
             log.error("Jira health check failed", e);
-            return Map.of("status", "DOWN", "error", e.getMessage());
+            return Map.of("status", "DOWN", "error", ErrorResponses.cause(e));
         }
     }
 
@@ -112,7 +112,7 @@ public class HealthCheckController {
                     : Map.of("status", "DOWN", "provider", "ollama", "error", "modele " + ollamaModel + " absent (ollama pull " + ollamaModel + ")");
         } catch (Exception e) {
             log.error("Ollama health check failed", e);
-            return Map.of("status", "DOWN", "provider", "ollama", "error", String.valueOf(e.getMessage()));
+            return Map.of("status", "DOWN", "provider", "ollama", "error", ErrorResponses.cause(e));
         }
     }
 
@@ -128,7 +128,7 @@ public class HealthCheckController {
             return Map.of("status", "UP", "provider", "gemini", "model", geminiModel);
         } catch (Exception e) {
             log.error("Gemini health check failed", e);
-            return Map.of("status", "DOWN", "provider", "gemini", "error", String.valueOf(e.getMessage()));
+            return Map.of("status", "DOWN", "provider", "gemini", "error", ErrorResponses.cause(e));
         }
     }
 }
