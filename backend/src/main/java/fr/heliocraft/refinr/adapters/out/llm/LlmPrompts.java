@@ -118,23 +118,30 @@ final class LlmPrompts {
             """;
     }
 
-    static String verdict(Story story) {
-        List<String> criteria = story.getAcceptanceCriteria() != null ? story.getAcceptanceCriteria() : List.of();
+    /** Version des prompts de verdict : fait partie de la cle du cache (un prompt modifie invalide le cache). */
+    static final String VERDICT_PROMPT_VERSION = "verdict-v1";
+
+    /** Verdict de plusieurs stories en un appel ; chaque story est identifiee par {@code ids.get(i)}. */
+    static String verdicts(List<Story> stories, List<String> ids) {
+        StringBuilder list = new StringBuilder();
+        for (int i = 0; i < stories.size(); i++) {
+            Story story = stories.get(i);
+            List<String> criteria = story.getAcceptanceCriteria() != null ? story.getAcceptanceCriteria() : List.of();
+            list.append("[").append(ids.get(i)).append("]\n")
+                .append("Titre: ").append(story.getTitle()).append("\n")
+                .append("Description:\n").append(story.getDescription() != null ? story.getDescription() : "").append("\n")
+                .append("Critères d'acceptation:\n").append(String.join("\n", criteria)).append("\n\n");
+        }
         return """
-            MISSION: Dire si la User Story Jira ci-dessous est PRÊTE POUR UN AGENT DE CODE.
+            MISSION: Pour chaque User Story Jira ci-dessous, dire si elle est PRÊTE POUR UN AGENT DE CODE.
+            Juge chaque story seule, sur son propre contenu, indépendamment des autres.
             """ + READINESS_RULES + """
 
-            STORY:
-            Titre: """ + story.getTitle() + """
-
-            Description:
-            """ + (story.getDescription() != null ? story.getDescription() : "") + """
-
-            Critères d'acceptation:
-            """ + String.join("\n", criteria) + """
-
-            Réponds UNIQUEMENT en JSON valide (pas de markdown, pas de texte avant/après):
-            {"aiReady": false, "aiReadyReason": "..."}
+            STORIES:
+            """ + list + """
+            Réponds UNIQUEMENT en JSON valide (pas de markdown, pas de texte avant/après), avec exactement un verdict
+            par story, repérée par son identifiant entre crochets :
+            {"verdicts": [{"id": "s1", "aiReady": false, "aiReadyReason": "..."}]}
             """;
     }
 

@@ -59,6 +59,24 @@ class ConfigurationDefaultsTest {
     }
 
     @Test
+    @DisplayName("Verdict batch size and cache defaults are aligned between the code, the example config and the README")
+    void verdictBatchAndCacheAreAligned() throws Exception {
+        java.lang.reflect.Parameter[] parameters = LlmConfiguration.class.getMethod("readinessAssessor",
+                fr.heliocraft.refinr.adapters.out.llm.StructuredOutput.class, int.class, java.time.Duration.class, int.class)
+                .getParameters();
+        String[][] expected = {{"refinr.llm.verdict.batch-size", "10"}, {"refinr.llm.verdict.cache.ttl", "24h"},
+                {"refinr.llm.verdict.cache.max-entries", "1000"}};
+        for (int i = 0; i < expected.length; i++) {
+            String key = expected[i][0];
+            String value = expected[i][1];
+            assertEquals("${" + key + ":" + value + "}",
+                    parameters[i + 1].getAnnotation(org.springframework.beans.factory.annotation.Value.class).value());
+            assertEquals(value, exampleDefault(key), key);
+            assertEquals(value, readmeTableDefault(key), key);
+        }
+    }
+
+    @Test
     @DisplayName("No separate verdict provider by default")
     void verdictIsOptional() throws IOException {
         assertEquals("", exampleDefault("refinr.llm.verdict.provider"));

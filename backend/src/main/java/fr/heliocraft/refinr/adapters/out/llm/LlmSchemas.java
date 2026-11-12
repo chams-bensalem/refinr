@@ -16,6 +16,7 @@ final class LlmSchemas {
 
     static final String BACKLOG = "backlog";
     static final String READINESS = "readiness";
+    static final String READINESS_BATCH = "readiness-batch";
 
     private LlmSchemas() {}
 

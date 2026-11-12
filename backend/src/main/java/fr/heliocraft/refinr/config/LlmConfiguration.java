@@ -1,5 +1,6 @@
 package fr.heliocraft.refinr.config;
 
+import fr.heliocraft.refinr.adapters.out.llm.CachingReadinessAssessor;
 import fr.heliocraft.refinr.adapters.out.llm.JsonMode;
 import fr.heliocraft.refinr.adapters.out.llm.LlmBacklogGenerator;
 import fr.heliocraft.refinr.adapters.out.llm.LlmClient;
@@ -13,6 +14,7 @@ import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
 import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -78,9 +80,21 @@ public class LlmConfiguration {
         return new LlmBacklogGenerator(analysisClient, structuredOutput);
     }
 
+    /**
+     * Verdict par lots de {@code refinr.llm.verdict.batch-size} stories, derriere un cache des verdicts reussis
+     * ({@code refinr.llm.verdict.cache.*}) : a la creation, seules les stories modifiees depuis l'apercu sont rejugees.
+     */
     @Bean
-    public ReadinessAssessorPort readinessAssessor(StructuredOutput structuredOutput) {
-        return new LlmReadinessAssessor(verdictClient, structuredOutput);
+    public ReadinessAssessorPort readinessAssessor(
+            StructuredOutput structuredOutput,
+            @Value("${refinr.llm.verdict.batch-size:10}") int batchSize,
+            @Value("${refinr.llm.verdict.cache.ttl:24h}") Duration cacheTtl,
+            @Value("${refinr.llm.verdict.cache.max-entries:1000}") int cacheMaxEntries) {
+        LlmReadinessAssessor assessor = new LlmReadinessAssessor(verdictClient, structuredOutput, batchSize);
+        if (cacheTtl.isZero() || cacheMaxEntries <= 0) {
+            return assessor;
+        }
+        return new CachingReadinessAssessor(assessor, cacheTtl, cacheMaxEntries);
     }
 
     @Bean

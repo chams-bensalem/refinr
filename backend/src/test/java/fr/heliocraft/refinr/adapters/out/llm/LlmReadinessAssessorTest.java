@@ -8,6 +8,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -19,15 +20,11 @@ import static org.junit.jupiter.api.Assertions.*;
 class LlmReadinessAssessorTest {
 
     private MockWebServer server;
-    private LlmReadinessAssessor assessor;
 
     @BeforeEach
     void setUp() throws IOException {
         server = new MockWebServer();
         server.start();
-        assessor = new LlmReadinessAssessor(
-                LlmClients.create(LlmTestSettings.of(LlmProvider.OPENAI_COMPATIBLE, server.url("/v1").toString())),
-                new StructuredOutput(2));
     }
 
     @AfterEach
@@ -35,37 +32,88 @@ class LlmReadinessAssessorTest {
         server.shutdown();
     }
 
+    private LlmReadinessAssessor assessor(int batchSize) {
+        return new LlmReadinessAssessor(
+                LlmClients.create(LlmTestSettings.of(LlmProvider.OPENAI_COMPATIBLE, server.url("/v1").toString())),
+                new StructuredOutput(2), batchSize);
+    }
+
     private static Story story(String title) {
         Story story = new Story();
         story.setTitle(title);
-        story.setDescription("Exporter la liste en A4");
-        story.setAcceptanceCriteria(List.of("Given une liste, When j'exporte, Then un PDF A4"));
+        story.setDescription("Description de " + title);
+        story.setAcceptanceCriteria(List.of("Given " + title + ", Then ok"));
         return story;
     }
 
-    @Test
-    @DisplayName("assess judges each story on its content (title, description, criteria)")
-    void assessJudgesEachStory() throws Exception {
-        server.enqueue(answer("{\"aiReady\": true, \"aiReadyReason\": \"Complet\"}"));
+    private static MockResponse verdicts(String... entries) {
+        return answer("{\"verdicts\":[" + String.join(",", entries) + "]}");
+    }
 
-        List<Readiness> verdicts = assessor.assess(List.of(story("Export PDF")));
-
-        assertEquals(List.of(new Readiness(true, "Complet")), verdicts);
-        String body = server.takeRequest().getBody().readUtf8();
-        assertTrue(body.contains("Export PDF"), body);
-        assertTrue(body.contains("Exporter la liste en A4"), body);
-        assertTrue(body.contains("un PDF A4"), body);
+    private static String verdict(String id, boolean ready, String reason) {
+        return "{\"id\":\"" + id + "\",\"aiReady\":" + ready + ",\"aiReadyReason\":\"" + reason + "\"}";
     }
 
     @Test
-    @DisplayName("A story whose verdict call fails gets no verdict (null), the others are still judged")
-    void failedVerdictIsNull() {
+    @DisplayName("Stories are judged by batches of batch-size, one call per batch, verdicts matched by id")
+    void judgesByBatches() throws Exception {
+        server.enqueue(verdicts(verdict("s2", false, "flou B"), verdict("s1", true, "clair A")));  // ordre libre
+        server.enqueue(verdicts(verdict("s1", true, "clair C")));
+
+        List<Readiness> result = assessor(2).assess(List.of(story("A"), story("B"), story("C")));
+
+        assertEquals(List.of(new Readiness(true, "clair A"), new Readiness(false, "flou B"), new Readiness(true, "clair C")), result);
+        assertEquals(2, server.getRequestCount());
+        String first = server.takeRequest().getBody().readUtf8();
+        assertTrue(first.contains("[s1]") && first.contains("[s2]"), first);
+        assertTrue(first.contains("Description de A") && first.contains("Given B, Then ok"), first);
+        assertFalse(first.contains("Description de C"), "C belongs to the second batch");
+        assertTrue(first.contains("readiness-batch"), "the batch schema is sent: " + first);
+    }
+
+    @Test
+    @DisplayName("A story missing from the answer is asked again alone; still missing -> no verdict (null)")
+    void missingVerdictsAreAskedAgainOnce() throws Exception {
+        server.enqueue(verdicts(verdict("s1", true, "clair A")));      // B oublie
+        server.enqueue(verdicts(verdict("s1", false, "flou B")));      // B redemande seule
+        List<Story> stories = List.of(story("A"), story("B"));
+
+        List<Readiness> result = assessor(10).assess(stories);
+
+        assertEquals(List.of(new Readiness(true, "clair A"), new Readiness(false, "flou B")), result);
+        server.takeRequest();
+        String retry = server.takeRequest().getBody().readUtf8();
+        assertTrue(retry.contains("Description de B") && !retry.contains("Description de A"), retry);
+    }
+
+    @Test
+    @DisplayName("A story never answered gets no verdict (null), without failing the others")
+    void neverAnsweredIsNull() {
+        server.enqueue(verdicts(verdict("s1", true, "clair A")));
+        server.enqueue(verdicts());
+
+        assertEquals(Arrays.asList(new Readiness(true, "clair A"), null), assessor(10).assess(List.of(story("A"), story("B"))));
+        assertEquals(2, server.getRequestCount());
+    }
+
+    @Test
+    @DisplayName("A duplicated id is an invalid output: repaired with the error")
+    void duplicateIdIsRepaired() throws Exception {
+        server.enqueue(verdicts(verdict("s1", true, "x"), verdict("s1", false, "y")));
+        server.enqueue(verdicts(verdict("s1", true, "clair A")));
+
+        assertEquals(List.of(new Readiness(true, "clair A")), assessor(10).assess(List.of(story("A"))));
+        server.takeRequest();
+        assertTrue(server.takeRequest().getBody().readUtf8().contains("identifiant en double"));
+    }
+
+    @Test
+    @DisplayName("A failed batch gives no verdict for its stories; the next batch is still judged")
+    void failedBatchIsNull() {
         server.enqueue(new MockResponse().setResponseCode(401));
-        server.enqueue(answer("{\"aiReady\": false, \"aiReadyReason\": \"flou\"}"));
+        server.enqueue(verdicts(verdict("s1", false, "flou")));
 
-        List<Readiness> verdicts = assessor.assess(List.of(story("A"), story("B")));
-
-        assertEquals(Arrays.asList(null, new Readiness(false, "flou")), verdicts);
+        assertEquals(Arrays.asList(null, new Readiness(false, "flou")), assessor(1).assess(List.of(story("A"), story("B"))));
     }
 
     @Test
@@ -73,7 +121,7 @@ class LlmReadinessAssessorTest {
     void reassessWithPrecision() throws Exception {
         server.enqueue(answer("{\"aiReady\": true, \"aiReadyReason\": \"format tranche\"}"));
 
-        Readiness verdict = assessor.reassess("Export PDF", "Exporter en PDF", "format A4 uniquement");
+        Readiness verdict = assessor(10).reassess("Export PDF", "Exporter en PDF", "format A4 uniquement");
 
         assertEquals(new Readiness(true, "format tranche"), verdict);
         assertTrue(server.takeRequest().getBody().readUtf8().contains("format A4 uniquement"));
@@ -83,6 +131,6 @@ class LlmReadinessAssessorTest {
     @DisplayName("A non-boolean aiReady is never treated as ready")
     void ambiguousVerdictIsNotReady() {
         assertFalse(LlmReadinessAssessor.readiness(
-                tools.jackson.databind.json.JsonMapper.builder().build().readTree("{\"aiReady\":\"yes\",\"aiReadyReason\":\"x\"}")).aiReady());
+                JsonMapper.builder().build().readTree("{\"aiReady\":\"yes\",\"aiReadyReason\":\"x\"}")).aiReady());
     }
 }
