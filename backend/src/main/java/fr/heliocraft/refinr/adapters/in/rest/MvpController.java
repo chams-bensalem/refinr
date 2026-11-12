@@ -6,6 +6,7 @@ import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
 import fr.heliocraft.refinr.application.port.in.InvalidRequestException;
 import fr.heliocraft.refinr.application.port.in.ModelOutputException;
+import fr.heliocraft.refinr.application.port.in.ModelUnavailableException;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
 import fr.heliocraft.refinr.application.port.in.SearchDocuments;
@@ -65,8 +66,12 @@ public class MvpController {
         try {
             return creationResponse(analyzeDocument.analyzeAndCreate(confluencePageId, projectKey));
 
+        } catch (InvalidRequestException e) {
+            return invalidRequest(e);
         } catch (ModelOutputException e) {
             return modelOutputFailure(e);
+        } catch (ModelUnavailableException e) {
+            return modelUnavailable(e);
         } catch (Exception e) {
             log.error("Error processing request", e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to analyze the document and create the issues"));
@@ -107,6 +112,17 @@ public class MvpController {
                 : "The AI model did not produce a valid result, even after retries"));
     }
 
+    /** 502 : le fournisseur du modele est indisponible (injoignable, cle refusee, quota, delai) apres les nouveaux essais. */
+    private static ResponseEntity<Map<String, Object>> modelUnavailable(ModelUnavailableException e) {
+        log.warn("LLM provider unavailable: {}", e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ErrorResponses.error("The AI provider is unavailable"));
+    }
+
+    /** 400 : entree refusee par le cas d'usage ; son message, ecrit par l'application, est renvoye tel quel. */
+    private static ResponseEntity<Map<String, Object>> invalidRequest(InvalidRequestException e) {
+        return ResponseEntity.badRequest().body(ErrorResponses.error(e.getMessage()));
+    }
+
     /** Absent ou vide : projet par defaut ; sinon une cle de projet valide (ex. PROJ, DEMO2). */
     private static boolean isValidProjectKey(String projectKey) {
         return projectKey == null || projectKey.isBlank() || CLE_PROJET.matcher(projectKey).matches();
@@ -131,8 +147,12 @@ public class MvpController {
                     "epics", RestBacklogMapper.toDto(epics)
             ));
             
+        } catch (InvalidRequestException e) {
+            return invalidRequest(e);
         } catch (ModelOutputException e) {
             return modelOutputFailure(e);
+        } catch (ModelUnavailableException e) {
+            return modelUnavailable(e);
         } catch (Exception e) {
             log.error("Error generating preview", e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to generate the preview"));
@@ -188,6 +208,8 @@ public class MvpController {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponses.error(e.getMessage()));
         } catch (ModelOutputException e) {
             return modelOutputFailure(e);
+        } catch (ModelUnavailableException e) {
+            return modelUnavailable(e);
         } catch (Exception e) {
             log.error("Error reassessing story {}", issueKey, e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to reassess the story"));
@@ -209,8 +231,7 @@ public class MvpController {
             ));
 
         } catch (InvalidRequestException e) {
-            // Message ecrit par le cas d'usage (sans donnee technique) : renvoye tel quel
-            return ResponseEntity.badRequest().body(ErrorResponses.error(e.getMessage()));
+            return invalidRequest(e);
         } catch (Exception e) {
             log.error("Error searching Confluence", e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to search the documents"));

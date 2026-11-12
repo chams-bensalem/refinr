@@ -229,15 +229,34 @@ class MvpControllerTest {
     }
 
     @Test
-    @DisplayName("An unavailable provider stays a 500 with a generic message")
-    void unavailableProviderIs500() throws Exception {
+    @DisplayName("An unavailable provider gives a 502 with a generic message, on preview and analyze-and-create")
+    void unavailableProviderIs502() throws Exception {
         when(confluenceService.getDocumentContent("123")).thenReturn("cdc");
         when(generator.generate("cdc")).thenThrow(new LlmException(LlmException.Reason.UNAVAILABLE, "HTTP 401"));
 
-        mockMvc.perform(post("/api/v1/mvp/analyze-preview").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"confluencePageId\":\"123\"}"))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.error").value("Failed to generate the preview"));
+        for (String endpoint : List.of("/api/v1/mvp/analyze-preview", "/api/v1/mvp/analyze-and-create")) {
+            mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content("{\"confluencePageId\":\"123\"}"))
+                    .andExpect(status().isBadGateway())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").value("The AI provider is unavailable"));
+        }
+        verifyNoInteractions(jiraService);
+    }
+
+    @Test
+    @DisplayName("An empty document, or one without text, gives an explicit 400 without any LLM call")
+    void emptyDocumentIs400WithoutLlmCall() throws Exception {
+        for (String content : new String[] {"", "   ", "<p></p><p>&nbsp;</p>",
+                "<ac:image><ri:attachment ri:filename=\"schema.png\" /></ac:image>"}) {
+            when(confluenceService.getDocumentContent("123")).thenReturn(content);
+            for (String endpoint : List.of("/api/v1/mvp/analyze-preview", "/api/v1/mvp/analyze-and-create")) {
+                mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content("{\"confluencePageId\":\"123\"}"))
+                        .andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.success").value(false))
+                        .andExpect(jsonPath("$.error").value("The document is empty or contains no text to analyze"));
+            }
+        }
+        verifyNoInteractions(generator, assessor, jiraService);
     }
 
     @Test
@@ -539,6 +558,25 @@ class MvpControllerTest {
                 .andExpect(jsonPath("$.success").value(false));
 
         verifyNoInteractions(generator, assessor);
+        verify(jiraService, never()).applyReassessment(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Reassessing gives a 502 with a generic message when the LLM provider is unavailable")
+    void reassessIs502WhenProviderUnavailable() throws Exception {
+        TrackedStory story = new TrackedStory(
+            "TEST-7", "Export PDF", "Exporter", List.of("validation-necessaire"));
+        when(jiraService.findStory("TEST-7")).thenReturn(story);
+        when(assessor.reassess("Export PDF", "Exporter", "format A4"))
+            .thenThrow(new LlmException(LlmException.Reason.UNAVAILABLE, "The google LLM provider is unreachable"));
+
+        mockMvc.perform(post("/api/v1/mvp/reassess-story")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"issueKey\":\"TEST-7\",\"precision\":\"format A4\"}"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("The AI provider is unavailable"));
+
         verify(jiraService, never()).applyReassessment(any(), any(), any());
     }
 

@@ -34,6 +34,7 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
     public BacklogCreationResult analyzeAndCreate(String documentId, String project) {
         log.info("Step 1: Reading source document...");
         String content = documentSource.getDocumentContent(documentId);
+        DocumentAnalysis.requireUsefulText(content);
 
         log.info("Step 2: Analyzing document with AI...");
         List<Epic> epics = LlmFailures.translate(() -> generator.generate(content));
