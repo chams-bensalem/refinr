@@ -70,6 +70,8 @@ class LlmConfigurationTest {
     void extraBodyTypes() {
         assertEquals(Map.of("think", false, "top_k", 20, "name", "x"),
                 LlmConfiguration.extraBody(Map.of("think", "false", "top_k", "20", "name", "x")));
+        // ${LLM_ANALYSIS_REASONING_EFFORT:} non renseignee : rien n'est envoye
+        assertEquals(Map.of(), LlmConfiguration.extraBody(Map.of("reasoning_effort", "")));
     }
 
     @Test
