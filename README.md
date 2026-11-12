@@ -145,16 +145,20 @@ refinr/
         ├── main/
         │   ├── java/fr/heliocraft/refinr/
         │   │   ├── RefinrApplication.java           # Point d'entrée Spring Boot
-        │   │   ├── api/
-        │   │   │   ├── MvpController.java           # Endpoints /api/v1/mvp/*
-        │   │   │   └── HealthCheckController.java   # Santé détaillée /api/v1/health
-        │   │   ├── analyzer/
-        │   │   │   └── GeminiDocumentAnalyzer.java  # Analyse IA (Ollama/Gemini) + verdict (LiteLLM/Ollama/Gemini)
-        │   │   ├── confluence/ConfluenceService.java
-        │   │   ├── jira/JiraService.java            # Création hiérarchie, labels, ADF, réévaluation
-        │   │   ├── model/                           # Epic, Story, Task
-        │   │   ├── validation/ValidationService.java
-        │   │   └── config/                          # WebClient, Retry, LoggingFilter (correlationId)
+        │   │   ├── domain/
+        │   │   │   ├── model/                       # Epic, Story, Task, Readiness, TrackedStory (Java pur)
+        │   │   │   └── service/                     # Règles : labels réservés, verdict par défaut, normalisation
+        │   │   ├── application/
+        │   │   │   ├── port/in/                     # AnalyzeDocument, PreviewBacklog, CreateBacklog, ReassessStory, SearchDocuments
+        │   │   │   ├── port/out/                    # DocumentSourcePort, IssueTrackerPort, LlmPort
+        │   │   │   └── service/                     # Implémentation des cas d'usage
+        │   │   ├── adapters/
+        │   │   │   ├── in/rest/                     # MvpController (/api/v1/mvp/*), HealthCheckController, DTO JSON
+        │   │   │   └── out/
+        │   │   │       ├── confluence/              # ConfluenceDocumentSource
+        │   │   │       ├── jira/                    # JiraIssueTracker : labels, priorité, ADF, réévaluation
+        │   │   │       └── llm/                     # LlmBacklogAnalyzer : analyse (Ollama/Gemini) + verdict (LiteLLM/Ollama/Gemini)
+        │   │   └── config/                          # Câblage des cas d'usage, WebClient, Retry, LoggingFilter (correlationId)
         │   └── resources/
         │       ├── application-example.properties   # Modèle de configuration (à copier)
         │       ├── application.properties           # Copie locale du modèle — ignorée par Git
@@ -488,10 +492,14 @@ mvn test
 
 | Suite | Couverture |
 |---|---|
-| `GeminiDocumentAnalyzerTest` | Prompt, parsing JSON, Ollama/Gemini, verdict LiteLLM, retry et timeout du verdict, réévaluation |
-| `JiraServiceTest` | Création Epic/Story/Subtask, labels, priorité, ADF, réévaluation, projet cible |
-| `ConfluenceServiceTest` | Lecture de page, erreurs 404/401, contenu vide, volumineux ou à caractères spéciaux |
+| `LlmBacklogAnalyzerTest` | Prompt, parsing JSON, Ollama/Gemini, verdict LiteLLM, retry et timeout du verdict, réévaluation |
+| `JiraIssueTrackerTest` | Création Epic/Story/Subtask, labels, priorité, ADF, réévaluation, projet cible |
+| `ConfluenceDocumentSourceTest` | Lecture de page, erreurs 404/401, contenu vide, volumineux ou à caractères spéciaux |
 | `MvpControllerTest` | Endpoints, validation `projectKey`, réévaluation (409), gestion des erreurs |
+| `RestJsonContractTest`, `LlmResponseContractTest` | Contrat JSON figé de l'API REST et du parsing de la réponse LLM |
+| `CreateBacklogServiceTest`, `ReassessStoryServiceTest`, `domain.service.*Test` | Cas d'usage et règles métier, sans framework |
+| `ApplicationWiringTest` | Démarrage du contexte Spring, câblage des cas d'usage, comportement de retry |
+| `HexagonalArchitectureTest` | Règles d'architecture (ArchUnit) : domaine/application sans framework, sens des dépendances |
 | `FullFlowIntegrationTest` | Parcours complet Confluence → IA → Jira et pannes de chaque service |
 
 Les appels HTTP externes sont simulés avec **OkHttp MockWebServer** : aucun accès réseau ni token n'est requis.
