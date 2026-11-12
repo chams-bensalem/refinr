@@ -14,6 +14,7 @@ Une ligne par choix structurant : la décision, puis sa justification.
 - **MockWebServer 5.5.1 (artefact `mockwebserver`, package `okhttp3.mockwebserver`)** : version explicite car Boot 4 ne gère plus OkHttp ; artefact de compatibilité choisi pour ne pas réécrire les tests pendant la montée de version (migration vers `mockwebserver3` possible plus tard).
 - **Mockito chargé en `-javaagent`** (surefire + `dependency:properties`) : le chargement dynamique d'agent est déprécié depuis Java 21 ; remplace l'option `-Dnet.bytebuddy.experimental`.
 - **Suppression de `DocumentAnalyzer`** : code mort (aucune référence, cf. AUDIT) ; supprimé plutôt que migré vers Jackson 3. Seul effet visible : le log de démarrage « Using Ollama » de ce bean disparaît.
+- **ArchUnit 1.4.1 (`archunit-junit5`, scope test)** : tests d'architecture hexagonale exécutés par JUnit 5 (domaine/application sans framework, dépendances vers le centre, adaptateurs indépendants, aucun identifiant `jira` au centre) ; bibliothèque de test seule, sans impact sur l'artefact livré.
 
 ## Frontend
 

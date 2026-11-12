@@ -25,6 +25,7 @@
         <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
         <jsoup.version>1.24.1</jsoup.version>
         <okhttp-mockwebserver.version>5.5.1</okhttp-mockwebserver.version>
+        <archunit.version>1.4.1</archunit.version>
     </properties>
 
     <dependencies>
@@ -80,6 +81,13 @@
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>mockwebserver</artifactId>
             <version>${okhttp-mockwebserver.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- Architecture tests (hexagonal layering rules) -->
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <version>${archunit.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
