@@ -290,6 +290,32 @@ class MvpControllerTest {
     }
 
     @Test
+    @DisplayName("Errors never return the raw exception message to the client")
+    void errorsDoNotLeakExceptionMessages() throws Exception {
+        String secret = "401 from https://internal.example.net/rest?token=abc";
+        when(confluenceService.getDocumentContent(any())).thenThrow(new RuntimeException(secret));
+        when(confluenceService.searchDocuments(any(), any())).thenThrow(new RuntimeException(secret));
+        when(jiraService.findStory(any())).thenThrow(new RuntimeException(secret));
+
+        for (var request : List.of(
+                post("/api/v1/mvp/analyze-and-create").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"confluencePageId\":\"1\"}"),
+                post("/api/v1/mvp/analyze-preview").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"confluencePageId\":\"1\"}"),
+                post("/api/v1/mvp/reassess-story").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"issueKey\":\"TEST-1\",\"precision\":\"p\"}"),
+                get("/api/v1/mvp/confluence/search").param("spaceKey", "SPACE").param("title", "t"))) {
+            String body = mockMvc.perform(request)
+                    .andExpect(status().is5xxServerError())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").isNotEmpty())
+                    .andReturn().getResponse().getContentAsString();
+            assertFalse(body.contains("internal.example.net"), body);
+            assertFalse(body.contains("token=abc"), body);
+        }
+    }
+
+    @Test
     @DisplayName("The debug endpoint test-issue-types no longer exists")
     void debugIssueTypesEndpointIsGone() throws Exception {
         mockMvc.perform(post("/api/v1/mvp/test-issue-types"))

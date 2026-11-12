@@ -319,7 +319,9 @@ curl -s http://localhost:8080/api/v1/health | jq
 }
 ```
 
-`DEGRADED` signifie qu'au moins un service est `DOWN` ; le champ `error` indique la cause (token invalide, projet introuvable, modèle Ollama non téléchargé…).
+`DEGRADED` signifie qu'au moins un service est `DOWN` ; le champ `error` donne une cause courte et sans donnée sensible : `HTTP 401` (token invalide), `HTTP 404` (projet introuvable), `unreachable` (service injoignable), modèle Ollama non téléchargé… Le détail est dans les logs du backend.
+
+En cas d'erreur, les endpoints `/mvp/*` renvoient `{ "success": false, "error": "<message générique>", "correlationId": "…" }` : jamais le message brut de l'exception ; le `correlationId` permet de retrouver le détail dans les logs.
 
 ---
 

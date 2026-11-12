@@ -21,5 +21,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 - La clé Gemini est envoyée dans l'en-tête `x-goog-api-key` et non plus dans l'URL (`?key=`), qui pouvait
   apparaître dans les logs et les messages d'erreur.
 
+- Les erreurs renvoyées au client ne contiennent plus le message brut des exceptions (URL internes, corps de réponse
+  des services) : message générique + `correlationId` pour les endpoints `/mvp/*`, cause courte (`HTTP 401`,
+  `unreachable`…) pour `/health`.
+
 ### Removed
 - Endpoint de debug `POST /api/v1/mvp/test-issue-types`.
