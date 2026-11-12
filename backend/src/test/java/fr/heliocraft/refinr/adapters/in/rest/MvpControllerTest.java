@@ -1,4 +1,4 @@
-package fr.heliocraft.refinr.api;
+package fr.heliocraft.refinr.adapters.in.rest;
 
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
