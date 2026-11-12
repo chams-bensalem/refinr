@@ -60,6 +60,8 @@ Le projet est un monorepo :
 ## 🚀 Fonctionnalités
 
 ### Analyse IA du cahier des charges
+- 🔌 **Fournisseurs au choix**, configurés séparément pour l'analyse et le verdict : `anthropic` (Claude), `google` (Gemini) ou `openai-compatible` (OpenAI, DeepSeek, Mistral, Groq, OpenRouter, Ollama, LiteLLM, vLLM…).
+- 📐 **Sortie validée par JSON Schema** (mode JSON natif du fournisseur quand il existe) ; sortie invalide ⇒ jusqu'à 2 relances avec la liste des erreurs, puis erreur `502` propre. Sortie tronquée par la limite de tokens ⇒ erreur explicite, sans relance.
 - 📖 **Lecture Confluence** : récupération du contenu d'une page via son ID (format *storage*) et recherche de pages par espace + titre (CQL).
 - 🧠 **Découpage Scrum proportionné** : 1 Epic pour un besoin court, un Epic par module pour un cahier des charges complet — sans jamais inventer de fonctionnalités absentes du document.
 - 📝 **User stories normalisées** : format *As a / I want / So that*, titre, description.
@@ -69,9 +71,9 @@ Le projet est un monorepo :
 
 ### Verdict « prêt pour un agent de code »
 - 🤖 Chaque story est évaluée : `aiReady = true` **uniquement** si le périmètre est clair, les critères testables et sans dépendance externe non précisée.
-- 🔀 Le verdict peut être confié à un **fournisseur IA distinct** de l'analyse (ex. structure par Ollama local, verdict par un pool Gemini via un proxy LiteLLM).
+- 🔀 Le verdict peut être confié à un **fournisseur IA distinct** de l'analyse (ex. structure par Ollama local, verdict par Gemini, Claude ou un proxy LiteLLM).
 - 🛡️ **Sécurité par défaut** : verdict absent, ambigu ou en erreur ⇒ `validation-necessaire`.
-- ♻️ **Verdict recalculé à la création** (`create-jira`) : le contenu a pu être modifié depuis l'aperçu, le serveur rejuge donc chaque story sur son contenu final (un appel au fournisseur de verdict par story) ; les champs `aiReady` / `aiReadyReason` envoyés par le client sont **ignorés**.
+- ♻️ **Verdict recalculé à la création** (`create-jira`) : le contenu a pu être modifié depuis l'aperçu, le serveur rejuge donc chaque story sur son contenu final (par lots de `refinr.llm.verdict.batch-size` stories, 10 par défaut ; les stories inchangées depuis l'aperçu reprennent leur verdict en cache) ; les champs `aiReady` / `aiReadyReason` envoyés par le client sont **ignorés**.
 - 🔁 **Réévaluation** : une story en attente peut être réévaluée avec une précision de l'utilisateur ; la description Jira d'origine est conservée (images, tableaux, liens) et complétée, le label est mis à jour.
 
 ### Création Jira
@@ -88,14 +90,13 @@ Le projet est un monorepo :
   | Appel | Nouvel essai | Détail |
   |---|---|---|
   | Lecture d'une page Confluence | ✅ sur HTTP `429` et `500` | 2 nouveaux essais, après 1 s puis 2 s (`503` et autres erreurs : pas de nouvel essai) |
-  | Analyse IA du document (Gemini / Ollama) | ✅ sur HTTP `429` et `500` | idem : 2 nouveaux essais, 1 s puis 2 s |
-  | Verdict via LiteLLM (`ai.verdict.provider=litellm`) | ✅ sur `429`, `5xx` et proxy injoignable | 3 tentatives au total, pause `ai.verdict.retry-delay-ms` × n° de tentative, délai `ai.verdict.timeout-seconds` par tentative (pas de nouvel essai après un délai dépassé) |
-  | Verdict par Gemini / Ollama (`create-jira`, `reassess-story`) | ❌ | un échec ⇒ `validation-necessaire` (`create-jira`) ou erreur `500` (`reassess-story`) |
+  | Appels IA (analyse, verdict, réévaluation), tous fournisseurs | ✅ sur HTTP `429`, `5xx` (dont `529` d'Anthropic) et fournisseur injoignable | 2 nouveaux essais, `Retry-After` respecté (plafonné à 30 s), sinon 1 s puis 2 s ; jamais après un délai dépassé (`timeout` : 300 s analyse, 90 s verdict) ni sur une autre erreur `4xx` (`401` : clé refusée) |
+  | Sortie IA invalide (JSON illisible ou non conforme au schéma) | ✅ relance **avec la liste des erreurs** | `refinr.llm.max-repair-attempts` (2) relances, puis `502` (`create-jira` : `validation-necessaire`) |
+  | Sortie IA tronquée (limite de tokens) | ❌ | erreur explicite `502` : augmenter `max-output-tokens` |
   | Recherche Confluence | ❌ | |
   | **Création Jira** (Epic, Story, Subtask) | ❌ | POST non idempotent : un échec est listé dans la réponse partielle (`created` / `failed`, statut `207` ou `502`), les autres éléments sont créés ; relancez seulement ce qui a échoué |
   | Lecture / mise à jour Jira (`reassess-story`), health check | ❌ | |
-- ⏱️ Timeout borné sur le fournisseur de verdict (90 s par défaut).
-- 🩺 **Health check détaillé** : état de Confluence, Jira et du fournisseur IA (présence du modèle Ollama incluse).
+- 🩺 **Health check par port** : état de Confluence, Jira et de chaque fournisseur IA (clé et modèle vérifiés par une lecture gratuite, présence du modèle Ollama incluse), mis en cache 45 s, sans aucune clé ni URL dans la réponse.
 - 📊 **Logs JSON structurés** (Logstash) avec `correlationId` par requête.
 
 ### Interface web
@@ -113,8 +114,8 @@ sequenceDiagram
     participant F as Frontend (React)
     participant B as Backend Refinr
     participant C as Confluence Cloud
-    participant A as LLM d'analyse<br/>(Ollama / Gemini)
-    participant V as LLM de verdict<br/>(LiteLLM, optionnel)
+    participant A as LLM d'analyse<br/>(anthropic / google / openai-compatible)
+    participant V as LLM de verdict<br/>(optionnel)
     participant J as Jira Cloud
 
     U->>F: Saisit l'ID de la page Confluence
@@ -122,11 +123,11 @@ sequenceDiagram
     B->>C: GET /wiki/rest/api/content/{id}?expand=body.storage
     C-->>B: Contenu HTML de la page
     B->>A: Prompt « Scrum Master » + document
-    A-->>B: JSON [Epic → Stories → Tasks]
-    opt ai.verdict.provider renseigné
-        loop pour chaque story
-            B->>V: Prompt de verdict
-            V-->>B: {aiReady, aiReadyReason}
+    A-->>B: JSON {epics: [Epic → Stories → Tasks]} validé par JSON Schema
+    opt refinr.llm.verdict.provider renseigné
+        loop pour chaque lot de 10 stories
+            B->>V: Prompt de verdict (lot)
+            V-->>B: {verdicts: [{id, aiReady, aiReadyReason}]}
         end
     end
     loop pour chaque Epic / Story / Task
@@ -140,8 +141,8 @@ sequenceDiagram
 **En résumé :**
 
 1. **Lecture** — le backend récupère la page Confluence avec un token API Atlassian (Basic Auth).
-2. **Analyse** — le contenu est injecté dans un prompt structuré ; le LLM répond en JSON strict, que le backend nettoie (suppression des balises markdown) puis désérialise.
-3. **Verdict** — soit inclus dans l'analyse, soit calculé story par story par un fournisseur dédié (3 tentatives, backoff, timeout).
+2. **Analyse** — le contenu est injecté dans un prompt structuré ; le LLM répond en JSON (mode JSON natif du fournisseur), validé par un JSON Schema ; une sortie invalide est relancée avec la liste des erreurs.
+3. **Verdict** — soit inclus dans l'analyse, soit calculé par un fournisseur dédié, par lots de stories (un appel par lot, verdicts en cache par contenu de story).
 4. **Création** — chaque Epic, Story puis Sous-tâche est créée dans Jira ; la description est convertie en ADF (Atlassian Document Format) et la story reçoit le label `ai-ready` ou `validation-necessaire`.
 5. **Réévaluation** (cycle de vie) — `POST /reassess-story` relit une story Jira en `validation-necessaire`, la réévalue avec la précision fournie et met à jour description + label.
 
@@ -162,7 +163,7 @@ refinr/
         │   │   │   ├── model/                       # Epic, Story, Task, Readiness, TrackedStory (Java pur)
         │   │   │   └── service/                     # Règles : labels réservés, verdict par défaut, normalisation
         │   │   ├── application/
-        │   │   │   ├── port/in/                     # AnalyzeDocument, PreviewBacklog, CreateBacklog, ReassessStory, SearchDocuments
+        │   │   │   ├── port/in/                     # AnalyzeDocument, PreviewBacklog, CreateBacklog, ReassessStory, SearchDocuments, CheckHealth
         │   │   │   ├── port/out/                    # DocumentSourcePort, IssueTrackerPort, BacklogGeneratorPort, ReadinessAssessorPort
         │   │   │   └── service/                     # Implémentation des cas d'usage
         │   │   ├── adapters/
@@ -170,10 +171,11 @@ refinr/
         │   │   │   └── out/
         │   │   │       ├── confluence/              # ConfluenceDocumentSource
         │   │   │       ├── jira/                    # JiraIssueTracker : labels, priorité, ADF, réévaluation
-        │   │   │       └── llm/                     # LlmBacklogAnalyzer : analyse (Ollama/Gemini) + verdict (LiteLLM/Ollama/Gemini)
-        │   │   └── config/                          # Câblage des cas d'usage, WebClient, Retry, LoggingFilter (correlationId)
+        │   │   │       └── llm/                     # Clients anthropic / google / openai-compatible, analyse, verdict par lots, cache, JSON Schema
+        │   │   └── config/                          # Câblage des cas d'usage et des fournisseurs LLM, Retry, LoggingFilter (correlationId)
         │   └── resources/
         │       ├── application-example.properties   # Modèle de configuration (à copier)
+        │       ├── llm/schemas/                     # JSON Schema des sorties IA (backlog, verdict, verdicts par lot)
         │       ├── application.properties           # Copie locale du modèle — ignorée par Git
         │       └── logback-spring.xml               # Logs JSON
         └── test/                                    # Tests unitaires + intégration (MockWebServer)
@@ -190,8 +192,8 @@ refinr/
 | **JDK** | 25 | Backend |
 | **Maven** | 3.9+ | Build backend |
 | **Node.js** + npm | 18+ | Frontend |
-| **Ollama** | récent | Analyse IA locale (fournisseur par défaut) |
-| Proxy **LiteLLM** | optionnel | Verdict IA séparé (API compatible OpenAI) |
+| **Ollama** | récent | Analyse IA locale (fournisseur par défaut, via son API compatible OpenAI `/v1`) |
+| Autre fournisseur IA | optionnel | Clé Anthropic, Google AI Studio ou d'une API compatible OpenAI (OpenAI, DeepSeek, Mistral, Groq, OpenRouter, LiteLLM, vLLM…) |
 
 ### Comptes & accès
 
@@ -199,11 +201,11 @@ refinr/
 - Un **token API Atlassian** : <https://id.atlassian.com/manage-profile/security/api-tokens>.
 - Les droits de **lecture** sur l'espace Confluence et de **création de tickets** dans le projet Jira.
 - Le projet Jira doit proposer les types de tickets **`Epic`**, **`Story`** et **`Subtask`**.
-- *(Si `ai.provider=gemini`)* une clé **Google AI Studio** : <https://aistudio.google.com/apikey>.
+- *(Fournisseur `google`)* une clé **Google AI Studio** : <https://aistudio.google.com/apikey> ; *(fournisseur `anthropic`)* une clé API Anthropic.
 
 ### Matériel (mode Ollama)
 
-Le modèle par défaut `qwen3:8b` nécessite environ **8 Go de RAM/VRAM libres**. Sur une machine plus modeste, choisissez un modèle plus léger ou passez sur Gemini.
+Le modèle par défaut `qwen3:8b` nécessite environ **8 Go de RAM/VRAM libres**. Sur une machine plus modeste, choisissez un modèle plus léger ou un fournisseur en ligne (`google`, `anthropic`, `openai-compatible`).
 
 ---
 
@@ -225,6 +227,11 @@ brew install ollama
 ollama serve            # démarre le serveur sur http://localhost:11434
 ollama pull qwen3:8b    # télécharge le modèle par défaut
 ```
+
+Refinr appelle Ollama par son API compatible OpenAI (`http://localhost:11434/v1`). Gardez
+`LLM_ANALYSIS_REASONING_EFFORT=none` (valeur de `.env.example`) : sans cela, `qwen3` « réfléchit » avant de répondre et
+l'analyse peut dépasser le délai. Sur une machine modeste (quelques tokens/s), augmentez `LLM_ANALYSIS_TIMEOUT`
+(ex. `30m`).
 
 ### 3. Installer le frontend
 
@@ -303,6 +310,7 @@ refinr.llm.verdict.max-output-tokens=4096
 | `refinr.llm.analysis.model` | `qwen3:8b` | Modèle de l'analyse (et du health check) |
 | `refinr.llm.analysis.api-key` | *(vide)* | Clé API (obligatoire pour `anthropic` et `google`) |
 | `refinr.llm.analysis.timeout` | `300s` | Délai maximal par appel d'analyse |
+| `refinr.llm.analysis.extra-body.*` | *(vide)* | `openai-compatible` : propriétés ajoutées au corps de la requête ; `reasoning_effort` vient de `LLM_ANALYSIS_REASONING_EFFORT` (`none` pour Ollama) |
 | `refinr.llm.analysis.max-output-tokens` | `32768` | Limite de tokens de sortie (sortie tronquée ⇒ erreur explicite) |
 | `refinr.llm.max-repair-attempts` | `2` | Relances avec la liste des erreurs quand la sortie ne respecte pas le schema JSON, puis `502` |
 | `refinr.llm.verdict.provider` | *(vide)* | Fournisseur dédié au verdict `ai-ready` ; vide = celui de l'analyse |
@@ -317,6 +325,24 @@ refinr.llm.verdict.max-output-tokens=4096
 
 Voir `.env.example` pour la liste complète (`CONFLUENCE_TOKEN`, `JIRA_TOKEN`, `LLM_ANALYSIS_API_KEY`,
 `LLM_VERDICT_API_KEY`…). Les mêmes noms peuvent être fournis comme variables d'environnement.
+
+#### Migration depuis l'ancienne configuration IA
+
+Les anciennes clés sont **refusées au démarrage** (message listant la correspondance, jamais les valeurs) :
+
+| Ancienne clé (`.env` / propriété) | Nouvelle clé |
+|---|---|
+| `AI_PROVIDER=ollama` / `ai.provider` | `LLM_ANALYSIS_PROVIDER=openai-compatible` |
+| `AI_PROVIDER=gemini` | `LLM_ANALYSIS_PROVIDER=google` |
+| `OLLAMA_BASE_URL` / `ollama.base-url` | `LLM_ANALYSIS_BASE_URL` **avec `/v1`** (ex. `http://localhost:11434/v1`) |
+| `OLLAMA_MODEL`, `GEMINI_MODEL` | `LLM_ANALYSIS_MODEL` |
+| `GEMINI_API_KEY` / `gemini.api-key` | `LLM_ANALYSIS_API_KEY` (ou `LLM_VERDICT_API_KEY`) |
+| `AI_VERDICT_PROVIDER=litellm` | `LLM_VERDICT_PROVIDER=openai-compatible` |
+| `AI_VERDICT_BASE_URL` | `LLM_VERDICT_BASE_URL` **avec `/v1`** (ex. `http://localhost:4000/v1`) |
+| `AI_VERDICT_MODEL`, `AI_VERDICT_API_KEY` | `LLM_VERDICT_MODEL`, `LLM_VERDICT_API_KEY` |
+| `ai.verdict.timeout-seconds=90` | `refinr.llm.verdict.timeout=90s` |
+
+Les variables d'environnement **du système** ne sont pas contrôlées (une `GEMINI_API_KEY` peut servir à d'autres outils) : seuls les fichiers de configuration et le `.env` le sont.
 
 ### Frontend
 
@@ -338,12 +364,12 @@ curl -s http://localhost:8080/api/v1/health | jq
   "services": {
     "confluence": { "status": "UP" },
     "jira":       { "status": "UP" },
-    "ai":         { "status": "UP", "provider": "ollama", "model": "qwen3:8b" }
+    "ai":         { "status": "UP", "provider": "openai-compatible", "model": "qwen3:8b" }
   }
 }
 ```
 
-`DEGRADED` signifie qu'au moins un service est `DOWN` ; le champ `error` donne une cause courte et sans donnée sensible : `HTTP 401` (token invalide), `HTTP 404` (projet introuvable), `unreachable` (service injoignable), modèle Ollama non téléchargé… Le détail est dans les logs du backend.
+`DEGRADED` signifie qu'au moins un service est `DOWN` ; le champ `error` donne une cause courte et sans donnée sensible : `HTTP 401` (token invalide), `HTTP 404` (projet introuvable), `unreachable` (service injoignable), `timeout`, `model qwen3:8b not found` (modèle Ollama non téléchargé)… `aiVerdict` apparaît quand un fournisseur de verdict distinct est configuré. Le résultat est gardé en cache `refinr.health.cache-ttl` (45 s). Le détail est dans les logs du backend.
 
 En cas d'erreur, les endpoints `/mvp/*` renvoient `{ "success": false, "error": "<message générique>", "correlationId": "…" }` : jamais le message brut de l'exception ; le `correlationId` permet de retrouver le détail dans les logs.
 
@@ -459,7 +485,7 @@ Base URL : `http://localhost:8080/api/v1`
 | `POST` | `/mvp/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Réévalue une story `validation-necessaire` (`409` si elle ne l'est pas) |
 | `GET` | `/mvp/confluence/search` | `?spaceKey=SPACE&title=…` | Recherche de pages Confluence (CQL) : `{ success, results: [{ id, title, url }] }` |
 | `GET` | `/mvp/health` | — | Ping simple du service |
-| `GET` | `/health` | — | Santé détaillée Confluence / Jira / IA |
+| `GET` | `/health` | — | Santé détaillée Confluence / Jira / IA (analyse, et verdict s'il est distinct), en cache 45 s |
 
 **Réponse de création (`analyze-and-create` et `create-jira`) :**
 
@@ -467,7 +493,7 @@ Base URL : `http://localhost:8080/api/v1`
 |---|---|---|
 | `200` | Tous les tickets ont été créés | `true` |
 | `207` | Création partielle : certains tickets créés, d'autres non | `false` |
-| `502` | Aucun ticket n'a pu être créé | `false` |
+| `502` | Aucun ticket n'a pu être créé, ou sortie IA inexploitable (invalide après relances, ou tronquée) | `false` |
 
 Un échec n'interrompt pas la création : l'élément est listé dans `failed` (avec une raison : statut HTTP et
 erreurs de validation de Jira), ses enfants aussi (`Not created: parent … failed`), et les éléments suivants sont créés.
@@ -542,10 +568,12 @@ mvn test
 
 | Suite | Couverture |
 |---|---|
-| `LlmBacklogAnalyzerTest` | Prompt, parsing JSON, Ollama/Gemini (modèle configurable, clé en en-tête), verdict d'une story, verdict LiteLLM, retry et timeout du verdict, réévaluation |
+| `AnthropicLlmClientTest`, `GoogleLlmClientTest`, `OpenAiCompatibleLlmClientTest` | Par fournisseur, sur serveur HTTP simulé : succès (format de requête, schéma), `401` sans nouvel essai, `429` + `Retry-After`, `5xx`, JSON invalide + relance, timeout, troncature, health check, aucun secret dans les erreurs |
+| `LlmBacklogGeneratorTest`, `LlmReadinessAssessorTest`, `CachingReadinessAssessorTest` | Prompts, verdicts par lots (identifiants manquants ou en double), cache des seuls verdicts réussis |
+| `LlmConfigurationTest` | Défauts par fournisseur, erreurs de configuration au démarrage, refus des anciennes clés |
 | `JiraIssueTrackerTest`, `MarkdownAdfTest` | Création Epic/Story/Subtask, labels, priorité, story points, conversion Markdown → ADF, erreurs Jira, réévaluation, projet cible |
 | `ConfluenceDocumentSourceTest` | Lecture de page, erreurs 404/401, contenu vide, volumineux ou à caractères spéciaux, recherche typée et échappement CQL |
-| `MvpControllerTest`, `HealthCheckControllerTest` | Endpoints, validation `projectKey`, réponse partielle (207/502), verdict recalculé à la création, réévaluation (409), erreurs sans message brut |
+| `MvpControllerTest`, `HealthCheckControllerTest`, `CheckHealthServiceTest` | Endpoints, validation `projectKey`, réponse partielle (207/502), sortie IA inexploitable (502), verdict recalculé à la création, réévaluation (409), erreurs sans message brut, health check en cache |
 | `RestJsonContractTest`, `LlmResponseContractTest` | Contrat JSON figé de l'API REST et du parsing de la réponse LLM |
 | `CreateBacklogServiceTest`, `CreateEditedBacklogServiceTest`, `ReassessStoryServiceTest`, `domain.service.*Test` | Cas d'usage et règles métier, sans framework |
 | `ApplicationWiringTest` | Démarrage du contexte Spring, câblage des cas d'usage, comportement de retry (tel que décrit plus haut) |
@@ -561,14 +589,17 @@ Les appels HTTP externes sont simulés avec **OkHttp MockWebServer** : aucun acc
 
 | Symptôme | Cause probable | Solution |
 |---|---|---|
-| `ai: DOWN — modele qwen3:8b absent` | Modèle non téléchargé | `ollama pull qwen3:8b` |
-| `Ollama API call failed` | Serveur Ollama arrêté | `ollama serve` |
+| `ai: DOWN — model qwen3:8b not found` | Modèle non téléchargé | `ollama pull qwen3:8b` |
+| `ai: DOWN — unreachable` | Serveur Ollama arrêté (ou `base-url` erronée) | `ollama serve` ; vérifier `LLM_ANALYSIS_BASE_URL` (avec `/v1`) |
+| `ai: DOWN — HTTP 401` | Clé du fournisseur refusée | Vérifier `LLM_ANALYSIS_API_KEY` / `LLM_VERDICT_API_KEY` |
+| Démarrage refusé : *Obsolete LLM configuration* | Anciennes clés (`ai.provider`, `GEMINI_API_KEY`…) | Renommer selon la correspondance affichée (voir « Migration depuis l'ancienne configuration IA ») |
 | `confluence: DOWN` / `401` | Token ou e-mail Atlassian invalide | Régénérer le token API, vérifier `*.username` |
 | `jira: DOWN` / `404` | `jira.project-key` inexistant ou inaccessible | Vérifier la clé et les droits du compte |
 | `Failed to create Epic … priority` | Projet team-managed sans champ priorité | `jira.priority-enabled=false` |
 | `issuetype … invalid` | Types `Epic` / `Story` / `Subtask` absents | Vérifier la configuration du projet Jira |
-| `Failed to parse … response` | Réponse IA non JSON ou tronquée | Réessayer, utiliser un modèle plus grand ou Gemini |
-| Toutes les stories en `validation-necessaire` | Proxy de verdict injoignable | Vérifier LiteLLM (`ai.verdict.base-url`) ou vider `ai.verdict.provider` |
+| `502` *did not produce a valid result* | Sortie IA non conforme au schéma, même après relances | Utiliser un modèle plus capable ; `json-mode=json_schema` si le fournisseur le permet |
+| `502` *output was truncated* | Limite de tokens atteinte | Augmenter `refinr.llm.analysis.max-output-tokens` |
+| Toutes les stories en `validation-necessaire` | Fournisseur de verdict injoignable | Vérifier `LLM_VERDICT_BASE_URL` / `LLM_VERDICT_API_KEY` ou vider `LLM_VERDICT_PROVIDER` |
 | `git fetch` : *HTTP Basic: Access denied* | Token GitLab expiré | Recréer un Personal Access Token ou passer en SSH |
 
 Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour suivre tout son parcours.
