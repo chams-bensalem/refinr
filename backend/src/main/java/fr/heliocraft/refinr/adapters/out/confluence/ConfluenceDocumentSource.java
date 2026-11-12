@@ -1,6 +1,7 @@
 package fr.heliocraft.refinr.adapters.out.confluence;
 
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
+import fr.heliocraft.refinr.domain.model.DocumentSummary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,7 +14,9 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -76,27 +79,47 @@ public class ConfluenceDocumentSource implements DocumentSourcePort {
     }
 
     @Override
-    public Map<String, Object> searchDocuments(String spaceKey, String title) {
+    public List<DocumentSummary> searchDocuments(String spaceKey, String title) {
         log.info("Searching pages in space {} with title: {}", spaceKey, title);
 
         try {
             String cql = String.format("space=%s AND title~\"%s\"", spaceKey, title);
-            
+
             Map<String, Object> response = webClient.get()
                     .uri(uriBuilder -> uriBuilder
                             .path("/wiki/rest/api/content/search")
                             .queryParam("cql", cql)
-                            .queryParam("expand", "body.storage")
                             .build())
                     .retrieve()
                     .bodyToMono(Map.class)
                     .block();
 
-            log.info("Search completed");
-            return response;
+            List<DocumentSummary> results = toSummaries(response);
+            log.info("Search completed: {} result(s)", results.size());
+            return results;
         } catch (Exception e) {
             log.error("Error searching Confluence pages", e);
             throw new RuntimeException("Failed to search Confluence pages: " + e.getMessage(), e);
         }
+    }
+
+    /** Resultats Confluence -> resumes ; lien absolu = _links.base de la reponse + _links.webui du resultat. */
+    private static List<DocumentSummary> toSummaries(Map<?, ?> response) {
+        if (response == null || !(response.get("results") instanceof List<?> results)) {
+            return List.of();
+        }
+        String base = response.get("_links") instanceof Map<?, ?> links && links.get("base") instanceof String b ? b : "";
+        List<DocumentSummary> summaries = new ArrayList<>();
+        for (Object item : results) {
+            if (item instanceof Map<?, ?> result) {
+                String webui = result.get("_links") instanceof Map<?, ?> links
+                        && links.get("webui") instanceof String w ? w : null;
+                summaries.add(new DocumentSummary(
+                        String.valueOf(result.get("id")),
+                        result.get("title") instanceof String t ? t : "",
+                        webui != null ? base + webui : null));
+            }
+        }
+        return summaries;
     }
 }

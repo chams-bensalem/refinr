@@ -1,12 +1,11 @@
 package fr.heliocraft.refinr.application.port.in;
 
-import java.util.Map;
+import fr.heliocraft.refinr.domain.model.DocumentSummary;
 
-/**
- * Recherche de documents source par espace et titre. Reponse brute de la source : dette assumee en phase 3,
- * typage prevu en phase 4 (cf. DECISIONS.md).
- */
+import java.util.List;
+
+/** Recherche de documents source par espace et titre. */
 public interface SearchDocuments {
 
-    Map<String, Object> search(String spaceKey, String title);
+    List<DocumentSummary> search(String spaceKey, String title);
 }

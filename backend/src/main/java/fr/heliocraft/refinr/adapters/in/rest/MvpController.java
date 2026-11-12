@@ -7,6 +7,7 @@ import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
 import fr.heliocraft.refinr.application.port.in.SearchDocuments;
 import fr.heliocraft.refinr.application.port.in.StoryNotAwaitingValidationException;
+import fr.heliocraft.refinr.domain.model.DocumentSummary;
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Readiness;
 import org.slf4j.Logger;
@@ -169,8 +170,11 @@ public class MvpController {
         log.info("Searching Confluence pages: space={}, title={}", spaceKey, title);
 
         try {
-            Map<String, Object> results = searchDocuments.search(spaceKey, title);
-            return ResponseEntity.ok(results);
+            List<DocumentSummary> results = searchDocuments.search(spaceKey, title);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "results", results
+            ));
             
         } catch (Exception e) {
             log.error("Error searching Confluence", e);

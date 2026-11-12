@@ -262,6 +262,22 @@ class MvpControllerTest {
     }
 
     @Test
+    @DisplayName("Confluence search returns typed document summaries, not the raw Confluence payload")
+    void searchReturnsDocumentSummaries() throws Exception {
+        when(confluenceService.searchDocuments("SPACE", "cahier")).thenReturn(List.of(
+            new DocumentSummary("111", "Cahier des charges", "https://your-site.atlassian.net/wiki/spaces/SPACE/pages/111")));
+
+        mockMvc.perform(get("/api/v1/mvp/confluence/search").param("spaceKey", "SPACE").param("title", "cahier"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.results.length()").value(1))
+                .andExpect(jsonPath("$.results[0].id").value("111"))
+                .andExpect(jsonPath("$.results[0].title").value("Cahier des charges"))
+                .andExpect(jsonPath("$.results[0].url").value("https://your-site.atlassian.net/wiki/spaces/SPACE/pages/111"))
+                .andExpect(jsonPath("$.results[0].body").doesNotExist());
+    }
+
+    @Test
     @DisplayName("The debug endpoint test-issue-types no longer exists")
     void debugIssueTypesEndpointIsGone() throws Exception {
         mockMvc.perform(post("/api/v1/mvp/test-issue-types"))
