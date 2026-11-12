@@ -309,6 +309,34 @@ class LlmBacklogAnalyzerTest {
     }
 
     @Test
+    @DisplayName("Sends the Gemini API key in the x-goog-api-key header, never in the URL")
+    void sendsGeminiKeyInHeaderNotUrl() throws InterruptedException {
+        mockWebServer.enqueue(new MockResponse()
+            .setBody("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"[]\"}]}}]}")
+            .addHeader("Content-Type", "application/json")
+            .setResponseCode(200));
+
+        analyzer.analyzeDocument("Test");
+
+        RecordedRequest request = mockWebServer.takeRequest();
+        assertFalse(request.getPath().contains("fake-api-key"), request.getPath());
+        assertFalse(request.getPath().contains("key="), request.getPath());
+        assertEquals("fake-api-key", request.getHeader("x-goog-api-key"));
+    }
+
+    @Test
+    @DisplayName("A Gemini error never exposes the API key in the exception message")
+    void geminiErrorDoesNotLeakKey() {
+        mockWebServer.enqueue(new MockResponse().setResponseCode(400).setBody("{\"error\":\"bad\"}")
+            .addHeader("Content-Type", "application/json"));
+
+        RuntimeException error = assertThrows(RuntimeException.class, () -> analyzer.analyzeDocument("Test"));
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            assertFalse(String.valueOf(t.getMessage()).contains("fake-api-key"), t.getMessage());
+        }
+    }
+
+    @Test
     @DisplayName("Should call the configured Gemini model (gemini.model), and ai.verdict.model for a Gemini verdict")
     void shouldUseConfiguredGeminiModels() throws InterruptedException {
         LlmBacklogAnalyzer configured = new LlmBacklogAnalyzer(

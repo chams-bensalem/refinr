@@ -18,5 +18,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 - Recherche Confluence : la clé d'espace est validée (liste blanche, `400` sinon) et le titre est échappé dans la
   chaîne CQL ; un titre contenant `"` ne peut plus ajouter de clauses à la requête.
 
+- La clé Gemini est envoyée dans l'en-tête `x-goog-api-key` et non plus dans l'URL (`?key=`), qui pouvait
+  apparaître dans les logs et les messages d'erreur.
+
 ### Removed
 - Endpoint de debug `POST /api/v1/mvp/test-issue-types`.

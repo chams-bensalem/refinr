@@ -467,7 +467,9 @@ public class LlmBacklogAnalyzer implements LlmPort {
 
         try {
             Map<String, Object> response = geminiClient.post()
-                    .uri("/v1beta/models/" + model + ":generateContent?key=" + apiKey)
+                    .uri("/v1beta/models/{model}:generateContent", model)
+                    // Cle en en-tete, jamais dans l'URL (qui finit dans les logs et les messages d'erreur)
+                    .header("x-goog-api-key", apiKey)
                     .bodyValue(requestBody)
                     .retrieve()
                     .bodyToMono(Map.class)
