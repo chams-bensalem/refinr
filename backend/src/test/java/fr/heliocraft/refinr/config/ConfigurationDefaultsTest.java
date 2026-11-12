@@ -47,6 +47,18 @@ class ConfigurationDefaultsTest {
     }
 
     @Test
+    @DisplayName("The health check cache TTL has the same default in the code, the example config and the README")
+    void healthCacheTtlIsAligned() throws Exception {
+        String codeDefault = ConfigurationDefaultsTest.class.getClassLoader()
+                .loadClass("fr.heliocraft.refinr.config.UseCaseConfig")
+                .getMethod("checkHealth", java.util.List.class, java.time.Duration.class)
+                .getParameters()[1].getAnnotation(org.springframework.beans.factory.annotation.Value.class).value();
+        assertEquals("${refinr.health.cache-ttl:45s}", codeDefault);
+        assertEquals("45s", exampleDefault("refinr.health.cache-ttl"));
+        assertEquals("45s", readmeTableDefault("refinr.health.cache-ttl"));
+    }
+
+    @Test
     @DisplayName("No separate verdict provider by default")
     void verdictIsOptional() throws IOException {
         assertEquals("", exampleDefault("refinr.llm.verdict.provider"));

@@ -37,6 +37,11 @@ abstract class AbstractLlmClientTest {
 
     abstract String expectedPath();
 
+    /** Chemin de la lecture de health check et reponse UP du fournisseur. */
+    abstract String expectedHealthPath();
+
+    abstract MockResponse healthUp();
+
     /** Verifie l'authentification et le format de la requete (modele, messages, schema, limite de tokens). */
     abstract void assertRequestFormat(RecordedRequest request, JsonNode body);
 
@@ -211,6 +216,36 @@ abstract class AbstractLlmClientTest {
 
         assertEquals(LlmException.Reason.TRUNCATED, error.reason());
         assertTrue(error.getMessage().contains("max-output-tokens"), error.getMessage());
+        assertEquals(1, server.getRequestCount());
+    }
+
+    @Test
+    @DisplayName("Health UP: authenticated read of the model, provider and model reported, no key nor URL")
+    void healthIsUp() throws Exception {
+        server.enqueue(healthUp());
+
+        var health = client().health("ai");
+
+        assertTrue(health.up(), health.toString());
+        assertEquals("ai", health.name());
+        assertEquals(provider().id(), health.details().get("provider"));
+        RecordedRequest recorded = server.takeRequest();
+        assertEquals("GET", recorded.getMethod());
+        assertEquals(expectedHealthPath(), recorded.getPath());
+        assertFalse(health.toString().contains("fake-api-key"));
+        assertFalse(health.toString().contains(String.valueOf(server.getPort())));
+    }
+
+    @Test
+    @DisplayName("Health DOWN on a rejected key: 'HTTP 401', checked once (no retry)")
+    void healthDownOnRejectedKey() {
+        server.enqueue(new MockResponse().setResponseCode(401).setBody("{\"error\":\"bad key fake-api-key\"}"));
+
+        var health = client().health("aiVerdict");
+
+        assertFalse(health.up());
+        assertEquals("HTTP 401", health.details().get("error"));
+        assertFalse(health.toString().contains("fake-api-key"));
         assertEquals(1, server.getRequestCount());
     }
 

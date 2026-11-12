@@ -29,6 +29,16 @@ class AnthropicLlmClientTest extends AbstractLlmClientTest {
     }
 
     @Override
+    String expectedHealthPath() {
+        return "/v1/models/claude-opus-5-5";
+    }
+
+    @Override
+    MockResponse healthUp() {
+        return jsonResponse("{\"id\":\"claude-opus-5-5\",\"type\":\"model\"}");
+    }
+
+    @Override
     String expectedPath() {
         return "/v1/messages";
     }

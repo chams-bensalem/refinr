@@ -308,6 +308,7 @@ refinr.llm.verdict.max-output-tokens=4096
 | `refinr.llm.verdict.provider` | *(vide)* | Fournisseur dédié au verdict `ai-ready` ; vide = celui de l'analyse |
 | `refinr.llm.verdict.timeout` | `90s` | Délai maximal par appel de verdict |
 | `refinr.llm.verdict.max-output-tokens` | `4096` | Limite de tokens de sortie du verdict |
+| `refinr.health.cache-ttl` | `45s` | Durée de mise en cache du health check (`0s` = pas de cache) |
 
 #### Variables d'environnement (recommandé)
 

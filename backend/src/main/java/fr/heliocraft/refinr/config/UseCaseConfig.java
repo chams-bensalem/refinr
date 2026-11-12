@@ -1,16 +1,19 @@
 package fr.heliocraft.refinr.config;
 
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
+import fr.heliocraft.refinr.application.port.in.CheckHealth;
 import fr.heliocraft.refinr.application.port.in.CreateBacklog;
 import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
 import fr.heliocraft.refinr.application.port.in.SearchDocuments;
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
+import fr.heliocraft.refinr.application.port.out.HealthCheckable;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
 import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
 import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
 import fr.heliocraft.refinr.application.service.AnalyzeDocumentService;
+import fr.heliocraft.refinr.application.service.CheckHealthService;
 import fr.heliocraft.refinr.application.service.CreateBacklogService;
 import fr.heliocraft.refinr.application.service.CreateEditedBacklogService;
 import fr.heliocraft.refinr.application.service.PreviewBacklogService;
@@ -19,6 +22,9 @@ import fr.heliocraft.refinr.application.service.SearchDocumentsService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.time.Duration;
+import java.util.List;
 
 /** Cablage des cas d'usage : les services applicatifs restent du Java pur, sans annotation Spring. */
 @Configuration
@@ -61,5 +67,12 @@ public class UseCaseConfig {
     @Bean
     public SearchDocuments searchDocuments(DocumentSourcePort documentSource) {
         return new SearchDocumentsService(documentSource);
+    }
+
+    /** Composants dans l'ordre de leur {@code @Order} : confluence, jira, puis les fournisseurs de modele. */
+    @Bean
+    public CheckHealth checkHealth(List<HealthCheckable> components,
+                                   @Value("${refinr.health.cache-ttl:45s}") Duration cacheTtl) {
+        return new CheckHealthService(components, cacheTtl);
     }
 }
