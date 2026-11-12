@@ -364,6 +364,10 @@ Ou recherchez-la via l'API :
 curl "http://localhost:8080/api/v1/mvp/confluence/search?spaceKey=SPACE&title=cahier"
 ```
 
+```json
+{ "success": true, "results": [ { "id": "123456789", "title": "Mon cahier des charges", "url": "https://your-site.atlassian.net/wiki/spaces/SPACE/pages/123456789/Mon+cahier+des+charges" } ] }
+```
+
 ### Via l'interface web
 
 1. Ouvrez <http://localhost:3000> et vérifiez que les indicateurs de santé de l'en-tête sont **verts**.
@@ -426,7 +430,7 @@ Base URL : `http://localhost:8080/api/v1`
 | `POST` | `/mvp/analyze-preview` | `{ "confluencePageId": "…" }` | Analyse sans créer de tickets |
 | `POST` | `/mvp/create-jira` | `Epic[]` (JSON) | Crée dans le projet par défaut une structure déjà générée |
 | `POST` | `/mvp/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Réévalue une story `validation-necessaire` (`409` si elle ne l'est pas) |
-| `GET` | `/mvp/confluence/search` | `?spaceKey=SPACE&title=…` | Recherche de pages Confluence (CQL) |
+| `GET` | `/mvp/confluence/search` | `?spaceKey=SPACE&title=…` | Recherche de pages Confluence (CQL) : `{ success, results: [{ id, title, url }] }` |
 | `GET` | `/mvp/health` | — | Ping simple du service |
 | `GET` | `/health` | — | Santé détaillée Confluence / Jira / IA |
 

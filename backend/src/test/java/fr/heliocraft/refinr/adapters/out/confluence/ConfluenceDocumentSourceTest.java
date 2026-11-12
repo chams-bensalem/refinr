@@ -6,7 +6,10 @@ import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.*;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import fr.heliocraft.refinr.domain.model.DocumentSummary;
+
 import java.io.IOException;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -237,5 +240,43 @@ class ConfluenceDocumentSourceTest {
         assertNotNull(content);
         assertTrue(content.length() > 5000);
         assertTrue(content.contains("This is line 999"));
+    }
+
+    @Test
+    @DisplayName("Search maps each Confluence result to a DocumentSummary (id, title, absolute url)")
+    void searchMapsResultsToDocumentSummaries() throws InterruptedException {
+        mockWebServer.enqueue(jsonResponse("""
+            {
+              "results": [
+                {"id": "111", "type": "page", "title": "Cahier des charges",
+                 "_links": {"webui": "/spaces/SPACE/pages/111/Cahier+des+charges"}},
+                {"id": "222", "type": "page", "title": "Cahier v2",
+                 "_links": {"webui": "/spaces/SPACE/pages/222/Cahier+v2"}}
+              ],
+              "start": 0, "limit": 25, "size": 2,
+              "_links": {"base": "https://your-site.atlassian.net/wiki", "context": "/wiki"}
+            }
+            """));
+
+        List<DocumentSummary> results = confluenceService.searchDocuments("SPACE", "Cahier");
+
+        assertEquals(List.of(
+            new DocumentSummary("111", "Cahier des charges",
+                "https://your-site.atlassian.net/wiki/spaces/SPACE/pages/111/Cahier+des+charges"),
+            new DocumentSummary("222", "Cahier v2",
+                "https://your-site.atlassian.net/wiki/spaces/SPACE/pages/222/Cahier+v2")), results);
+
+        // Le contenu des pages n'est plus demande : seul le resume est renvoye
+        RecordedRequest request = mockWebServer.takeRequest();
+        assertTrue(request.getPath().startsWith("/wiki/rest/api/content/search?"), request.getPath());
+        assertFalse(request.getPath().contains("body.storage"), request.getPath());
+    }
+
+    @Test
+    @DisplayName("Search without results returns an empty list")
+    void searchWithoutResultsReturnsEmptyList() {
+        mockWebServer.enqueue(jsonResponse("{\"results\": [], \"size\": 0}"));
+
+        assertEquals(List.of(), confluenceService.searchDocuments("SPACE", "absent"));
     }
 }
