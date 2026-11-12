@@ -66,6 +66,16 @@ class LlmConfigurationTest {
     }
 
     @Test
+    @DisplayName("anthropic and google need a positive max-output-tokens")
+    void positiveOutputLimit() {
+        LlmProperties.Role zero = new LlmProperties.Role("anthropic", null, "claude-opus-5-5", "k", null, 0, null, null,
+                null, null, null, null);
+
+        IllegalStateException error = assertThrows(IllegalStateException.class, () -> LlmConfiguration.verdictSettings(zero));
+        assertTrue(error.getMessage().contains("max-output-tokens must be > 0"), error.getMessage());
+    }
+
+    @Test
     @DisplayName("extra-body values written as JSON keep their type")
     void extraBodyTypes() {
         assertEquals(Map.of("think", false, "top_k", 20, "name", "x"),
