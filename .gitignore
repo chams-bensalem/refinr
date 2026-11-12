@@ -1,0 +1,35 @@
+# --- Internal, never published ---
+AUDIT.md
+PLAN.md
+CLAUDE.local.md
+
+# --- Secrets: live only in the local .env ---
+.env
+.env.*
+!.env.example
+*.env
+backend/src/main/resources/application.properties
+backend/src/main/resources/application-*.properties
+!backend/src/main/resources/application-example.properties
+
+# --- Local tooling ---
+.claude/settings.local.json
+.claude/*.local.json
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.DS_Store
+
+# --- Backend build ---
+backend/target/
+backend/out/
+backend/HELP.md
+backend/.mvn/wrapper/maven-wrapper.jar
+
+# --- Frontend build ---
+frontend/node_modules/
+frontend/dist/
+frontend/*.log
+frontend/*.tsbuildinfo

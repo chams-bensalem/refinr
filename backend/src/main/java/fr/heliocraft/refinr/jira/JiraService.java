@@ -1,0 +1,463 @@
+package fr.heliocraft.refinr.jira;
+
+import fr.heliocraft.refinr.model.Epic;
+import fr.heliocraft.refinr.model.Story;
+import fr.heliocraft.refinr.model.Task;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
+import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Service
+public class JiraService {
+
+    private static final Logger log = LoggerFactory.getLogger(JiraService.class);
+
+    // Labels destines a alimenter un agent de code via JQL : labels = "ai-ready"
+    public static final String LABEL_AI_READY = "ai-ready";
+    public static final String LABEL_VALIDATION = "validation-necessaire";
+
+    private final WebClient webClient;
+    private final String projectKey;
+    // Les projets "team-managed" (next-gen) n'ont pas de champ priority : Jira refuse l'issue s'il est envoye
+    private final boolean priorityEnabled;
+
+    public JiraService(String baseUrl, String username, String token, String projectKey) {
+        this(baseUrl, username, token, projectKey, true);
+    }
+
+    @Autowired
+    public JiraService(
+            @Value("${jira.base-url}") String baseUrl,
+            @Value("${jira.username}") String username,
+            @Value("${jira.token}") String token,
+            @Value("${jira.project-key}") String projectKey,
+            @Value("${jira.priority-enabled:true}") boolean priorityEnabled) {
+
+        this.projectKey = projectKey;
+        this.priorityEnabled = priorityEnabled;
+
+        String auth = username + ":" + token;
+        String encodedAuth = Base64.getEncoder()
+                .encodeToString(auth.getBytes(StandardCharsets.UTF_8));
+
+        this.webClient = WebClient.builder()
+                .baseUrl(baseUrl)
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Basic " + encodedAuth)
+                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .build();
+    }
+
+    public String createEpic(Epic epic) {
+        return createEpic(epic, null);
+    }
+
+    @Retryable(
+        retryFor = {WebClientResponseException.TooManyRequests.class,
+                    WebClientResponseException.InternalServerError.class},
+        maxAttempts = 3,
+        backoff = @Backoff(delay = 1000, multiplier = 2)
+    )
+    public String createEpic(Epic epic, String project) {
+        log.info("Creating Jira Epic: {}", epic.getName());
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("project", Map.of("key", projet(project)));
+        fields.put("summary", epic.getName());
+        fields.put("description", convertToADF(epic.getDescription()));
+        fields.put("issuetype", Map.of("name", "Epic"));
+        putPriority(fields, epic.getPriority());
+        fields.put("labels", cleanLabels(epic.getLabels()));
+
+        Map<String, Object> requestBody = Map.of("fields", fields);
+
+        try {
+            Map<String, Object> response = webClient.post()
+                    .uri("/rest/api/3/issue")
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+
+            String epicKey = (String) response.get("key");
+            epic.setJiraKey(epicKey);
+
+            log.info("Epic created successfully: {}", epicKey);
+            return epicKey;
+        } catch (WebClientResponseException e) {
+            log.error("Jira API Error: Status={}, Response={}", e.getStatusCode(), e.getResponseBodyAsString());
+            log.error("Error creating Epic", e);
+            throw new RuntimeException("Failed to create Epic: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            log.error("Error creating Epic", e);
+            throw new RuntimeException("Failed to create Epic: " + e.getMessage(), e);
+        }
+    }
+
+    public String createStory(Story story, String epicKey) {
+        return createStory(story, epicKey, null);
+    }
+
+    @Retryable(
+        retryFor = {WebClientResponseException.TooManyRequests.class,
+                    WebClientResponseException.InternalServerError.class},
+        maxAttempts = 3,
+        backoff = @Backoff(delay = 1000, multiplier = 2)
+    )
+    public String createStory(Story story, String epicKey, String project) {
+        log.info("Creating Jira Story: {} under Epic: {}", story.getTitle(), epicKey);
+
+        String description = formatStoryDescription(story);
+        String fullDescription = description + "\n\n" + formatAcceptanceCriteria(story.getAcceptanceCriteria())
+                + formatAiReadiness(story);
+        String summary = story.getTitle();
+        List<String> labels = story.getLabels();
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("project", Map.of("key", projet(project)));
+        fields.put("summary", summary);
+        fields.put("description", convertToADF(fullDescription));
+        fields.put("issuetype", Map.of("name", "Story"));
+        putPriority(fields, story.getPriority());
+
+        // Utiliser le nouveau champ "parent"
+        if (epicKey != null && !epicKey.isEmpty()) {
+            fields.put("parent", Map.of("key", epicKey));
+        }
+
+//        // Story Points
+//        if (story.getEstimatedStoryPoints() != null) {
+//            fields.put("customfield_10016", story.getEstimatedStoryPoints());
+//        }
+
+        List<String> cleanedLabels = new ArrayList<>(cleanLabels(labels));
+        // Seul un "true" explicite de l'analyse rend la story codable par l'agent : dans le doute, validation humaine
+        cleanedLabels.add(Boolean.TRUE.equals(story.getAiReady()) ? LABEL_AI_READY : LABEL_VALIDATION);
+        fields.put("labels", cleanedLabels);
+
+        Map<String, Object> requestBody = Map.of("fields", fields);
+
+        try {
+            Map<String, Object> response = webClient.post()
+                    .uri("/rest/api/3/issue")
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+
+            String storyKey = (String) response.get("key");
+            story.setJiraKey(storyKey);
+            story.setEpicKey(epicKey);
+
+            log.info("Story created successfully: {}", storyKey);
+            return storyKey;
+        } catch (WebClientResponseException e) {
+            log.error("Jira API Error: Status={}, Response={}", e.getStatusCode(), e.getResponseBodyAsString());
+            log.error("Error creating Story", e);
+            throw new RuntimeException("Failed to create Story: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            log.error("Error creating Story", e);
+            throw new RuntimeException("Failed to create Story: " + e.getMessage(), e);
+        }
+    }
+
+    public String createTask(Task task, String parentStoryKey) {
+        return createTask(task, parentStoryKey, null);
+    }
+
+    @Retryable(
+        retryFor = {WebClientResponseException.TooManyRequests.class,
+                    WebClientResponseException.InternalServerError.class},
+        maxAttempts = 3,
+        backoff = @Backoff(delay = 1000, multiplier = 2)
+    )
+    public String createTask(Task task, String parentStoryKey, String project) {
+        log.info("Creating Jira Task: {} under Story: {}", task.getTitle(), parentStoryKey);
+
+        Map<String, Object> fields = Map.of(
+                "project", Map.of("key", projet(project)),
+                "summary", task.getTitle(),
+                "description", convertToADF(task.getDescription() != null ? task.getDescription() : ""),
+                "issuetype", Map.of("name", "Subtask"),
+                "parent", Map.of("key", parentStoryKey),
+                "labels", cleanLabels(task.getLabels())  // ✅ BON
+        );
+
+        Map<String, Object> requestBody = Map.of("fields", fields);
+
+        try {
+            Map<String, Object> response = webClient.post()
+                    .uri("/rest/api/3/issue")
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+
+            String taskKey = (String) response.get("key");
+            task.setJiraKey(taskKey);
+            task.setParentStoryKey(parentStoryKey);
+
+            log.info("Task created successfully: {}", taskKey);
+            return taskKey;
+        } catch (WebClientResponseException e) {
+            log.error("Jira API Error: Status={}, Response={}", e.getStatusCode(), e.getResponseBodyAsString());
+            log.error("Error creating Task", e);
+            throw new RuntimeException("Failed to create Task: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            log.error("Error creating Task", e);
+            throw new RuntimeException("Failed to create Task: " + e.getMessage(), e);
+        }
+    }
+
+    public void createFullHierarchy(List<Epic> epics) {
+        createFullHierarchy(epics, null);
+    }
+
+    /**
+     * Cree epics, stories et sous-taches dans le projet donne (null ou vide : projet par defaut,
+     * jira.project-key). Permet a un outil appelant de remplir un projet qu'il vient de creer.
+     */
+    public void createFullHierarchy(List<Epic> epics, String project) {
+        log.info("Creating full Jira hierarchy: {} epics in project {}", epics.size(), projet(project));
+
+        for (Epic epic : epics) {
+            String epicKey = createEpic(epic, project);
+
+            for (Story story : epic.getStories()) {
+                String storyKey = createStory(story, epicKey, project);
+
+                for (Task task : story.getTasks()) {
+                    createTask(task, storyKey, project);
+                }
+            }
+        }
+
+        log.info("Full hierarchy created successfully");
+    }
+
+    private String projet(String project) {
+        return project == null || project.isBlank() ? projectKey : project;
+    }
+
+    private void putPriority(Map<String, Object> fields, String priority) {
+        if (priorityEnabled) {
+            fields.put("priority", Map.of("name", priority != null ? priority : "Medium"));
+        }
+    }
+
+    private void updateStoryPoints(String issueKey, Integer storyPoints) {
+        log.info("Updating Story Points for {}: {}", issueKey, storyPoints);
+
+        Map<String, Object> fields = Map.of(
+                "customfield_10016", storyPoints
+        );
+
+        Map<String, Object> requestBody = Map.of("fields", fields);
+
+        try {
+            webClient.put()
+                    .uri("/rest/api/3/issue/{issueKey}", issueKey)
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(Void.class)
+                    .block();
+
+            log.info("Story Points updated successfully");
+        } catch (Exception e) {
+            log.warn("Failed to update Story Points (field may not exist): {}", e.getMessage());
+        }
+    }
+
+    private String formatStoryDescription(Story story) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("*As a* ").append(story.getAsA()).append("\n");
+        sb.append("*I want* ").append(story.getIWant()).append("\n");
+        sb.append("*So that* ").append(story.getSoThat()).append("\n\n");
+
+        if (story.getDescription() != null && !story.getDescription().isEmpty()) {
+            sb.append("h3. Description\n");
+            sb.append(story.getDescription()).append("\n");
+        }
+
+        return sb.toString();
+    }
+
+    private String formatAcceptanceCriteria(List<String> criteria) {
+        if (criteria == null || criteria.isEmpty()) {
+            return "No acceptance criteria defined";
+        }
+
+        StringBuilder formatted = new StringBuilder();
+        formatted.append("h3. Acceptance Criteria\n\n");
+
+        for (int i = 0; i < criteria.size(); i++) {
+            formatted.append("*AC").append(i + 1).append(":* ");
+            formatted.append(criteria.get(i));
+            formatted.append("\n\n");
+        }
+
+        return formatted.toString();
+    }
+
+    /**
+     * Story relue pour une reevaluation : description en texte brut (pour l'analyse), description ADF d'origine
+     * (conservee telle quelle a la reecriture : images, tableaux, liens) et labels actuels.
+     */
+    public record StoryForReview(String key, String summary, String description, List<String> labels,
+                                 Map<String, Object> descriptionAdf) {
+        public StoryForReview(String key, String summary, String description, List<String> labels) {
+            this(key, summary, description, labels, null);
+        }
+    }
+
+    public StoryForReview getStoryForReview(String issueKey) {
+        log.info("Reading Jira issue {} for reassessment", issueKey);
+        try {
+            Map<String, Object> response = webClient.get()
+                    .uri("/rest/api/3/issue/{issueKey}?fields=summary,description,labels", issueKey)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+            Object rawFields = response != null ? response.get("fields") : null;
+            if (!(rawFields instanceof Map<?, ?> fields)) {
+                throw new IllegalStateException("Issue " + issueKey + " has no readable fields");
+            }
+            List<String> labels = fields.get("labels") instanceof List<?> raw
+                    ? raw.stream().map(String::valueOf).toList()
+                    : List.of();
+            Object summary = fields.get("summary");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> descriptionAdf = fields.get("description") instanceof Map<?, ?> adf
+                    ? (Map<String, Object>) adf
+                    : null;
+            return new StoryForReview(issueKey, summary != null ? summary.toString() : "",
+                    adfToText(fields.get("description")).strip(), labels, descriptionAdf);
+        } catch (WebClientResponseException e) {
+            throw new RuntimeException("Failed to read issue " + issueKey + ": HTTP " + e.getStatusCode().value(), e);
+        }
+    }
+
+    /**
+     * Ajoute la precision de l'utilisateur et le nouveau verdict a la fin de la description, et remplace le label
+     * de verdict (ai-ready ou validation-necessaire). La description d'origine n'est jamais reconstruite depuis le
+     * texte brut (images, tableaux, liens et mise en forme gardes) ; les autres labels sont conserves.
+     */
+    public void applyReassessment(StoryForReview story, String precision, boolean aiReady, String reason) {
+        String verdict = aiReady ? LABEL_AI_READY : LABEL_VALIDATION;
+        String justification = reason != null && !reason.isBlank() ? reason : "non precise par l'analyse";
+        List<Object> content = new ArrayList<>();
+        if (story.descriptionAdf() != null && story.descriptionAdf().get("content") instanceof List<?> original) {
+            content.addAll(original);
+        } else if (story.description() != null && !story.description().isBlank()) {
+            content.add(adfParagraph(story.description()));
+        }
+        content.add(adfParagraph("Precision de l'utilisateur (reevaluation): " + precision));
+        content.add(adfParagraph("AI readiness (" + verdict + "): " + justification));
+        Map<String, Object> description = new HashMap<>();
+        description.put("type", "doc");
+        description.put("version", 1);
+        description.put("content", content);
+        List<String> labels = new ArrayList<>(story.labels().stream()
+                .filter(label -> !label.equals(LABEL_AI_READY) && !label.equals(LABEL_VALIDATION))
+                .toList());
+        labels.add(verdict);
+
+        log.info("Applying reassessment to {}: {}", story.key(), verdict);
+        try {
+            webClient.put()
+                    .uri("/rest/api/3/issue/{issueKey}", story.key())
+                    .bodyValue(Map.of("fields", Map.of("description", description, "labels", labels)))
+                    .retrieve()
+                    .bodyToMono(Void.class)
+                    .block();
+        } catch (WebClientResponseException e) {
+            throw new RuntimeException("Failed to update issue " + story.key() + ": " + e.getResponseBodyAsString(), e);
+        }
+    }
+
+    private static Map<String, Object> adfParagraph(String text) {
+        return Map.of("type", "paragraph", "content", List.of(Map.of("type", "text", "text", text)));
+    }
+
+    private static String adfToText(Object node) {
+        if (!(node instanceof Map<?, ?> map)) {
+            return "";
+        }
+        StringBuilder text = new StringBuilder();
+        if ("text".equals(map.get("type")) && map.get("text") instanceof String value) {
+            text.append(value);
+        }
+        if (map.get("content") instanceof List<?> children) {
+            for (Object child : children) {
+                text.append(adfToText(child));
+            }
+        }
+        if ("paragraph".equals(map.get("type")) || "heading".equals(map.get("type"))) {
+            text.append("\n");
+        }
+        return text.toString();
+    }
+
+    private String formatAiReadiness(Story story) {
+        String verdict = Boolean.TRUE.equals(story.getAiReady()) ? LABEL_AI_READY : LABEL_VALIDATION;
+        String reason = story.getAiReadyReason() != null ? story.getAiReadyReason() : "non evalue par l'analyse";
+        return "\n\nAI readiness (" + verdict + "): " + reason;
+    }
+
+    private Map<String, Object> convertToADF(String text) {
+        if (text == null || text.isEmpty()) {
+            text = "No description provided";
+        }
+
+        return Map.of(
+                "type", "doc",
+                "version", 1,
+                "content", List.of(
+                        Map.of(
+                                "type", "paragraph",
+                                "content", List.of(
+                                        Map.of(
+                                                "type", "text",
+                                                "text", text
+                                        )
+                                )
+                        )
+                )
+        );
+    }
+
+
+    private List<String> cleanLabels(List<String> labels) {
+        if (labels == null || labels.isEmpty()) {
+            return List.of();
+        }
+
+        return labels.stream()
+            .map(label -> label
+                .replaceAll("\\s+", "-")  // Remplacer espaces par tirets
+                .replaceAll("[^a-zA-Z0-9-_]", "")  // Supprimer caractères spéciaux
+                .toLowerCase())  // Tout en minuscules
+            .filter(label -> !label.isEmpty())
+            // Labels de verdict reserves a createStory (aiReady explicite) : jamais repris de l'analyse,
+            // sinon un Epic ou une Subtask "AI Ready" serait pris pour une story codable par l'agent
+            .filter(label -> !label.equals(LABEL_AI_READY) && !label.equals(LABEL_VALIDATION))
+            .distinct()
+            .collect(Collectors.toList());
+    }
+}
