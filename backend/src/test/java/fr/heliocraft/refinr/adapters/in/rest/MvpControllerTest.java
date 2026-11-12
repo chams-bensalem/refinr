@@ -107,6 +107,8 @@ class MvpControllerTest {
         verify(confluenceService).getDocumentContent(pageId);
         verify(geminiAnalyzer).analyzeDocument(cdcContent);
         verify(jiraService).createEpic(any(Epic.class), isNull());
+        verify(jiraService).createStory(any(Story.class), eq("PROJ-1"), isNull());
+        verify(jiraService).createSubtask(any(Task.class), eq("PROJ-2"), isNull());
     }
 
     @Test
@@ -114,6 +116,8 @@ class MvpControllerTest {
     void shouldCreateInRequestedProject() throws Exception {
         when(confluenceService.getDocumentContent("42")).thenReturn("cdc");
         when(geminiAnalyzer.analyzeDocument("cdc")).thenReturn(testEpics);
+        when(jiraService.createEpic(any(Epic.class), any())).thenReturn("DEMO-1");
+        when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("DEMO-2");
 
         mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -121,6 +125,8 @@ class MvpControllerTest {
                 .andExpect(status().isOk());
 
         verify(jiraService).createEpic(any(Epic.class), eq("DEMO"));
+        verify(jiraService).createStory(any(Story.class), eq("DEMO-1"), eq("DEMO"));
+        verify(jiraService).createSubtask(any(Task.class), eq("DEMO-2"), eq("DEMO"));
     }
 
     @Test
@@ -210,6 +216,9 @@ class MvpControllerTest {
         verify(confluenceService).getDocumentContent(pageId);
         verify(geminiAnalyzer).analyzeDocument(cdcContent);
         verify(jiraService).createEpic(any(Epic.class), isNull());
+        // L'Epic a echoue : rien n'est cree en dessous
+        verify(jiraService, never()).createStory(any(), any(), any());
+        verify(jiraService, never()).createSubtask(any(), any(), any());
     }
 
     @Test

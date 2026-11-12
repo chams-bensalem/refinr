@@ -13,6 +13,8 @@ import com.tngtech.archunit.lang.SimpleConditionEvent;
 import java.util.Locale;
 import java.util.stream.Stream;
 
+import static com.tngtech.archunit.base.DescribedPredicate.not;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
@@ -62,6 +64,20 @@ class HexagonalArchitectureTest {
             .because("un adaptateur entrant passe par les ports in, jamais par une implementation sortante");
 
     @ArchTest
+    static final ArchRule inbound_adapters_use_only_inbound_ports_of_the_application = noClasses()
+            .that().resideInAPackage(ROOT + ".adapters.in..")
+            .should().dependOnClassesThat(resideInAPackage(APPLICATION)
+                    .and(not(resideInAPackage(ROOT + ".application.port.in.."))))
+            .because("un adaptateur entrant n'appelle que les cas d'usage (ports in), jamais un port sortant ni un service");
+
+    @ArchTest
+    static final ArchRule outbound_adapters_use_only_outbound_ports_of_the_application = noClasses()
+            .that().resideInAPackage(ROOT + ".adapters.out..")
+            .should().dependOnClassesThat(resideInAPackage(APPLICATION)
+                    .and(not(resideInAPackage(ROOT + ".application.port.out.."))))
+            .because("un adaptateur sortant n'implemente que son port sortant, sans connaitre les cas d'usage");
+
+    @ArchTest
     static final ArchRule outbound_adapters_do_not_use_inbound_adapters = noClasses()
             .that().resideInAPackage(ROOT + ".adapters.out..")
             .should().dependOnClassesThat().resideInAPackage(ROOT + ".adapters.in..");
@@ -83,11 +99,18 @@ class HexagonalArchitectureTest {
             .should(haveNoIdentifierContaining("jira"))
             .because("le centre reste agnostique du gestionnaire de tickets (OpenProject en v1.1)");
 
-    /** Nom de classe, de champ ou de methode (insensible a la casse : jira, Jira, JIRA). */
+    /**
+     * Nom de package, de classe, de champ ou de methode (insensible a la casse : jira, Jira, JIRA). Les noms de
+     * parametres et de variables locales sont hors de portee d'ArchUnit : {@link CoreSourceVocabularyTest} les couvre.
+     */
     private static ArchCondition<JavaClass> haveNoIdentifierContaining(String word) {
-        return new ArchCondition<>("have no class, field or method name containing '" + word + "'") {
+        return new ArchCondition<>("have no package, class, field or method name containing '" + word + "'") {
             @Override
             public void check(JavaClass javaClass, ConditionEvents events) {
+                if (contains(javaClass.getPackageName(), word)) {
+                    events.add(SimpleConditionEvent.violated(javaClass,
+                            "package " + javaClass.getPackageName() + " is named with '" + word + "'"));
+                }
                 if (contains(javaClass.getSimpleName(), word)) {
                     events.add(SimpleConditionEvent.violated(javaClass,
                             "class " + javaClass.getName() + " is named with '" + word + "'"));
