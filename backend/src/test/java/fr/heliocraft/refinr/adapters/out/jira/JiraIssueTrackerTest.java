@@ -1,6 +1,7 @@
-package fr.heliocraft.refinr.jira;
+package fr.heliocraft.refinr.adapters.out.jira;
 
 import fr.heliocraft.refinr.domain.model.Epic;
+import fr.heliocraft.refinr.domain.model.TrackedStory;
 import fr.heliocraft.refinr.domain.model.Readiness;
 import fr.heliocraft.refinr.domain.model.Story;
 import fr.heliocraft.refinr.domain.model.Task;
@@ -14,10 +15,10 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class JiraServiceTest {
+class JiraIssueTrackerTest {
 
     private MockWebServer mockWebServer;
-    private JiraService jiraService;
+    private JiraIssueTracker jiraService;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -27,7 +28,7 @@ class JiraServiceTest {
         String baseUrl = mockWebServer.url("/").toString();
 
         // Créer le service avec l'URL mockée
-        jiraService = new JiraService(
+        jiraService = new JiraIssueTracker(
             baseUrl,
             "test@example.com",
             "fake-token",
@@ -64,7 +65,8 @@ class JiraServiceTest {
 
         // Then
         assertEquals("TEST-1", epicKey);
-        assertEquals("TEST-1", epic.getTrackerKey());
+        // Le port renvoie la cle sans modifier le modele : c'est le service de creation du backlog qui l'affecte
+        assertNull(epic.getTrackerKey());
 
         // Verify request
         RecordedRequest request = mockWebServer.takeRequest();
@@ -150,7 +152,7 @@ class JiraServiceTest {
         mockWebServer.enqueue(jsonResponse("{\"key\":\"TEST-3\"}"));
 
         // When
-        String taskKey = jiraService.createTask(task, storyKey);
+        String taskKey = jiraService.createSubtask(task, storyKey);
 
         // Then
         assertEquals("TEST-3", taskKey);
@@ -180,7 +182,7 @@ class JiraServiceTest {
     @Test
     @DisplayName("Should omit priority on Epic and Story when disabled (team-managed projects)")
     void shouldOmitPriorityWhenDisabled() throws InterruptedException {
-        JiraService sansPriorite = new JiraService(
+        JiraIssueTracker sansPriorite = new JiraIssueTracker(
             mockWebServer.url("/").toString(), "test@example.com", "fake-token", "TEST", false);
 
         Epic epic = new Epic();
@@ -268,7 +270,7 @@ class JiraServiceTest {
         mockWebServer.enqueue(jsonResponse("{\"key\":\"TEST-3\"}"));
 
         jiraService.createEpic(epic);
-        jiraService.createTask(task, "TEST-2");
+        jiraService.createSubtask(task, "TEST-2");
 
         String epicBody = mockWebServer.takeRequest().getBody().readUtf8();
         assertFalse(epicBody.contains("\"ai-ready\""));
@@ -312,7 +314,7 @@ class JiraServiceTest {
                 + "\"description\":{\"type\":\"doc\",\"version\":1,\"content\":[{\"type\":\"paragraph\","
                 + "\"content\":[{\"type\":\"text\",\"text\":\"Exporter en PDF\"}]}]}}}"));
 
-        JiraService.StoryForReview story = jiraService.getStoryForReview("TEST-7");
+        TrackedStory story = jiraService.findStory("TEST-7");
 
         assertEquals("TEST-7", story.key());
         assertEquals("Export PDF", story.summary());
@@ -327,10 +329,10 @@ class JiraServiceTest {
     @DisplayName("Should record the user's precision and swap the readiness label")
     void shouldApplyReassessment() throws InterruptedException {
         mockWebServer.enqueue(new MockResponse().setResponseCode(204));
-        JiraService.StoryForReview story = new JiraService.StoryForReview(
+        TrackedStory story = new TrackedStory(
             "TEST-7", "Export PDF", "Exporter en PDF", List.of("backend", "validation-necessaire"));
 
-        jiraService.applyReassessment(story, "format A4 uniquement", true, "Perimetre clair");
+        jiraService.applyReassessment(story, "format A4 uniquement", new Readiness(true, "Perimetre clair"));
 
         RecordedRequest request = mockWebServer.takeRequest();
         assertEquals("PUT", request.getMethod());
@@ -348,10 +350,10 @@ class JiraServiceTest {
     @DisplayName("A still-not-ready story keeps the validation label, never ai-ready")
     void shouldKeepValidationLabelWhenStillNotReady() throws InterruptedException {
         mockWebServer.enqueue(new MockResponse().setResponseCode(204));
-        JiraService.StoryForReview story = new JiraService.StoryForReview(
+        TrackedStory story = new TrackedStory(
             "TEST-7", "Export PDF", "Exporter en PDF", List.of("validation-necessaire"));
 
-        jiraService.applyReassessment(story, "format A4", false, "La maquette manque");
+        jiraService.applyReassessment(story, "format A4", new Readiness(false, "La maquette manque"));
 
         String body = mockWebServer.takeRequest().getBody().readUtf8();
         assertTrue(body.contains("\"validation-necessaire\""));
@@ -373,8 +375,8 @@ class JiraServiceTest {
                 + "\"attrs\":{\"id\":\"maquette-123\",\"type\":\"file\",\"collection\":\"jira\"}}]}]}}}"));
         mockWebServer.enqueue(new MockResponse().setResponseCode(204));
 
-        JiraService.StoryForReview story = jiraService.getStoryForReview("TEST-7");
-        jiraService.applyReassessment(story, "format A4", false, "La maquette manque");
+        TrackedStory story = jiraService.findStory("TEST-7");
+        jiraService.applyReassessment(story, "format A4", new Readiness(false, "La maquette manque"));
 
         mockWebServer.takeRequest();
         String body = mockWebServer.takeRequest().getBody().readUtf8();
@@ -383,6 +385,19 @@ class JiraServiceTest {
         assertTrue(body.contains("\"strong\""));
         assertTrue(body.contains("Precision de l'utilisateur (reevaluation): format A4"));
         assertTrue(body.contains("AI readiness (validation-necessaire): La maquette manque"));
+    }
+
+    @Test
+    @DisplayName("Reassessment refuses tracker content it did not read itself, without calling Jira")
+    void shouldRejectForeignTrackerContent() {
+        TrackedStory story = new TrackedStory("TEST-7", "Export PDF", "Exporter en PDF",
+            List.of("validation-necessaire"), new fr.heliocraft.refinr.domain.model.TrackerContent() {});
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> jiraService.applyReassessment(story, "format A4", new Readiness(false, "La maquette manque")));
+
+        assertTrue(error.getMessage().startsWith("Unsupported tracker content for Jira"));
+        assertEquals(0, mockWebServer.getRequestCount());
     }
 
     @Test

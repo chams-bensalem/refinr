@@ -2,12 +2,13 @@ package fr.heliocraft.refinr.api;
 
 import fr.heliocraft.refinr.adapters.in.rest.RestBacklogMapper;
 import fr.heliocraft.refinr.adapters.in.rest.dto.EpicDto;
-import fr.heliocraft.refinr.analyzer.GeminiDocumentAnalyzer;
-import fr.heliocraft.refinr.confluence.ConfluenceService;
+import fr.heliocraft.refinr.adapters.out.confluence.ConfluenceDocumentSource;
+import fr.heliocraft.refinr.adapters.out.jira.JiraIssueTracker;
+import fr.heliocraft.refinr.adapters.out.llm.LlmBacklogAnalyzer;
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Readiness;
+import fr.heliocraft.refinr.domain.model.TrackedStory;
 import fr.heliocraft.refinr.domain.service.ReadinessPolicy;
-import fr.heliocraft.refinr.jira.JiraService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,14 +41,14 @@ public class MvpController {
 
     private static final java.util.regex.Pattern CLE_PROJET = java.util.regex.Pattern.compile("^[A-Z][A-Z0-9]{1,9}$");
 
-    private final ConfluenceService confluenceService;
-    private final GeminiDocumentAnalyzer documentAnalyzer;
-    private final JiraService jiraService;
+    private final ConfluenceDocumentSource confluenceService;
+    private final LlmBacklogAnalyzer documentAnalyzer;
+    private final JiraIssueTracker jiraService;
 
     public MvpController(
-            ConfluenceService confluenceService,
-            GeminiDocumentAnalyzer documentAnalyzer,
-            JiraService jiraService) {
+            ConfluenceDocumentSource confluenceService,
+            LlmBacklogAnalyzer documentAnalyzer,
+            JiraIssueTracker jiraService) {
         this.confluenceService = confluenceService;
         this.documentAnalyzer = documentAnalyzer;
         this.jiraService = jiraService;
@@ -68,7 +69,7 @@ public class MvpController {
 
         try {
             log.info("Step 1: Reading Confluence page...");
-            String pageContent = confluenceService.getPageContent(confluencePageId);
+            String pageContent = confluenceService.getDocumentContent(confluencePageId);
             
             log.info("Step 2: Analyzing document with AI...");
             List<Epic> epics = documentAnalyzer.analyzeDocument(pageContent);
@@ -98,7 +99,7 @@ public class MvpController {
         log.info("Preview request for Confluence page: {}", confluencePageId);
 
         try {
-            String pageContent = confluenceService.getPageContent(confluencePageId);
+            String pageContent = confluenceService.getDocumentContent(confluencePageId);
             List<Epic> epics = documentAnalyzer.analyzeDocument(pageContent);
             
             return ResponseEntity.ok(Map.of(
@@ -155,7 +156,7 @@ public class MvpController {
 
         log.info("Reassessment request for {}", issueKey);
         try {
-            JiraService.StoryForReview story = jiraService.getStoryForReview(issueKey);
+            TrackedStory story = jiraService.findStory(issueKey);
             // Seules les stories en attente de validation sont reevaluees : une story ai-ready ne regresse pas ici
             if (!ReadinessPolicy.isAwaitingValidation(story.labels())) {
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
@@ -166,7 +167,7 @@ public class MvpController {
             }
             Readiness verdict =
                     documentAnalyzer.reassessStory(story.summary(), story.description(), precision);
-            jiraService.applyReassessment(story, precision, verdict.aiReady(), verdict.aiReadyReason());
+            jiraService.applyReassessment(story, precision, verdict);
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "issueKey", issueKey,
@@ -190,7 +191,7 @@ public class MvpController {
         log.info("Searching Confluence pages: space={}, title={}", spaceKey, title);
 
         try {
-            Map<String, Object> results = confluenceService.searchPages(spaceKey, title);
+            Map<String, Object> results = confluenceService.searchDocuments(spaceKey, title);
             return ResponseEntity.ok(results);
             
         } catch (Exception e) {

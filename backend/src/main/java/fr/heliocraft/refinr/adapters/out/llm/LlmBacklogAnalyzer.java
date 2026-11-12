@@ -1,8 +1,9 @@
-package fr.heliocraft.refinr.analyzer;
+package fr.heliocraft.refinr.adapters.out.llm;
 
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
+import fr.heliocraft.refinr.application.port.out.LlmPort;
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Readiness;
 import fr.heliocraft.refinr.domain.model.Story;
@@ -11,7 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.resilience.annotation.Retryable;
@@ -24,11 +24,14 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Analyse par LLM : structure Epic/Story/Subtask d'un document et verdict de preparation des stories
+ * (Gemini, Ollama ; verdict eventuellement confie a un autre fournisseur, ex. proxy LiteLLM).
+ */
 @Service
-@Primary
-public class GeminiDocumentAnalyzer {
+public class LlmBacklogAnalyzer implements LlmPort {
 
-    private static final Logger log = LoggerFactory.getLogger(GeminiDocumentAnalyzer.class);
+    private static final Logger log = LoggerFactory.getLogger(LlmBacklogAnalyzer.class);
 
     private final WebClient geminiClient;
     private final WebClient ollamaClient;
@@ -61,7 +64,7 @@ public class GeminiDocumentAnalyzer {
             """;
 
     @Autowired
-    public GeminiDocumentAnalyzer(
+    public LlmBacklogAnalyzer(
             @Value("${gemini.api-key:}") String apiKey,
             @Value("${gemini.base-url:https://generativelanguage.googleapis.com}") String baseUrl,
             @Value("${ai.provider:gemini}") String provider,
@@ -104,17 +107,17 @@ public class GeminiDocumentAnalyzer {
     }
 
     // Constructor for testing with custom WebClient
-    GeminiDocumentAnalyzer(WebClient webClient, String apiKey) {
+    LlmBacklogAnalyzer(WebClient webClient, String apiKey) {
         this(webClient, apiKey, "gemini", "qwen3:8b");
     }
 
     // Constructor for testing with a chosen provider (the WebClient serves both providers)
-    GeminiDocumentAnalyzer(WebClient webClient, String apiKey, String provider, String ollamaModel) {
+    LlmBacklogAnalyzer(WebClient webClient, String apiKey, String provider, String ollamaModel) {
         this(webClient, apiKey, provider, ollamaModel, "", "gemini-3.6-flash", "");
     }
 
     // Constructor for testing a separate verdict provider (the WebClient serves every provider)
-    GeminiDocumentAnalyzer(WebClient webClient, String apiKey, String provider, String ollamaModel,
+    LlmBacklogAnalyzer(WebClient webClient, String apiKey, String provider, String ollamaModel,
                            String verdictProvider, String verdictModel, String verdictApiKey) {
         this.objectMapper = JsonMapper.builderWithJackson2Defaults().build();
         this.apiKey = apiKey;
@@ -147,6 +150,7 @@ public class GeminiDocumentAnalyzer {
         delay = 1000,
         multiplier = 2
     )
+    @Override
     public List<Epic> analyzeDocument(String documentContent) {
         log.info("Analyzing document with {}...", isOllama() ? "Ollama" : "Gemini");
 
@@ -168,6 +172,7 @@ public class GeminiDocumentAnalyzer {
     }
 
     /** Reevalue une seule story (deja creee dans Jira) avec la precision apportee par l'utilisateur. */
+    @Override
     public Readiness reassessStory(String summary, String description, String precision) {
         log.info("Reassessing story '{}' with the user's precision ({})", summary, isOllama() ? "Ollama" : "Gemini");
         String prompt = buildReassessmentPrompt(summary, description, precision);

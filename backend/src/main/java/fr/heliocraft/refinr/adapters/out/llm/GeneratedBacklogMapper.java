@@ -1,4 +1,4 @@
-package fr.heliocraft.refinr.analyzer;
+package fr.heliocraft.refinr.adapters.out.llm;
 
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Story;

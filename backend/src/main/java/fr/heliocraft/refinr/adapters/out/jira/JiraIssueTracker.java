@@ -1,8 +1,12 @@
-package fr.heliocraft.refinr.jira;
+package fr.heliocraft.refinr.adapters.out.jira;
 
+import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
 import fr.heliocraft.refinr.domain.model.Epic;
+import fr.heliocraft.refinr.domain.model.Readiness;
 import fr.heliocraft.refinr.domain.model.Story;
 import fr.heliocraft.refinr.domain.model.Task;
+import fr.heliocraft.refinr.domain.model.TrackedStory;
+import fr.heliocraft.refinr.domain.model.TrackerContent;
 import fr.heliocraft.refinr.domain.service.LabelNormalizer;
 import fr.heliocraft.refinr.domain.service.ReadinessPolicy;
 import org.slf4j.Logger;
@@ -24,21 +28,21 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-public class JiraService {
+public class JiraIssueTracker implements IssueTrackerPort {
 
-    private static final Logger log = LoggerFactory.getLogger(JiraService.class);
+    private static final Logger log = LoggerFactory.getLogger(JiraIssueTracker.class);
 
     private final WebClient webClient;
     private final String projectKey;
     // Les projets "team-managed" (next-gen) n'ont pas de champ priority : Jira refuse l'issue s'il est envoye
     private final boolean priorityEnabled;
 
-    public JiraService(String baseUrl, String username, String token, String projectKey) {
+    public JiraIssueTracker(String baseUrl, String username, String token, String projectKey) {
         this(baseUrl, username, token, projectKey, true);
     }
 
     @Autowired
-    public JiraService(
+    public JiraIssueTracker(
             @Value("${jira.base-url}") String baseUrl,
             @Value("${jira.username}") String username,
             @Value("${jira.token}") String token,
@@ -70,6 +74,7 @@ public class JiraService {
         delay = 1000,
         multiplier = 2
     )
+    @Override
     public String createEpic(Epic epic, String project) {
         log.info("Creating Jira Epic: {}", epic.getName());
 
@@ -92,7 +97,6 @@ public class JiraService {
                     .block();
 
             String epicKey = (String) response.get("key");
-            epic.setTrackerKey(epicKey);
 
             log.info("Epic created successfully: {}", epicKey);
             return epicKey;
@@ -117,6 +121,7 @@ public class JiraService {
         delay = 1000,
         multiplier = 2
     )
+    @Override
     public String createStory(Story story, String epicKey, String project) {
         log.info("Creating Jira Story: {} under Epic: {}", story.getTitle(), epicKey);
 
@@ -159,8 +164,6 @@ public class JiraService {
                     .block();
 
             String storyKey = (String) response.get("key");
-            story.setTrackerKey(storyKey);
-            story.setEpicTrackerKey(epicKey);
 
             log.info("Story created successfully: {}", storyKey);
             return storyKey;
@@ -174,8 +177,8 @@ public class JiraService {
         }
     }
 
-    public String createTask(Task task, String parentStoryKey) {
-        return createTask(task, parentStoryKey, null);
+    public String createSubtask(Task task, String parentStoryKey) {
+        return createSubtask(task, parentStoryKey, null);
     }
 
     @Retryable(
@@ -185,7 +188,8 @@ public class JiraService {
         delay = 1000,
         multiplier = 2
     )
-    public String createTask(Task task, String parentStoryKey, String project) {
+    @Override
+    public String createSubtask(Task task, String parentStoryKey, String project) {
         log.info("Creating Jira Task: {} under Story: {}", task.getTitle(), parentStoryKey);
 
         Map<String, Object> fields = Map.of(
@@ -208,8 +212,6 @@ public class JiraService {
                     .block();
 
             String taskKey = (String) response.get("key");
-            task.setTrackerKey(taskKey);
-            task.setParentTrackerKey(parentStoryKey);
 
             log.info("Task created successfully: {}", taskKey);
             return taskKey;
@@ -236,12 +238,17 @@ public class JiraService {
 
         for (Epic epic : epics) {
             String epicKey = createEpic(epic, project);
+            epic.setTrackerKey(epicKey);
 
             for (Story story : epic.getStories()) {
                 String storyKey = createStory(story, epicKey, project);
+                story.setTrackerKey(storyKey);
+                story.setEpicTrackerKey(epicKey);
 
                 for (Task task : story.getTasks()) {
-                    createTask(task, storyKey, project);
+                    String taskKey = createSubtask(task, storyKey, project);
+                    task.setTrackerKey(taskKey);
+                    task.setParentTrackerKey(storyKey);
                 }
             }
         }
@@ -316,16 +323,10 @@ public class JiraService {
 
     /**
      * Story relue pour une reevaluation : description en texte brut (pour l'analyse), description ADF d'origine
-     * (conservee telle quelle a la reecriture : images, tableaux, liens) et labels actuels.
+     * (conservee telle quelle a la reecriture : images, tableaux, liens, via {@link JiraAdfContent}) et labels actuels.
      */
-    public record StoryForReview(String key, String summary, String description, List<String> labels,
-                                 Map<String, Object> descriptionAdf) {
-        public StoryForReview(String key, String summary, String description, List<String> labels) {
-            this(key, summary, description, labels, null);
-        }
-    }
-
-    public StoryForReview getStoryForReview(String issueKey) {
+    @Override
+    public TrackedStory findStory(String issueKey) {
         log.info("Reading Jira issue {} for reassessment", issueKey);
         try {
             Map<String, Object> response = webClient.get()
@@ -345,8 +346,9 @@ public class JiraService {
             Map<String, Object> descriptionAdf = fields.get("description") instanceof Map<?, ?> adf
                     ? (Map<String, Object>) adf
                     : null;
-            return new StoryForReview(issueKey, summary != null ? summary.toString() : "",
-                    adfToText(fields.get("description")).strip(), labels, descriptionAdf);
+            return new TrackedStory(issueKey, summary != null ? summary.toString() : "",
+                    adfToText(fields.get("description")).strip(), labels,
+                    descriptionAdf != null ? new JiraAdfContent(descriptionAdf) : null);
         } catch (WebClientResponseException e) {
             throw new RuntimeException("Failed to read issue " + issueKey + ": HTTP " + e.getStatusCode().value(), e);
         }
@@ -357,11 +359,15 @@ public class JiraService {
      * de verdict (ai-ready ou validation-necessaire). La description d'origine n'est jamais reconstruite depuis le
      * texte brut (images, tableaux, liens et mise en forme gardes) ; les autres labels sont conserves.
      */
-    public void applyReassessment(StoryForReview story, String precision, boolean aiReady, String reason) {
+    @Override
+    public void applyReassessment(TrackedStory story, String precision, Readiness readiness) {
+        boolean aiReady = readiness.aiReady();
+        String reason = readiness.aiReadyReason();
         String verdict = ReadinessPolicy.verdictLabel(aiReady);
         String justification = reason != null && !reason.isBlank() ? reason : "non precise par l'analyse";
         List<Object> content = new ArrayList<>();
-        if (story.descriptionAdf() != null && story.descriptionAdf().get("content") instanceof List<?> original) {
+        Map<String, Object> originalAdf = adfOf(story.originalContent());
+        if (originalAdf != null && originalAdf.get("content") instanceof List<?> original) {
             content.addAll(original);
         } else if (story.description() != null && !story.description().isBlank()) {
             content.add(adfParagraph(story.description()));
@@ -385,6 +391,17 @@ public class JiraService {
         } catch (WebClientResponseException e) {
             throw new RuntimeException("Failed to update issue " + story.key() + ": " + e.getResponseBodyAsString(), e);
         }
+    }
+
+    /** Contenu d'origine lu par cet adaptateur ; tout autre type est refuse explicitement (jamais ignore). */
+    private static Map<String, Object> adfOf(TrackerContent content) {
+        if (content == null) {
+            return null;
+        }
+        if (content instanceof JiraAdfContent adf) {
+            return adf.document();
+        }
+        throw new IllegalArgumentException("Unsupported tracker content for Jira: " + content.getClass().getName());
     }
 
     private static Map<String, Object> adfParagraph(String text) {

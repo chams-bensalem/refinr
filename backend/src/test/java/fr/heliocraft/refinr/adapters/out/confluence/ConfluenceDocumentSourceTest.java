@@ -1,4 +1,4 @@
-package fr.heliocraft.refinr.confluence;
+package fr.heliocraft.refinr.adapters.out.confluence;
 
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -10,10 +10,10 @@ import java.io.IOException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class ConfluenceServiceTest {
+class ConfluenceDocumentSourceTest {
 
     private MockWebServer mockWebServer;
-    private ConfluenceService confluenceService;
+    private ConfluenceDocumentSource confluenceService;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -22,7 +22,7 @@ class ConfluenceServiceTest {
 
         String baseUrl = mockWebServer.url("/").toString();
 
-        confluenceService = new ConfluenceService(
+        confluenceService = new ConfluenceDocumentSource(
             WebClient.builder().baseUrl(baseUrl).build(),
             "test@example.com",
             "fake-token"
@@ -63,7 +63,7 @@ class ConfluenceServiceTest {
         mockWebServer.enqueue(jsonResponse(mockConfluenceResponse));
 
         // When
-        String content = confluenceService.getPageContent(pageId);
+        String content = confluenceService.getDocumentContent(pageId);
 
         // Then
         assertNotNull(content);
@@ -96,7 +96,7 @@ class ConfluenceServiceTest {
         mockWebServer.enqueue(jsonResponse(mockResponse));
 
         // When
-        String content = confluenceService.getPageContent(pageId);
+        String content = confluenceService.getDocumentContent(pageId);
 
         // Then
         assertNotNull(content);
@@ -117,7 +117,7 @@ class ConfluenceServiceTest {
 
         // When/Then
         assertThrows(RuntimeException.class,
-            () -> confluenceService.getPageContent(pageId));
+            () -> confluenceService.getDocumentContent(pageId));
     }
 
     @Test
@@ -133,7 +133,7 @@ class ConfluenceServiceTest {
 
         // When/Then
         RuntimeException exception = assertThrows(RuntimeException.class,
-            () -> confluenceService.getPageContent(pageId));
+            () -> confluenceService.getDocumentContent(pageId));
         assertTrue(exception.getMessage().contains("401"));
     }
 
@@ -156,7 +156,7 @@ class ConfluenceServiceTest {
         mockWebServer.enqueue(jsonResponse(mockResponse));
 
         // When
-        String content = confluenceService.getPageContent(pageId);
+        String content = confluenceService.getDocumentContent(pageId);
 
         // Then
         assertNotNull(content);
@@ -182,7 +182,7 @@ class ConfluenceServiceTest {
         mockWebServer.enqueue(jsonResponse(mockResponse));
 
         // When
-        String content = confluenceService.getPageContent(pageId);
+        String content = confluenceService.getDocumentContent(pageId);
 
         // Then
         assertNotNull(content);
@@ -199,7 +199,7 @@ class ConfluenceServiceTest {
         mockWebServer.enqueue(jsonResponse("{\"id\":\"123\",\"body\":{\"storage\":{\"value\":\"test\"}}}"));
 
         // When
-        confluenceService.getPageContent(pageId);
+        confluenceService.getDocumentContent(pageId);
 
         // Then
         RecordedRequest request = mockWebServer.takeRequest();
@@ -231,7 +231,7 @@ class ConfluenceServiceTest {
         mockWebServer.enqueue(jsonResponse(mockResponse));
 
         // When
-        String content = confluenceService.getPageContent(pageId);
+        String content = confluenceService.getDocumentContent(pageId);
 
         // Then
         assertNotNull(content);
