@@ -11,15 +11,10 @@ import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Readiness;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.reactive.function.client.WebClient;
 
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -29,15 +24,6 @@ import java.util.Map;
 public class MvpController {
 
     private static final Logger log = LoggerFactory.getLogger(MvpController.class);
-
-    @Value("${jira.base-url}")
-    private String jiraBaseUrl;
-
-    @Value("${jira.username}")
-    private String jiraEmail;
-
-    @Value("${jira.token}")
-    private String jiraApiToken;
 
     private static final java.util.regex.Pattern CLE_PROJET = java.util.regex.Pattern.compile("^[A-Z][A-Z0-9]{1,9}$");
 
@@ -201,32 +187,5 @@ public class MvpController {
                 "status", "UP",
                 "message", "MVP Doc-to-Jira is running"
         ));
-    }
-
-    @PostMapping("/test-issue-types")
-    public ResponseEntity<String> testIssueTypes() {
-        try {
-            log.info("Testing Jira issue types");
-
-            // Appel API Jira pour lister les types disponibles
-            Map<String, Object> response = WebClient.builder()
-                .baseUrl(jiraBaseUrl)
-                .defaultHeader(HttpHeaders.AUTHORIZATION,
-                    "Basic " + Base64.getEncoder().encodeToString(
-                        (jiraEmail + ":" + jiraApiToken).getBytes()))
-                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .build()
-                .get()
-                .uri("/rest/api/3/issue/createmeta?projectKeys=PROJ&expand=projects.issuetypes")
-                .retrieve()
-                .bodyToMono(Map.class)
-                .block();
-
-            return ResponseEntity.ok(response.toString());
-
-        } catch (Exception e) {
-            log.error("Error testing issue types", e);
-            return ResponseEntity.status(500).body("Error: " + e.getMessage());
-        }
     }
 }

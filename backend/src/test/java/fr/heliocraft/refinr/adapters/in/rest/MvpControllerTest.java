@@ -262,6 +262,15 @@ class MvpControllerTest {
     }
 
     @Test
+    @DisplayName("The debug endpoint test-issue-types no longer exists")
+    void debugIssueTypesEndpointIsGone() throws Exception {
+        mockMvc.perform(post("/api/v1/mvp/test-issue-types"))
+                .andExpect(status().isNotFound());
+
+        verifyNoInteractions(jiraService);
+    }
+
+    @Test
     @DisplayName("Should reassess a story awaiting validation with the user's precision")
     void shouldReassessStoryAwaitingValidation() throws Exception {
         TrackedStory story = new TrackedStory(

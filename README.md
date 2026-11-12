@@ -429,7 +429,6 @@ Base URL : `http://localhost:8080/api/v1`
 | `GET` | `/mvp/confluence/search` | `?spaceKey=SPACE&title=…` | Recherche de pages Confluence (CQL) |
 | `GET` | `/mvp/health` | — | Ping simple du service |
 | `GET` | `/health` | — | Santé détaillée Confluence / Jira / IA |
-| `POST` | `/mvp/test-issue-types` | — | Debug : liste les types de tickets Jira disponibles |
 
 **Réponse type (`analyze-and-create`) :**
 
@@ -532,7 +531,6 @@ Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour 
 - [ ] Les **story points** sont calculés mais pas encore envoyés à Jira (champ `customfield_10016` dépendant de l'instance).
 - [ ] Les descriptions sont envoyées dans un unique paragraphe ADF : le balisage (`h3.`, `*gras*`) n'est pas rendu.
 - [ ] `create-jira` n'accepte pas encore de `projectKey` (projet par défaut uniquement).
-- [ ] `test-issue-types` utilise une clé de projet codée en dur (`PROJ`).
 - [ ] La création n'est pas transactionnelle : une erreur en cours de route laisse les tickets déjà créés.
 - [ ] Brancher la prévisualisation et la réévaluation dans l'interface web.
 - [ ] Sécuriser l'API (authentification, CORS restreint — actuellement `*`).
