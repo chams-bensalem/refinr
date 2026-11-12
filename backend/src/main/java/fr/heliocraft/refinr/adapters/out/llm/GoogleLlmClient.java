@@ -23,6 +23,11 @@ public class GoogleLlmClient extends LlmClient {
     }
 
     @Override
+    protected String healthPath() {
+        return "/v1beta/models/" + settings.model();
+    }
+
+    @Override
     protected Map<String, String> headers() {
         return Map.of("x-goog-api-key", settings.apiKey());
     }

@@ -1,6 +1,8 @@
 package fr.heliocraft.refinr.adapters.out.confluence;
 
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
+import fr.heliocraft.refinr.application.port.out.HealthCheckable;
+import fr.heliocraft.refinr.domain.model.ComponentHealth;
 import fr.heliocraft.refinr.domain.model.DocumentSummary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,8 +11,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.resilience.annotation.Retryable;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.nio.charset.StandardCharsets;
@@ -21,7 +25,8 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 @Service
-public class ConfluenceDocumentSource implements DocumentSourcePort {
+@Order(1)
+public class ConfluenceDocumentSource implements DocumentSourcePort, HealthCheckable {
 
     private static final Logger log = LoggerFactory.getLogger(ConfluenceDocumentSource.class);
 
@@ -144,5 +149,38 @@ public class ConfluenceDocumentSource implements DocumentSourcePort {
             }
         }
         return summaries;
+    }
+
+    /** Lecture minimale de l'API REST Confluence (sous /wiki), avec un delai court. */
+    @Override
+    public List<ComponentHealth> health() {
+        try {
+            webClient.get()
+                    .uri("/wiki/rest/api/content?limit=1")
+                    .retrieve()
+                    .toBodilessEntity()
+                    .timeout(java.time.Duration.ofSeconds(5))
+                    .block();
+            return List.of(ComponentHealth.up("confluence", Map.of()));
+        } catch (RuntimeException e) {
+            log.warn("Confluence health check failed: {}", healthCause(e));
+            return List.of(ComponentHealth.down("confluence", healthCause(e), Map.of()));
+        }
+    }
+
+    /** Cause courte et sure d'un echec : statut HTTP, delai depasse ou service injoignable (jamais d'URL ni de corps). */
+    private static String healthCause(Throwable error) {
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            if (t instanceof WebClientResponseException response) {
+                return "HTTP " + response.getStatusCode().value();
+            }
+            if (t instanceof java.util.concurrent.TimeoutException) {
+                return "timeout";
+            }
+            if (t instanceof WebClientRequestException) {
+                return "unreachable";
+            }
+        }
+        return error.getClass().getSimpleName();
     }
 }

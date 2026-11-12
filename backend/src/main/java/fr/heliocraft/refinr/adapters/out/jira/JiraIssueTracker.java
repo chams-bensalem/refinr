@@ -1,7 +1,9 @@
 package fr.heliocraft.refinr.adapters.out.jira;
 
 import fr.heliocraft.refinr.application.port.out.IssueTrackerException;
+import fr.heliocraft.refinr.application.port.out.HealthCheckable;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
+import fr.heliocraft.refinr.domain.model.ComponentHealth;
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Readiness;
 import fr.heliocraft.refinr.domain.model.Story;
@@ -16,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
@@ -29,7 +32,8 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-public class JiraIssueTracker implements IssueTrackerPort {
+@Order(2)
+public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
 
     private static final Logger log = LoggerFactory.getLogger(JiraIssueTracker.class);
 
@@ -367,5 +371,38 @@ public class JiraIssueTracker implements IssueTrackerPort {
     /** Descriptions ecrites en Markdown (analyse et mise en forme ci-dessus) -> ADF structure. */
     private Map<String, Object> convertToADF(String markdown) {
         return MarkdownAdf.toDocument(markdown);
+    }
+
+    /** Lecture du projet par defaut (verifie l'acces et la cle de projet), avec un delai court. */
+    @Override
+    public List<ComponentHealth> health() {
+        try {
+            webClient.get()
+                    .uri("/rest/api/3/project/{key}", projectKey)
+                    .retrieve()
+                    .toBodilessEntity()
+                    .timeout(java.time.Duration.ofSeconds(5))
+                    .block();
+            return List.of(ComponentHealth.up("jira", Map.of()));
+        } catch (RuntimeException e) {
+            log.warn("Jira health check failed: {}", healthCause(e));
+            return List.of(ComponentHealth.down("jira", healthCause(e), Map.of()));
+        }
+    }
+
+    /** Cause courte et sure d'un echec : statut HTTP, delai depasse ou service injoignable (jamais d'URL ni de corps). */
+    private static String healthCause(Throwable error) {
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            if (t instanceof WebClientResponseException response) {
+                return "HTTP " + response.getStatusCode().value();
+            }
+            if (t instanceof java.util.concurrent.TimeoutException) {
+                return "timeout";
+            }
+            if (t instanceof WebClientRequestException) {
+                return "unreachable";
+            }
+        }
+        return error.getClass().getSimpleName();
     }
 }

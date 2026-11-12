@@ -2,6 +2,7 @@ package fr.heliocraft.refinr.adapters.out.llm;
 
 import fr.heliocraft.refinr.application.port.out.LlmException;
 import fr.heliocraft.refinr.application.port.out.LlmException.Reason;
+import fr.heliocraft.refinr.domain.model.ComponentHealth;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -14,6 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
@@ -48,6 +50,8 @@ public abstract class LlmClient {
         return settings;
     }
 
+    private static final Duration HEALTH_TIMEOUT = Duration.ofSeconds(5);
+
     /** Chemin (relatif a l'URL de base) de l'appel de generation. */
     protected abstract String generatePath();
 
@@ -63,6 +67,47 @@ public abstract class LlmClient {
      * @throws LlmException {@link Reason#TRUNCATED} si la limite de tokens a coupe la sortie
      */
     protected abstract String text(JsonNode response);
+
+    /** Chemin d'une lecture gratuite (sans generation) qui verifie la cle et le modele. */
+    protected abstract String healthPath();
+
+    /** Probleme detecte dans la reponse de {@link #healthPath()} (ex. modele absent de la liste), ou null. */
+    protected String modelProblem(JsonNode response) {
+        return null;
+    }
+
+    /**
+     * Etat du fournisseur sous le nom {@code name} : lecture du modele (ou de la liste des modeles), delai court, sans
+     * nouvel essai et sans aucun token consomme. Details : fournisseur et modele, jamais la cle ni l'URL.
+     */
+    public ComponentHealth health(String name) {
+        Map<String, String> details = new LinkedHashMap<>();
+        details.put("provider", settings.provider().id());
+        details.put("model", settings.model());
+        try {
+            String problem = modelProblem(mapper.readTree(get(healthPath(), HEALTH_TIMEOUT)));
+            return problem == null ? ComponentHealth.up(name, details) : ComponentHealth.down(name, problem, details);
+        } catch (RuntimeException e) {
+            String cause = healthCause(e);
+            log.warn("LLM {} health check failed ({}): {}", name, settings.describe(), cause);
+            return ComponentHealth.down(name, cause, details);
+        }
+    }
+
+    private static String healthCause(Throwable error) {
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            if (t instanceof WebClientResponseException response) {
+                return "HTTP " + response.getStatusCode().value();
+            }
+            if (t instanceof TimeoutException) {
+                return "timeout";
+            }
+            if (t instanceof WebClientRequestException) {
+                return "unreachable";
+            }
+        }
+        return error.getClass().getSimpleName();
+    }
 
     /** Envoie la requete et renvoie le texte du modele. */
     public String complete(LlmRequest request) {

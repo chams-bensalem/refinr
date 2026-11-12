@@ -24,6 +24,22 @@ public class OpenAiCompatibleLlmClient extends LlmClient {
     }
 
     @Override
+    protected String healthPath() {
+        return "/models";
+    }
+
+    /** La liste des modeles doit contenir le modele configure (ex. modele Ollama pas encore telecharge). */
+    @Override
+    protected String modelProblem(JsonNode response) {
+        for (JsonNode model : response.path("data")) {
+            if (settings.model().equals(model.path("id").asString(""))) {
+                return null;
+            }
+        }
+        return "model " + settings.model() + " not found";
+    }
+
+    @Override
     protected Map<String, String> headers() {
         // Cle facultative (Ollama local, vLLM sans authentification)
         return settings.apiKey().isBlank() ? Map.of() : Map.of("Authorization", "Bearer " + settings.apiKey());

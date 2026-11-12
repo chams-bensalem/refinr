@@ -4,6 +4,7 @@ import fr.heliocraft.refinr.adapters.out.llm.JsonMode;
 import fr.heliocraft.refinr.adapters.out.llm.LlmBacklogGenerator;
 import fr.heliocraft.refinr.adapters.out.llm.LlmClient;
 import fr.heliocraft.refinr.adapters.out.llm.LlmClients;
+import fr.heliocraft.refinr.adapters.out.llm.LlmHealthCheck;
 import fr.heliocraft.refinr.adapters.out.llm.LlmProvider;
 import fr.heliocraft.refinr.adapters.out.llm.LlmReadinessAssessor;
 import fr.heliocraft.refinr.adapters.out.llm.LlmSettings;
@@ -15,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.env.ConfigurableEnvironment;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
@@ -79,6 +81,12 @@ public class LlmConfiguration {
     @Bean
     public ReadinessAssessorPort readinessAssessor(StructuredOutput structuredOutput) {
         return new LlmReadinessAssessor(verdictClient, structuredOutput);
+    }
+
+    @Bean
+    @Order(3)
+    public LlmHealthCheck llmHealthCheck() {
+        return new LlmHealthCheck(analysisClient, verdictClient == analysisClient ? null : verdictClient);
     }
 
     static LlmSettings analysisSettings(LlmProperties.Role role) {

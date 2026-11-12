@@ -1,6 +1,7 @@
 package fr.heliocraft.refinr;
 
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
+import fr.heliocraft.refinr.application.port.in.CheckHealth;
 import fr.heliocraft.refinr.application.port.in.CreateBacklog;
 import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
@@ -72,9 +73,17 @@ class ApplicationWiringTest {
     @DisplayName("Every use case is wired")
     void wiresEveryUseCase() {
         for (Class<?> useCase : List.of(AnalyzeDocument.class, PreviewBacklog.class, CreateBacklog.class, CreateEditedBacklog.class,
-                ReassessStory.class, SearchDocuments.class)) {
+                ReassessStory.class, SearchDocuments.class, CheckHealth.class)) {
             assertNotNull(context.getBean(useCase), useCase.getSimpleName());
         }
+    }
+
+    @Test
+    @DisplayName("The health check covers confluence, jira and the analysis provider, in that order")
+    void healthCheckComponents() {
+        var names = context.getBean(CheckHealth.class).check().components().stream()
+                .map(fr.heliocraft.refinr.domain.model.ComponentHealth::name).toList();
+        assertEquals(List.of("confluence", "jira", "ai"), names);
     }
 
     @Test

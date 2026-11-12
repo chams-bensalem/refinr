@@ -25,6 +25,11 @@ public class AnthropicLlmClient extends LlmClient {
     }
 
     @Override
+    protected String healthPath() {
+        return "/v1/models/" + settings.model();
+    }
+
+    @Override
     protected Map<String, String> headers() {
         return Map.of("x-api-key", settings.apiKey(), "anthropic-version", API_VERSION);
     }

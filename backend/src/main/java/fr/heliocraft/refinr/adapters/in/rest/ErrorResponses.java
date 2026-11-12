@@ -1,8 +1,6 @@
 package fr.heliocraft.refinr.adapters.in.rest;
 
 import org.slf4j.MDC;
-import org.springframework.web.reactive.function.client.WebClientRequestException;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -25,18 +23,5 @@ final class ErrorResponses {
             body.put("correlationId", correlationId);
         }
         return body;
-    }
-
-    /** Cause courte et sure d'un echec d'appel sortant : statut HTTP, service injoignable ou type d'erreur. */
-    static String cause(Throwable error) {
-        for (Throwable t = error; t != null; t = t.getCause()) {
-            if (t instanceof WebClientResponseException response) {
-                return "HTTP " + response.getStatusCode().value();
-            }
-            if (t instanceof WebClientRequestException) {
-                return "unreachable";
-            }
-        }
-        return error.getClass().getSimpleName();
     }
 }

@@ -32,6 +32,16 @@ class OpenAiCompatibleLlmClientTest extends AbstractLlmClientTest {
     }
 
     @Override
+    String expectedHealthPath() {
+        return "/v1/models";
+    }
+
+    @Override
+    MockResponse healthUp() {
+        return jsonResponse("{\"object\":\"list\",\"data\":[{\"id\":\"llama3\"},{\"id\":\"qwen3:8b\"}]}");
+    }
+
+    @Override
     String expectedPath() {
         return "/v1/chat/completions";
     }
@@ -76,6 +86,17 @@ class OpenAiCompatibleLlmClientTest extends AbstractLlmClientTest {
         assertFalse(body.path("think").asBoolean(true));
         assertFalse(body.has("max_tokens"));
         assertFalse(body.has("temperature"));
+    }
+
+    @Test
+    @DisplayName("Health DOWN when the configured model is not in the list (e.g. Ollama model not pulled)")
+    void healthDownWhenModelMissing() {
+        server.enqueue(jsonResponse("{\"data\":[{\"id\":\"llama3\"}]}"));
+
+        var health = client().health("ai");
+
+        assertFalse(health.up());
+        assertEquals("model qwen3:8b not found", health.details().get("error"));
     }
 
     @Test
