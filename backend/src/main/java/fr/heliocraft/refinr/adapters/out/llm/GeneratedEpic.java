@@ -1,4 +1,4 @@
-package fr.heliocraft.refinr.analyzer;
+package fr.heliocraft.refinr.adapters.out.llm;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 

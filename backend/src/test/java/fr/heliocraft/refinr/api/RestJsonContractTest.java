@@ -1,8 +1,8 @@
 package fr.heliocraft.refinr.api;
 
-import fr.heliocraft.refinr.analyzer.GeminiDocumentAnalyzer;
-import fr.heliocraft.refinr.confluence.ConfluenceService;
-import fr.heliocraft.refinr.jira.JiraService;
+import fr.heliocraft.refinr.adapters.out.llm.LlmBacklogAnalyzer;
+import fr.heliocraft.refinr.adapters.out.confluence.ConfluenceDocumentSource;
+import fr.heliocraft.refinr.adapters.out.jira.JiraIssueTracker;
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Story;
 import fr.heliocraft.refinr.domain.model.Task;
@@ -49,18 +49,18 @@ class RestJsonContractTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private ConfluenceService confluenceService;
+    private ConfluenceDocumentSource confluenceService;
 
     @MockitoBean
-    private GeminiDocumentAnalyzer geminiAnalyzer;
+    private LlmBacklogAnalyzer geminiAnalyzer;
 
     @MockitoBean
-    private JiraService jiraService;
+    private JiraIssueTracker jiraService;
 
     @Test
     @DisplayName("analyze-preview serializes every Epic/Story/Task field exactly as the snapshot")
     void previewResponseMatchesSnapshot() throws Exception {
-        when(confluenceService.getPageContent("42")).thenReturn("cdc");
+        when(confluenceService.getDocumentContent("42")).thenReturn("cdc");
         when(geminiAnalyzer.analyzeDocument("cdc")).thenReturn(List.of(fullEpic()));
 
         String body = mockMvc.perform(post("/api/v1/mvp/analyze-preview")

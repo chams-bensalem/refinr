@@ -1,4 +1,4 @@
-package fr.heliocraft.refinr.analyzer;
+package fr.heliocraft.refinr.adapters.out.llm;
 
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Story;
@@ -26,13 +26,13 @@ import static org.junit.jupiter.api.Assertions.*;
 class LlmResponseContractTest {
 
     private MockWebServer mockWebServer;
-    private GeminiDocumentAnalyzer analyzer;
+    private LlmBacklogAnalyzer analyzer;
 
     @BeforeEach
     void setUp() throws IOException {
         mockWebServer = new MockWebServer();
         mockWebServer.start();
-        analyzer = new GeminiDocumentAnalyzer(
+        analyzer = new LlmBacklogAnalyzer(
             WebClient.builder().baseUrl(mockWebServer.url("/").toString()).build(), "fake-api-key");
     }
 

@@ -64,7 +64,7 @@ public class HealthCheckController {
 
     private Map<String, String> checkConfluence() {
         try {
-            // Confluence Cloud expose son API REST sous /wiki (comme ConfluenceService)
+            // Confluence Cloud expose son API REST sous /wiki (comme ConfluenceDocumentSource)
             confluenceClient.get()
                     .uri("/wiki/rest/api/content?limit=1")
                     .retrieve()

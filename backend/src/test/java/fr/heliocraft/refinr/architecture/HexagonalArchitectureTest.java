@@ -65,20 +65,17 @@ class HexagonalArchitectureTest {
             .should().dependOnClassesThat().resideInAPackage(ROOT + ".adapters.out..")
             .because("un adaptateur entrant passe par les ports in, jamais par une implementation sortante");
 
-    @ArchIgnore(reason = "active a l'etape 3 (adaptateurs sortants)")
     @ArchTest
     static final ArchRule outbound_adapters_do_not_use_inbound_adapters = noClasses()
             .that().resideInAPackage(ROOT + ".adapters.out..")
             .should().dependOnClassesThat().resideInAPackage(ROOT + ".adapters.in..");
 
-    @ArchIgnore(reason = "active a l'etape 3 (adaptateurs sortants)")
     @ArchTest
     static final ArchRule outbound_adapters_are_independent = slices()
             .matching(ROOT + ".adapters.out.(*)..")
             .should().notDependOnEachOther()
             .because("Confluence, Jira et LLM sont interchangeables independamment");
 
-    @ArchIgnore(reason = "active a l'etape 3 (ports sortants)")
     @ArchTest
     static final ArchRule outbound_ports_are_interfaces = classes()
             .that().resideInAPackage(ROOT + ".application.port.out..")

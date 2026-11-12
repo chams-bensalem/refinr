@@ -1,5 +1,6 @@
-package fr.heliocraft.refinr.confluence;
+package fr.heliocraft.refinr.adapters.out.confluence;
 
+import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,14 +17,14 @@ import java.util.Base64;
 import java.util.Map;
 
 @Service
-public class ConfluenceService {
+public class ConfluenceDocumentSource implements DocumentSourcePort {
 
-    private static final Logger log = LoggerFactory.getLogger(ConfluenceService.class);
+    private static final Logger log = LoggerFactory.getLogger(ConfluenceDocumentSource.class);
 
     private final WebClient webClient;
 
     @Autowired
-    public ConfluenceService(
+    public ConfluenceDocumentSource(
             @Value("${confluence.base-url}") String baseUrl,
             @Value("${confluence.username}") String username,
             @Value("${confluence.token}") String token) {
@@ -40,7 +41,7 @@ public class ConfluenceService {
     }
 
     // Constructor for testing with custom WebClient
-    ConfluenceService(WebClient webClient, String username, String token) {
+    ConfluenceDocumentSource(WebClient webClient, String username, String token) {
         this.webClient = webClient;
     }
 
@@ -51,7 +52,8 @@ public class ConfluenceService {
         delay = 1000,
         multiplier = 2
     )
-    public String getPageContent(String pageId) {
+    @Override
+    public String getDocumentContent(String pageId) {
         log.info("Reading Confluence page: {}", pageId);
 
         try {
@@ -73,7 +75,8 @@ public class ConfluenceService {
         }
     }
 
-    public Map<String, Object> searchPages(String spaceKey, String title) {
+    @Override
+    public Map<String, Object> searchDocuments(String spaceKey, String title) {
         log.info("Searching pages in space {} with title: {}", spaceKey, title);
 
         try {

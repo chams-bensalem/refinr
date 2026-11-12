@@ -1,8 +1,8 @@
 package fr.heliocraft.refinr.api;
 
-import fr.heliocraft.refinr.analyzer.GeminiDocumentAnalyzer;
-import fr.heliocraft.refinr.confluence.ConfluenceService;
-import fr.heliocraft.refinr.jira.JiraService;
+import fr.heliocraft.refinr.adapters.out.llm.LlmBacklogAnalyzer;
+import fr.heliocraft.refinr.adapters.out.confluence.ConfluenceDocumentSource;
+import fr.heliocraft.refinr.adapters.out.jira.JiraIssueTracker;
 import fr.heliocraft.refinr.domain.model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,13 +40,13 @@ class MvpControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private ConfluenceService confluenceService;
+    private ConfluenceDocumentSource confluenceService;
 
     @MockitoBean
-    private GeminiDocumentAnalyzer geminiAnalyzer;
+    private LlmBacklogAnalyzer geminiAnalyzer;
 
     @MockitoBean
-    private JiraService jiraService;
+    private JiraIssueTracker jiraService;
 
     private Epic testEpic;
     private Story testStory;
@@ -87,11 +87,11 @@ class MvpControllerTest {
         String pageId = "123456";
         String cdcContent = "# Refinr CDC\nModule Inventaire";
 
-        when(confluenceService.getPageContent(pageId)).thenReturn(cdcContent);
+        when(confluenceService.getDocumentContent(pageId)).thenReturn(cdcContent);
         when(geminiAnalyzer.analyzeDocument(cdcContent)).thenReturn(testEpics);
         when(jiraService.createEpic(any(Epic.class))).thenReturn("PROJ-1");
         when(jiraService.createStory(any(Story.class), anyString())).thenReturn("PROJ-2");
-        when(jiraService.createTask(any(Task.class), anyString())).thenReturn("PROJ-3");
+        when(jiraService.createSubtask(any(Task.class), anyString())).thenReturn("PROJ-3");
 
         // When/Then
         mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
@@ -100,7 +100,7 @@ class MvpControllerTest {
                 .andExpect(status().isOk());
 
         // Verify interactions
-        verify(confluenceService).getPageContent(pageId);
+        verify(confluenceService).getDocumentContent(pageId);
         verify(geminiAnalyzer).analyzeDocument(cdcContent);
         verify(jiraService).createFullHierarchy(anyList(), isNull());
     }
@@ -108,7 +108,7 @@ class MvpControllerTest {
     @Test
     @DisplayName("Should create the Jira issues in the requested project")
     void shouldCreateInRequestedProject() throws Exception {
-        when(confluenceService.getPageContent("42")).thenReturn("cdc");
+        when(confluenceService.getDocumentContent("42")).thenReturn("cdc");
         when(geminiAnalyzer.analyzeDocument("cdc")).thenReturn(testEpics);
 
         mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
@@ -134,7 +134,7 @@ class MvpControllerTest {
     @DisplayName("Should handle missing confluencePageId")
     void shouldHandleMissingConfluencePageId() throws Exception {
         // Given - when confluencePageId is null, the service should fail
-        when(confluenceService.getPageContent(null))
+        when(confluenceService.getDocumentContent(null))
             .thenThrow(new RuntimeException("Page ID is required"));
 
         // When/Then
@@ -149,7 +149,7 @@ class MvpControllerTest {
     void shouldHandleConfluenceServiceError() throws Exception {
         // Given
         String pageId = "123456";
-        when(confluenceService.getPageContent(pageId))
+        when(confluenceService.getDocumentContent(pageId))
             .thenThrow(new RuntimeException("Confluence API error"));
 
         // When/Then
@@ -158,7 +158,7 @@ class MvpControllerTest {
                 .content("{\"confluencePageId\":\"" + pageId + "\"}"))
                 .andExpect(status().is5xxServerError());
 
-        verify(confluenceService).getPageContent(pageId);
+        verify(confluenceService).getDocumentContent(pageId);
         verifyNoInteractions(geminiAnalyzer);
         verifyNoInteractions(jiraService);
     }
@@ -170,7 +170,7 @@ class MvpControllerTest {
         String pageId = "123456";
         String cdcContent = "Test content";
 
-        when(confluenceService.getPageContent(pageId)).thenReturn(cdcContent);
+        when(confluenceService.getDocumentContent(pageId)).thenReturn(cdcContent);
         when(geminiAnalyzer.analyzeDocument(cdcContent))
             .thenThrow(new RuntimeException("Gemini API error"));
 
@@ -180,7 +180,7 @@ class MvpControllerTest {
                 .content("{\"confluencePageId\":\"" + pageId + "\"}"))
                 .andExpect(status().is5xxServerError());
 
-        verify(confluenceService).getPageContent(pageId);
+        verify(confluenceService).getDocumentContent(pageId);
         verify(geminiAnalyzer).analyzeDocument(cdcContent);
         verifyNoInteractions(jiraService);
     }
@@ -192,7 +192,7 @@ class MvpControllerTest {
         String pageId = "123456";
         String cdcContent = "Test content";
 
-        when(confluenceService.getPageContent(pageId)).thenReturn(cdcContent);
+        when(confluenceService.getDocumentContent(pageId)).thenReturn(cdcContent);
         when(geminiAnalyzer.analyzeDocument(cdcContent)).thenReturn(testEpics);
         doThrow(new RuntimeException("Jira API error"))
             .when(jiraService).createFullHierarchy(anyList(), any());
@@ -203,7 +203,7 @@ class MvpControllerTest {
                 .content("{\"confluencePageId\":\"" + pageId + "\"}"))
                 .andExpect(status().is5xxServerError());
 
-        verify(confluenceService).getPageContent(pageId);
+        verify(confluenceService).getDocumentContent(pageId);
         verify(geminiAnalyzer).analyzeDocument(cdcContent);
         verify(jiraService).createFullHierarchy(anyList(), isNull());
     }
@@ -216,7 +216,7 @@ class MvpControllerTest {
         String cdcContent = "Empty content";
         List<Epic> emptyEpics = List.of();
 
-        when(confluenceService.getPageContent(pageId)).thenReturn(cdcContent);
+        when(confluenceService.getDocumentContent(pageId)).thenReturn(cdcContent);
         when(geminiAnalyzer.analyzeDocument(cdcContent)).thenReturn(emptyEpics);
 
         // When/Then
@@ -225,7 +225,7 @@ class MvpControllerTest {
                 .content("{\"confluencePageId\":\"" + pageId + "\"}"))
                 .andExpect(status().isOk());
 
-        verify(confluenceService).getPageContent(pageId);
+        verify(confluenceService).getDocumentContent(pageId);
         verify(geminiAnalyzer).analyzeDocument(cdcContent);
     }
 
@@ -251,9 +251,9 @@ class MvpControllerTest {
     @Test
     @DisplayName("Should reassess a story awaiting validation with the user's precision")
     void shouldReassessStoryAwaitingValidation() throws Exception {
-        JiraService.StoryForReview story = new JiraService.StoryForReview(
+        TrackedStory story = new TrackedStory(
             "TEST-7", "Export PDF", "Exporter", List.of("backend", "validation-necessaire"));
-        when(jiraService.getStoryForReview("TEST-7")).thenReturn(story);
+        when(jiraService.findStory("TEST-7")).thenReturn(story);
         when(geminiAnalyzer.reassessStory("Export PDF", "Exporter", "format A4"))
             .thenReturn(new Readiness(true, "Perimetre clair"));
 
@@ -266,14 +266,14 @@ class MvpControllerTest {
                 .andExpect(jsonPath("$.aiReady").value(true))
                 .andExpect(jsonPath("$.aiReadyReason").value("Perimetre clair"));
 
-        verify(jiraService).applyReassessment(story, "format A4", true, "Perimetre clair");
+        verify(jiraService).applyReassessment(story, "format A4", new Readiness(true, "Perimetre clair"));
     }
 
     @Test
     @DisplayName("Should refuse to reassess a story that is not awaiting validation")
     void shouldRefuseReassessOutsideValidation() throws Exception {
-        when(jiraService.getStoryForReview("TEST-7")).thenReturn(
-            new JiraService.StoryForReview("TEST-7", "Export PDF", "Exporter", List.of("ai-ready")));
+        when(jiraService.findStory("TEST-7")).thenReturn(
+            new TrackedStory("TEST-7", "Export PDF", "Exporter", List.of("ai-ready")));
 
         mockMvc.perform(post("/api/v1/mvp/reassess-story")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -282,7 +282,7 @@ class MvpControllerTest {
                 .andExpect(jsonPath("$.success").value(false));
 
         verifyNoInteractions(geminiAnalyzer);
-        verify(jiraService, never()).applyReassessment(any(), any(), anyBoolean(), any());
+        verify(jiraService, never()).applyReassessment(any(), any(), any());
     }
 
     @Test

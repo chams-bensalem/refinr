@@ -1,4 +1,4 @@
-package fr.heliocraft.refinr.analyzer;
+package fr.heliocraft.refinr.adapters.out.llm;
 
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Readiness;
@@ -15,10 +15,10 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class GeminiDocumentAnalyzerTest {
+class LlmBacklogAnalyzerTest {
 
     private MockWebServer mockWebServer;
-    private GeminiDocumentAnalyzer analyzer;
+    private LlmBacklogAnalyzer analyzer;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -27,7 +27,7 @@ class GeminiDocumentAnalyzerTest {
 
         String baseUrl = mockWebServer.url("/").toString();
 
-        analyzer = new GeminiDocumentAnalyzer(
+        analyzer = new LlmBacklogAnalyzer(
             WebClient.builder()
                 .baseUrl(baseUrl)
                 .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(16 * 1024 * 1024))
@@ -252,7 +252,7 @@ class GeminiDocumentAnalyzerTest {
     @Test
     @DisplayName("Should analyze with local Ollama when provider is ollama")
     void shouldAnalyzeWithOllamaWhenConfigured() throws InterruptedException {
-        GeminiDocumentAnalyzer ollama = new GeminiDocumentAnalyzer(
+        LlmBacklogAnalyzer ollama = new LlmBacklogAnalyzer(
             WebClient.builder().baseUrl(mockWebServer.url("/").toString()).build(), "unused", "ollama", "qwen3:8b");
         mockWebServer.enqueue(new MockResponse()
             .setBody("{\"model\":\"qwen3:8b\",\"done\":true,\"response\":\"[{\\\"name\\\":\\\"Epic: Filtre\\\",\\\"stories\\\":[{\\\"title\\\":\\\"Filtre prix\\\",\\\"aiReady\\\":true,\\\"tasks\\\":[]}]}]\"}")
@@ -274,7 +274,7 @@ class GeminiDocumentAnalyzerTest {
     @Test
     @DisplayName("Should fail clearly when Ollama returns an empty response")
     void shouldFailWhenOllamaReturnsEmptyResponse() {
-        GeminiDocumentAnalyzer ollama = new GeminiDocumentAnalyzer(
+        LlmBacklogAnalyzer ollama = new LlmBacklogAnalyzer(
             WebClient.builder().baseUrl(mockWebServer.url("/").toString()).build(), "unused", "ollama", "qwen3:8b");
         mockWebServer.enqueue(new MockResponse()
             .setBody("{\"model\":\"qwen3:8b\",\"done\":true,\"response\":\"\"}")
@@ -342,8 +342,8 @@ class GeminiDocumentAnalyzerTest {
         assertEquals("incertain", verdict.aiReadyReason());
     }
 
-    private GeminiDocumentAnalyzer analyzerWithLitellmVerdict() {
-        return new GeminiDocumentAnalyzer(
+    private LlmBacklogAnalyzer analyzerWithLitellmVerdict() {
+        return new LlmBacklogAnalyzer(
             WebClient.builder().baseUrl(mockWebServer.url("/").toString()).build(),
             "fake-api-key", "ollama", "qwen3:8b", "litellm", "gemini-3.6-flash", "litellm-master-key");
     }
@@ -371,7 +371,7 @@ class GeminiDocumentAnalyzerTest {
     @Test
     @DisplayName("Ollama builds the structure, the ai-ready verdict comes from the LiteLLM verdict provider")
     void shouldRouteVerdictToLitellmWhileOllamaBuildsStructure() throws InterruptedException {
-        GeminiDocumentAnalyzer split = analyzerWithLitellmVerdict();
+        LlmBacklogAnalyzer split = analyzerWithLitellmVerdict();
         mockWebServer.enqueue(ollamaStructure("Formater une taille", true));
         mockWebServer.enqueue(litellmVerdict(false, "le systeme d'unites n'est pas precise"));
 
@@ -393,7 +393,7 @@ class GeminiDocumentAnalyzerTest {
     @Test
     @DisplayName("preciser_story reassessment goes to the verdict provider, never to the structure model")
     void shouldReassessThroughVerdictProvider() throws InterruptedException {
-        GeminiDocumentAnalyzer split = analyzerWithLitellmVerdict();
+        LlmBacklogAnalyzer split = analyzerWithLitellmVerdict();
         mockWebServer.enqueue(litellmVerdict(true, "unites, arrondi et exemples precises"));
 
         Readiness verdict = split.reassessStory("Formater une taille", "desc", "1500 -> '1.5 Ko'");
@@ -408,7 +408,7 @@ class GeminiDocumentAnalyzerTest {
     @Test
     @DisplayName("A failed verdict call leaves the story awaiting human validation, the analysis still succeeds")
     void shouldFallBackToValidationWhenVerdictCallFails() {
-        GeminiDocumentAnalyzer split = analyzerWithLitellmVerdict();
+        LlmBacklogAnalyzer split = analyzerWithLitellmVerdict();
         mockWebServer.enqueue(ollamaStructure("Formater une taille", true));
         for (int i = 0; i < 3; i++) {
             mockWebServer.enqueue(new MockResponse().setResponseCode(503).setBody("{\"error\":\"overloaded\"}"));
@@ -426,7 +426,7 @@ class GeminiDocumentAnalyzerTest {
     @Test
     @DisplayName("A transient 503 from the verdict pool is retried: a fresh key is drawn and the verdict succeeds")
     void shouldRetryTransientVerdictFailure() {
-        GeminiDocumentAnalyzer split = analyzerWithLitellmVerdict();
+        LlmBacklogAnalyzer split = analyzerWithLitellmVerdict();
         mockWebServer.enqueue(new MockResponse().setResponseCode(503).setBody("{\"error\":\"overloaded\"}"));
         mockWebServer.enqueue(litellmVerdict(true, "unites et arrondi precises"));
 
@@ -439,7 +439,7 @@ class GeminiDocumentAnalyzerTest {
     @Test
     @DisplayName("A verdict proxy that never answers times out once and leaves the story awaiting validation")
     void shouldTimeOutWhenVerdictProxyHangs() {
-        GeminiDocumentAnalyzer split = analyzerWithLitellmVerdict();
+        LlmBacklogAnalyzer split = analyzerWithLitellmVerdict();
         mockWebServer.enqueue(ollamaStructure("Formater une taille", true));
         mockWebServer.enqueue(new MockResponse()
             .setBodyDelay(5, TimeUnit.SECONDS)
