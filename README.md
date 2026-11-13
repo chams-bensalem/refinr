@@ -438,7 +438,7 @@ ollama serve && ollama pull qwen3:8b                 # 1. local LLM (default pro
 (cd frontend && npm install && npm run dev)           # 3. UI  → http://localhost:3000 (Vite proxies /api)
 ```
 
-Production build: `(cd backend && mvn clean package && java -jar target/refinr-1.0.1.jar)` and
+Production build: `(cd backend && mvn clean package && java -jar target/refinr-1.1.0.jar)` and
 `(cd frontend && npm run build)` (output in `frontend/dist/`).
 
 ---
@@ -623,7 +623,7 @@ Docker and GitHub Actions updates weekly.
 
 ## 🗺️ Limitations & roadmap
 
-**v1.0 limitations**
+**Current limitations (v1.1)**
 
 - Creation is not transactional: a failure midway leaves the issues already created (partial response
   `created` / `failed`; re-send only what failed).

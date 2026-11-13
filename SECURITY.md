@@ -4,6 +4,7 @@
 
 | Version | Supported |
 |---|---|
+| 1.1.x | ✅ |
 | 1.0.x | ✅ |
 | < 1.0 | ❌ |
 
@@ -39,6 +40,6 @@ response, a log or the health check, CQL injection, or a prompt injection that d
 Out of scope:
 
 - Exposing the web UI to the Internet without authentication in front of it: the API key is added by the frontend
-  proxy and does not authenticate users. This is a documented limitation of v1.0 (README, *Security*).
-- Vulnerabilities in Confluence, Jira or an LLM provider themselves — report them to that vendor.
+  proxy and does not authenticate users. This is a documented limitation of v1.x (README, *Security*); real user authentication is planned for v1.3.
+- Vulnerabilities in Confluence, Jira, OpenProject or an LLM provider themselves — report them to that vendor.
 - Model output quality (a wrong verdict without a security impact) — open a regular issue.

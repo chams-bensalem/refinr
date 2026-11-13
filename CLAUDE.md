@@ -25,7 +25,8 @@ crée Epic → Story → Subtask dans Jira avec un verdict `ai-ready` / `validat
 - Package racine : `fr.heliocraft.refinr`, groupId Maven `fr.heliocraft` · nom produit : **Refinr** · nom technique (artefacts, images Docker, services compose) : `refinr`
 - `domain` et `application` : aucune dépendance Spring / WebClient / Jackson
 - Ports sortants : `DocumentSourcePort`, `IssueTrackerPort`, `BacklogGeneratorPort`, `ReadinessAssessorPort`
-- `IssueTrackerPort` reste agnostique (pas d'ADF, `customfield_*`, ni clé Jira) : OpenProject arrive en v1.1
+- `IssueTrackerPort` reste agnostique (pas d'ADF, `customfield_*`, ni clé Jira) : deux adaptateurs, `adapters/out/jira` et
+  `adapters/out/openproject` (depuis la v1.1), un seul actif par instance (`tracker.provider`)
 
 ## Règles
 - IMPORTANT : aucun secret dans le code, les tests, les exemples, les logs ou sur GitHub. Les secrets vivent uniquement
