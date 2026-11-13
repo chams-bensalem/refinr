@@ -3,7 +3,7 @@
 # Configuration comes from environment variables only (see .env.example); no secret is baked into the image.
 
 # --- Build: run on the build machine's own architecture (bytecode is architecture-independent) ---
-FROM --platform=$BUILDPLATFORM maven:3.9-eclipse-temurin-25 AS build
+FROM --platform=$BUILDPLATFORM maven:3.9-eclipse-temurin-26 AS build
 WORKDIR /build
 COPY pom.xml ./
 RUN --mount=type=cache,target=/root/.m2 mvn -B -q dependency:go-offline
