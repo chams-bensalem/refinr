@@ -40,4 +40,13 @@ public class HealthCheckController {
         body.put("services", services);
         return ResponseEntity.ok(body);
     }
+
+    /**
+     * Sonde de vivacite (conteneur, orchestrateur) : l'application repond, sans appeler aucune dependance externe
+     * (contrairement a {@link #health()}, qui interroge Confluence, Jira et les fournisseurs de modele).
+     */
+    @GetMapping("/live")
+    public ResponseEntity<Map<String, String>> live() {
+        return ResponseEntity.ok(Map.of("status", "UP"));
+    }
 }
