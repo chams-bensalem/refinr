@@ -105,7 +105,7 @@ class ConfigurationDefaultsTest {
     }
 
     @Test
-    @DisplayName("CORS origins and API key have the same defaults in the code, the example config, .env.example and the README")
+    @DisplayName("Allowed hosts, CORS origins and API key have the same defaults in the code, the example config, .env.example and the README")
     void httpSecurityDefaultsAreAligned() throws Exception {
         Class<?> config = HttpSecurityConfiguration.class;
         String corsDefault = config.getDeclaredMethod("corsFilter", String.class)
@@ -114,6 +114,18 @@ class ConfigurationDefaultsTest {
         assertEquals("http://localhost:3000", exampleDefault("refinr.cors.allowed-origins"));
         assertEquals("http://localhost:3000", envExample("CORS_ALLOWED_ORIGINS"));
         assertEquals("http://localhost:3000", readmeTableDefault("refinr.cors.allowed-origins"));
+
+        String hostsDefault = config.getDeclaredMethod("allowedHostFilter", String.class, tools.jackson.databind.ObjectMapper.class)
+                .getParameters()[0].getAnnotation(org.springframework.beans.factory.annotation.Value.class).value();
+        assertEquals("${refinr.security.allowed-hosts:localhost,127.0.0.1,[::1]}", hostsDefault);
+        assertEquals("localhost,127.0.0.1,[::1]", exampleDefault("refinr.security.allowed-hosts"));
+        assertEquals("localhost,127.0.0.1,[::1]", envExample("REFINR_ALLOWED_HOSTS"));
+        assertEquals("localhost,127.0.0.1,[::1]", readmeTableDefault("refinr.security.allowed-hosts"));
+        String compose = Files.readString(Path.of("../docker-compose.yml"));
+        assertEquals(2, compose.split(java.util.regex.Pattern.quote("REFINR_ALLOWED_HOSTS: ${REFINR_ALLOWED_HOSTS:-localhost,127.0.0.1,[::1]}"), -1).length - 1,
+                "docker-compose.yml should pass the same default to the backend and the frontend");
+        String nginxDefault = Files.readString(Path.of("../frontend/Dockerfile"));
+        assertTrue(nginxDefault.contains("REFINR_ALLOWED_HOSTS=\"localhost,127.0.0.1,[::1]\""), "frontend image default");
 
         String apiKeyDefault = config.getDeclaredMethod("apiKeyFilter", String.class, tools.jackson.databind.ObjectMapper.class)
                 .getParameters()[0].getAnnotation(org.springframework.beans.factory.annotation.Value.class).value();
