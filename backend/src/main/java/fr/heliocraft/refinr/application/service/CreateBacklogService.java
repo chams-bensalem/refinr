@@ -45,16 +45,21 @@ public class CreateBacklogService implements CreateBacklog {
         List<CreatedIssue> created = new ArrayList<>();
         List<FailedIssue> failed = new ArrayList<>();
 
+        int epicIndex = 0;
         for (Epic epic : epics) {
-            String epicKey = attempt(EPIC, epic.getName(), () -> issueTracker.createEpic(epic, project), created, failed);
+            String epicPosition = String.valueOf(++epicIndex);
+            String epicKey = attempt(EPIC, epicPosition, epic.getName(), () -> issueTracker.createEpic(epic, project),
+                    created, failed);
             if (epicKey == null) {
                 skipStories(epic.getStories(), "Not created: parent epic " + epic.getName() + " failed", failed);
                 continue;
             }
             epic.setTrackerKey(epicKey);
 
+            int storyIndex = 0;
             for (Story story : nonNull(epic.getStories())) {
-                String storyKey = attempt(STORY, story.getTitle(),
+                String storyPosition = epicPosition + "." + ++storyIndex;
+                String storyKey = attempt(STORY, storyPosition, story.getTitle(),
                         () -> issueTracker.createStory(story, epicKey, project), created, failed);
                 if (storyKey == null) {
                     skipTasks(story.getTasks(), "Not created: parent story " + story.getTitle() + " failed", failed);
@@ -63,8 +68,10 @@ public class CreateBacklogService implements CreateBacklog {
                 story.setTrackerKey(storyKey);
                 story.setEpicTrackerKey(epicKey);
 
+                int taskIndex = 0;
                 for (Task task : nonNull(story.getTasks())) {
-                    String taskKey = attempt(SUBTASK, task.getTitle(),
+                    String taskPosition = storyPosition + "." + ++taskIndex;
+                    String taskKey = attempt(SUBTASK, taskPosition, task.getTitle(),
                             () -> issueTracker.createSubtask(task, storyKey, project), created, failed);
                     if (taskKey != null) {
                         task.setTrackerKey(taskKey);
@@ -82,19 +89,22 @@ public class CreateBacklogService implements CreateBacklog {
         return new BacklogCreationResult(epics, created, failed);
     }
 
-    /** Cle du ticket cree, ou null si la creation a echoue (echec consigne). */
-    private String attempt(String type, String title, Supplier<String> creation,
+    /**
+     * Cle du ticket cree, ou null si la creation a echoue (echec consigne). Les logs citent la position dans le
+     * backlog ({@code 2.1.3}), jamais le titre (sortie du modele ou texte de l'utilisateur).
+     */
+    private String attempt(String type, String position, String title, Supplier<String> creation,
                            List<CreatedIssue> created, List<FailedIssue> failed) {
         try {
             String key = creation.get();
             created.add(new CreatedIssue(type, title, key, issueTracker.issueUrl(key)));
             return key;
         } catch (IssueTrackerException e) {
-            log.error("Failed to create {} '{}': {}", type, title, e.getMessage(), e);
+            log.error("Failed to create {} {}: {}", type, position, e.getMessage(), e);
             failed.add(new FailedIssue(type, title, e.getMessage()));
         } catch (RuntimeException e) {
             // Message brut jamais renvoye au client : il reste dans les logs
-            log.error("Unexpected error creating {} '{}'", type, title, e);
+            log.error("Unexpected error creating {} {}", type, position, e);
             failed.add(new FailedIssue(type, title, "Unexpected error"));
         }
         return null;

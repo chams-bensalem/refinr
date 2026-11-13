@@ -16,12 +16,16 @@ final class LlmTestSettings {
     }
 
     static LlmSettings of(LlmProvider provider, String baseUrl, Duration timeout, int maxOutputTokens) {
+        return of(provider, baseUrl, timeout, maxOutputTokens, "fake-api-key");
+    }
+
+    static LlmSettings of(LlmProvider provider, String baseUrl, Duration timeout, int maxOutputTokens, String apiKey) {
         String model = switch (provider) {
             case ANTHROPIC -> "claude-opus-5-5";
             case GOOGLE -> "gemini-3.6-flash";
             case OPENAI_COMPATIBLE -> "qwen3:8b";
         };
-        return new LlmSettings("analysis", provider, baseUrl, model, "fake-api-key", timeout, maxOutputTokens, 0.2,
+        return new LlmSettings("analysis", provider, baseUrl, model, apiKey, timeout, maxOutputTokens, 0.2,
                 JsonMode.JSON_SCHEMA, MaxTokensParam.MAX_TOKENS, Map.of(), new RetryPolicy(2, Duration.ZERO, 1, 0, Duration.ofMillis(50)));
     }
 }

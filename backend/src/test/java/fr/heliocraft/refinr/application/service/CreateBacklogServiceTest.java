@@ -15,12 +15,16 @@ import fr.heliocraft.refinr.domain.model.Task;
 import fr.heliocraft.refinr.domain.model.TrackedStory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@ExtendWith(OutputCaptureExtension.class)
 class CreateBacklogServiceTest {
 
     /** Gestionnaire de tickets en memoire : renvoie des cles sequentielles et journalise les appels. */
@@ -211,5 +215,22 @@ class CreateBacklogServiceTest {
         BacklogCreationResult result = new CreateBacklogService(tracker).create(List.of(epic), null);
 
         assertEquals("https://tracker.example.com/issues/" + result.created().get(0).key(), result.created().get(0).url());
+    }
+    @Test
+    @DisplayName("Failures are logged by position in the backlog (epic 2, story 1.2), never by title")
+    void failuresAreLoggedByPosition(CapturedOutput output) {
+        RecordingTracker tracker = new RecordingTracker();
+        tracker.failing.add("boom-Title-marker-4b1d");
+        tracker.failing.add("Story-marker-8e2a");
+
+        new CreateBacklogService(tracker).create(List.of(
+                epic("E1", story("S1"), story("Story-marker-8e2a", "T1")),
+                epic("boom-Title-marker-4b1d", story("S3"))), null);
+
+        assertTrue(output.getAll().contains("Failed to create story 1.2: "), output.getAll());
+        assertTrue(output.getAll().contains("Unexpected error creating epic 2"), output.getAll());
+        assertFalse(output.getAll().contains("'Story-marker-8e2a'"), output.getAll());
+        // Erreur inattendue : ni le titre ni le message brut (le message des erreurs du tracker releve de #33)
+        assertFalse(output.getAll().contains("Title-marker-4b1d"), output.getAll());
     }
 }

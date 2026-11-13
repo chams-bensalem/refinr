@@ -61,7 +61,8 @@ public class LlmReadinessAssessor implements ReadinessAssessorPort {
                 log.warn("{} verdict(s) missing from the batch answer, asking again for them only", missing.size());
                 missing = assessBatch(stories, missing, verdicts);
             }
-            missing.forEach(i -> log.warn("Readiness verdict unavailable for '{}'", stories.get(i).getTitle()));
+            // Position seulement : le titre vient du modele ou de l'utilisateur
+            missing.forEach(i -> log.warn("Readiness verdict unavailable for story {}/{}", i + 1, stories.size()));
         }
         return Arrays.asList(verdicts);
     }
@@ -97,7 +98,7 @@ public class LlmReadinessAssessor implements ReadinessAssessorPort {
 
     @Override
     public Readiness reassess(String summary, String description, String precision) {
-        log.info("Reassessing story '{}' with the user's precision ({})", summary, client.settings().describe());
+        log.info("Reassessing a story with the user's precision ({})", client.settings().describe());
         LlmRequest request = LlmRequest.of(LlmPrompts.SYSTEM, LlmPrompts.reassessment(summary, description, precision),
                 LlmSchemas.READINESS, LlmSchemas.forProvider(schema));
         return output.call(client, request, schema, LlmReadinessAssessor::readiness);
