@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Chams Bensalem
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, createBacklog, previewBacklog } from '../api/client';
@@ -51,10 +51,25 @@ export default function Analyze() {
     const [pageId, setPageId] = useState('');
     const navigate = useNavigate();
 
-    const preview = useMutation({ mutationFn: previewBacklog });
+    // Synchronous lock against a double click or a double Enter: isPending only changes after the next render,
+    // so two events in the same tick would both pass a check on isPending.
+    const inFlight = useRef(false);
+
+    const preview = useMutation({
+        mutationFn: previewBacklog,
+        retry: false,
+        onSettled: () => {
+            inFlight.current = false;
+        },
+    });
     const creation = useMutation({
         mutationFn: (epics: Epic[]) => createBacklog(epics),
+        // Never replayed: POST /create-jira is not idempotent (a retry could duplicate Jira issues)
+        retry: false,
         onSuccess: (data) => navigate('/results', { state: data }),
+        onSettled: () => {
+            inFlight.current = false;
+        },
     });
 
     const epics = preview.data?.epics ?? [];
@@ -62,10 +77,20 @@ export default function Analyze() {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (pageId.trim()) {
-            creation.reset();
-            preview.mutate({ confluencePageId: pageId.trim() });
+        if (!pageId.trim() || inFlight.current) {
+            return;
         }
+        inFlight.current = true;
+        creation.reset();
+        preview.mutate({ confluencePageId: pageId.trim() });
+    };
+
+    const startCreation = () => {
+        if (epics.length === 0 || inFlight.current) {
+            return;
+        }
+        inFlight.current = true;
+        creation.mutate(epics);
     };
 
     const startOver = () => {
@@ -151,7 +176,7 @@ export default function Analyze() {
 
                         <div className="mt-6 flex flex-col sm:flex-row gap-3">
                             <button
-                                onClick={() => creation.mutate(epics)}
+                                onClick={startCreation}
                                 disabled={epics.length === 0 || creation.isPending}
                                 className="flex-1 flex items-center justify-center px-6 py-4 text-lg font-semibold rounded-xl text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all shadow-lg"
                             >
@@ -218,7 +243,7 @@ export default function Analyze() {
 
                         <button
                             type="submit"
-                            disabled={!pageId.trim()}
+                            disabled={!pageId.trim() || preview.isPending}
                             className="w-full flex items-center justify-center px-6 py-4 text-lg font-semibold rounded-xl text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
                         >
                             <Eye className="h-6 w-6 mr-2" />

@@ -17,6 +17,9 @@ Interface web uniquement ; API REST inchangée.
 - Erreurs de **Preview** et de **Create in Jira** : message renvoyé par l'API, référence (`correlationId`) et bouton
   de retour (« Back to the form » / « Back to the preview ») ; l'échec de création s'affiche à côté des boutons et
   rappelle que des tickets ont pu être créés.
+- Aucune relance automatique côté navigateur (`retry: false` pour les requêtes et les mutations TanStack Query) et
+  verrou contre le double-clic / double Entrée sur **Preview** et **Create in Jira** : un `POST /create-jira` rejoué
+  pourrait créer des tickets en double.
 - Versions du backend et du frontend : `1.0.1`.
 - Libellés : « CDC » remplacé par « spec » / « requirements document », « Doc to Jira » par « Analyze a spec » dans
   l'en-tête, titre d'accueil « Turn a Confluence spec into an agent-ready Jira backlog ».
