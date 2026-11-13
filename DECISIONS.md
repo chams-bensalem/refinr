@@ -62,3 +62,51 @@ Une ligne par choix structurant : la décision, puis sa justification.
 - **CLA via l'application hébergée cla-assistant.io** plutôt que l'action « CLA Assistant Lite » (`contributor-assistant/github-action`), archivée en mars 2026 (plus de correctifs, runtime `node20`) : service maintenu, aucun workflow ni secret dans le dépôt, signatures conservées par le service ; le statut `license/cla` est rendu obligatoire par la protection de `main`.
 - **Signalement de vulnérabilités par le « private vulnerability reporting » de GitHub**, sans adresse e-mail publiée ; code de conduite Contributor Covenant 2.1 (texte officiel), contact par message privé au mainteneur.
 - **README en anglais (vitrine + référence) et `README.fr.md` (référence détaillée, dont la migration de l'ancienne configuration IA)** ; `ConfigurationDefaultsTest` vérifie le tableau des propriétés des deux fichiers (mêmes défauts que le code).
+
+## OpenProject (v1.1) — reconnaissance de l'API v3
+
+Faits vérifiés le 2026-11-13 par `curl` contre OpenProject **17.9.7** (dernière version stable, image
+`openproject/openproject:17.9.7` all-in-one, arm64/amd64), avec un compte non admin `refinr-bot`. Ids et valeurs ci-dessous
+sont ceux de l'instance de test (exemples, à résoudre à l'exécution) ; les messages d'erreur suivent la langue du compte.
+
+- **Authentification** : HTTP Basic `apikey:<clé API>` (clé créée par le compte lui-même : *Mon compte → Jetons d'accès → API* ;
+  l'admin doit laisser « Activer les jetons d'API » coché). `GET /api/v3/users/me` → `200 {"id":5,"login":"refinr-bot","status":"active"}`.
+- **Création en un seul POST par niveau**, hiérarchie comprise : `POST /api/v3/work_packages?notify=false`
+  `{"subject":"…","_links":{"project":{"href":"/api/v3/projects/refinr-spike"},"type":{"href":"/api/v3/types/6"},"parent":{"href":"/api/v3/work_packages/38"},"customField1":{"href":"/api/v3/custom_options/2"},"priority":{"href":"/api/v3/priorities/9"}},"storyPoints":5}`
+  → `201 {"id":39,"lockVersion":0,…,"_links":{"parent":{"href":"/api/v3/work_packages/38"}}}`. `project` accepte l'identifiant ou l'id numérique.
+  `notify=false` évite les notifications. Epic → User story → Task vérifié.
+- **Ajouter un enfant modifie le parent** : la création de la story fait passer le `lockVersion` de l'epic de 0 à 1
+  (« mis à jour automatiquement en changeant les valeurs dans le lot de travaux enfant ») → ne jamais réutiliser un `lockVersion` mis en cache.
+- **Description** : `{"format":"markdown","raw":"## Goal\n\nTrack **stock**…\n- item"}` stockée telle quelle (`raw`) et rendue en HTML
+  (titres, gras, listes, code) → aucune conversion côté Refinr.
+- **Verdict dans le champ liste « Agent readiness »** : écrit via `_links.customFieldN` → `/api/v3/custom_options/{id}` ; relu via
+  `_links.customField1.title` (`"ai-ready"`). `GET /api/v3/custom_options/1` → `{"_type":"CustomOption","id":1,"value":"ai-ready"}`.
+- **Résolution par nom (types, champ, options)** : `GET /api/v3/projects/{projet}/types` → types **activés dans le projet** (`[{id:5,name:"Epic"},{id:6,"User story"},{id:1,"Task"},…]`) ;
+  `POST /api/v3/projects/{projet}/work_packages/form` `{"_links":{"type":{"href":"/api/v3/types/6"}}}` → `_embedded.schema` donne
+  `customField1.name = "Agent readiness"`, `writable: true` et `_embedded.allowedValues` = `[{href:"/api/v3/custom_options/1",value:"ai-ready"},{href:"…/2",value:"validation-necessaire"}]`.
+  Le schéma seul (`GET /api/v3/work_packages/schemas/{projet}-{type}`) **n'embarque pas** les `allowedValues` d'un champ liste → passer par `/form`.
+  `refinr-bot` voit et écrit le champ (schéma `writable: true`, création et PATCH réussis).
+- **Prérequis côté admin pour que le champ apparaisse** (sinon absent du schéma) : champ créé (*Administration → Champs personnalisés → Lots de travaux → Liste*),
+  **activé dans le projet** (*Paramètres du projet → Lots de travaux → Champs personnalisés*) **et** ajouté au formulaire de chaque type
+  (*Administration → Types → {type} → Formulaire*, glisser le champ dans un groupe). Types Epic et User story à activer dans le projet (seuls Task, Milestone, Summary task le sont par défaut).
+- **Story points** : le module Backlogs existe toujours en 17.9.7 et est actif par défaut dans un nouveau projet ; attribut API `storyPoints`
+  (schéma : `"Story points"`, `writable: true`) sur Epic, User story et Task ; `"storyPoints":5` accepté et relu. → story points **gardés** pour OpenProject en v1.1 (optionnels).
+- **Priorité** : `_links.priority` → `/api/v3/priorities/{id}` ; valeurs par défaut `Low` / `Normal` / `High` / `Immediate` (`GET /api/v3/priorities`, aussi dans `allowedValues` du schéma) → résolution par nom.
+- **Commentaire** : `POST /api/v3/work_packages/{id}/activities?notify=false` `{"comment":{"raw":"Reassessment: **ai-ready** now."}}` → `201 {"_type":"Activity::Comment"}` (markdown).
+  Le commentaire **incrémente le `lockVersion`** du work package.
+- **`lockVersion` obligatoire sur PATCH** : `PATCH /api/v3/work_packages/{id}` `{"lockVersion":1,"_links":{"customField1":{"href":"/api/v3/custom_options/1"}}}` → `200 {"lockVersion":2}` ;
+  version périmée **ou absente** → `409 UpdateConflict`. Séquence de réévaluation : commenter, relire (`GET`) puis PATCH avec le `lockVersion` relu.
+- **Forme des erreurs** : `{"_type":"Error","errorIdentifier":"urn:openproject-org:api:v3:errors:<Code>","message":"<localisé>"}` → s'appuyer sur `errorIdentifier`, jamais sur `message`.
+  `401 Unauthenticated` (clé invalide ou absente) ; `403 MissingPermission` (création dans un projet où le compte est Reader) ; `404 NotFound` (work package inexistant) ;
+  `409 UpdateConflict` ; `422 PropertyConstraintViolation` avec `_embedded.details.attribute` (`subject` vide, `type` non activé dans le projet,
+  option `customField1` invalide, projet inconnu → attribut `project`) ; `422 PropertyIsReadOnly` (attribut sans permission d'écriture) ;
+  `422 MultipleErrors` avec `_embedded.errors[]` (ex. parent inexistant).
+- **Permissions minimales du compte Refinr** (vérifiées une à une avec un rôle dédié, dans le projet) : `view_work_packages` (dépendance imposée par OpenProject),
+  `add_work_packages` (sinon `403 MissingPermission` à la création), `manage_subtasks` (sinon `422 PropertyIsReadOnly` sur `parent`),
+  `add_work_package_comments` (sinon **`404 NotFound`** sur `/activities`, pas 403), `edit_work_packages` (sinon `422 PropertyIsReadOnly` au PATCH du verdict).
+  Le rôle standard « Member » les contient toutes ; compte non admin suffisant.
+- **Identifiant de projet** : jusqu'à 100 caractères parmi minuscules, chiffres, `-` et `_` (`a_b-c`, `1abc`, `-abc` acceptés) ;
+  refusés : purement numérique (`123` → 422), mot réservé (`new` → 422), majuscules, espaces, plus de 100 caractères.
+  L'id numérique est aussi accepté partout (`/api/v3/projects/3`).
+  → validation Refinr : `^[a-z0-9_-]{1,100}$` (slug ; s'il est entièrement numérique, il est traité comme un id) ; les mots réservés restent signalés par le 422 d'OpenProject.
+- **Lien web d'un work package** : `{base-url}/work_packages/{id}` (redirige vers `/projects/{identifiant}/work_packages/{id}/activity`).
