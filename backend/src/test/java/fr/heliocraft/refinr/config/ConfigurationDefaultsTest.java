@@ -225,6 +225,30 @@ class ConfigurationDefaultsTest {
     }
 
     /** Defaut d'une propriete de application-example.properties ecrite {@code cle=${VAR:defaut}} ou {@code cle=valeur}. */
+    @Test
+    @DisplayName("The maximum size of a provided text is aligned between the code, the example config and .env.example")
+    void maxContentCharsIsAligned() throws IOException {
+        String expected = String.valueOf(UseCaseConfig.DEFAULT_MAX_CONTENT_CHARS);
+        assertEquals(expected, exampleDefault("refinr.document.max-content-chars"));
+        assertEquals(expected, envExample("DOCUMENT_MAX_CONTENT_CHARS"));
+        // Valeur nulle ou negative : echec au demarrage, avec le nom de la propriete
+        for (int invalid : new int[] {0, -1}) {
+            IllegalStateException e = assertThrows(IllegalStateException.class, () -> new UseCaseConfig("", invalid));
+            assertTrue(e.getMessage().contains("refinr.document.max-content-chars"), e.getMessage());
+        }
+    }
+
+    @Test
+    @DisplayName("The maximum request body size is aligned between the code, the example config, .env.example and nginx")
+    void maxBodyBytesIsAligned() throws IOException {
+        String expected = String.valueOf(HttpSecurityConfiguration.DEFAULT_MAX_BODY_BYTES);
+        assertEquals(expected, exampleDefault("refinr.http.max-body-bytes"));
+        assertEquals(expected, envExample("HTTP_MAX_BODY_BYTES"));
+        // client_max_body_size 5m du proxy du frontend = 5 Mio
+        assertTrue(Files.readString(Path.of("../frontend/docker/default.conf.template")).contains("client_max_body_size 5m;"));
+        assertEquals(5L * 1024 * 1024, HttpSecurityConfiguration.DEFAULT_MAX_BODY_BYTES);
+    }
+
     static String exampleDefault(String key) throws IOException {
         for (String line : Files.readAllLines(EXAMPLE)) {
             if (line.startsWith(key + "=")) {

@@ -141,7 +141,7 @@ class BookStackDocumentSourceTest {
             server.enqueue(json(200, "{\"id\":7,\"html\":\"<p id=\\\"bkmrk-\\\"></p>\"}"));
             server.enqueue(json(200, "{\"id\":6,\"html\":\"<p><img src=\\\"http://x/schema.png\\\" alt=\\\"\\\"></p>\"}"));
             BacklogGeneratorPort generator = mock(BacklogGeneratorPort.class);
-            PreviewBacklogService preview = new PreviewBacklogService(source, generator, null);
+            PreviewBacklogService preview = new PreviewBacklogService(source, generator, null, 200_000);
 
             for (String id : List.of("7", "6")) {
                 InvalidRequestException e = assertThrows(InvalidRequestException.class, () -> preview.preview(id));

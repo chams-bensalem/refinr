@@ -224,7 +224,7 @@ class XWikiDocumentSourceTest {
             server.enqueue(tomcat(404, true));
             server.enqueue(json(200, page("<p><img src=\"http://x/schema.png\" alt=\"schema.png\"/></p>", "[[image:schema.png]]")));
             BacklogGeneratorPort generator = mock(BacklogGeneratorPort.class);
-            PreviewBacklogService preview = new PreviewBacklogService(source, generator, null);
+            PreviewBacklogService preview = new PreviewBacklogService(source, generator, null, 200_000);
 
             for (String id : List.of("ProjetStocks.PageVide.WebHome", "ProjetStocks.ImageSeule.WebHome")) {
                 InvalidRequestException e = assertThrows(InvalidRequestException.class, () -> preview.preview(id));

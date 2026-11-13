@@ -24,13 +24,17 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
     // Fournisseur de verdict distinct, ou null : le verdict produit par l'analyse est alors conserve
     private final ReadinessAssessorPort separateAssessor;
     private final CreateBacklog createBacklog;
+    // Taille maximale (caracteres Unicode) d'un document fourni en texte
+    private final int maxContentChars;
 
     public AnalyzeDocumentService(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
-                                  ReadinessAssessorPort separateAssessor, CreateBacklog createBacklog) {
+                                  ReadinessAssessorPort separateAssessor, CreateBacklog createBacklog,
+                                  int maxContentChars) {
         this.documentSource = documentSource;
         this.generator = generator;
         this.separateAssessor = separateAssessor;
         this.createBacklog = createBacklog;
+        this.maxContentChars = DocumentAnalysis.requirePositiveLimit(maxContentChars);
     }
 
     @Override
@@ -38,6 +42,18 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
         DocumentAnalysis.requireValidId(documentSource, documentId);
         log.info("Step 1: Reading source document...");
         String content = SourceFailures.translate(() -> documentSource.getDocumentContent(documentId));
+        return analyzeAndCreateFrom(content, project);
+    }
+
+    @Override
+    public BacklogCreationResult analyzeTextAndCreate(String title, String content, String project) {
+        // Texte fourni : aucun appel a la source active
+        log.info("Step 1: Using the provided text...");
+        return analyzeAndCreateFrom(DocumentAnalysis.providedText(title, content, maxContentChars), project);
+    }
+
+    /** Chemin commun aux deux entrees : texte utile, generation, verdict distinct eventuel, creation. */
+    private BacklogCreationResult analyzeAndCreateFrom(String content, String project) {
         DocumentAnalysis.requireUsefulText(content);
 
         log.info("Step 2: Analyzing document with AI...");

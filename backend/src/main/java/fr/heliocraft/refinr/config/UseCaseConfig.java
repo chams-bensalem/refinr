@@ -37,11 +37,22 @@ import java.util.List;
 @Configuration
 public class UseCaseConfig {
 
+    /** Taille maximale par defaut d'un document fourni en texte, en caracteres Unicode (justifiee dans DECISIONS.md). */
+    public static final int DEFAULT_MAX_CONTENT_CHARS = 200_000;
+    static final String MAX_CONTENT_CHARS_PROPERTY = "refinr.document.max-content-chars";
+
     // Fournisseur de verdict distinct configure : le verdict de l'analyse est alors remplace par le sien
     private final boolean separateVerdict;
+    private final int maxContentChars;
 
-    public UseCaseConfig(@Value("${refinr.llm.verdict.provider:}") String verdictProvider) {
+    public UseCaseConfig(@Value("${refinr.llm.verdict.provider:}") String verdictProvider,
+                         @Value("${" + MAX_CONTENT_CHARS_PROPERTY + ":" + DEFAULT_MAX_CONTENT_CHARS + "}") int maxContentChars) {
         this.separateVerdict = verdictProvider != null && !verdictProvider.isBlank();
+        if (maxContentChars <= 0) {
+            throw new IllegalStateException(MAX_CONTENT_CHARS_PROPERTY + " must be a positive number of characters, got "
+                    + maxContentChars);
+        }
+        this.maxContentChars = maxContentChars;
     }
 
     @Bean
@@ -57,13 +68,14 @@ public class UseCaseConfig {
     @Bean
     public PreviewBacklog previewBacklog(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
                                          ReadinessAssessorPort assessor) {
-        return new PreviewBacklogService(documentSource, generator, separateVerdict ? assessor : null);
+        return new PreviewBacklogService(documentSource, generator, separateVerdict ? assessor : null, maxContentChars);
     }
 
     @Bean
     public AnalyzeDocument analyzeDocument(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
                                            ReadinessAssessorPort assessor, CreateBacklog createBacklog) {
-        return new AnalyzeDocumentService(documentSource, generator, separateVerdict ? assessor : null, createBacklog);
+        return new AnalyzeDocumentService(documentSource, generator, separateVerdict ? assessor : null, createBacklog,
+                maxContentChars);
     }
 
     @Bean

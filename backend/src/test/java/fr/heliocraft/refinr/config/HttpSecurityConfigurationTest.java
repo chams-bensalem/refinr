@@ -24,6 +24,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -33,9 +34,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -175,6 +179,26 @@ class HttpSecurityConfigurationTest {
         }
 
         @Test
+        @DisplayName("Text input (content) is protected like the other endpoints: 401 without or with a wrong key, 200 with it")
+        void textInputRequiresTheKey() throws Exception {
+            when(previewBacklog.previewText(null, "Gestion des stocks")).thenReturn(List.of());
+            String body = "{\"content\":\"Gestion des stocks\"}";
+            for (String uri : List.of("/api/v1/analyze-preview", "/api/v1/analyze-and-create")) {
+                mockMvc.perform(post(uri).contentType(MediaType.APPLICATION_JSON).content(body))
+                        .andExpect(status().isUnauthorized())
+                        .andExpect(jsonPath("$.error").value("Missing or invalid API key"));
+                mockMvc.perform(post(uri).header("X-API-Key", "test-api-key-12").contentType(MediaType.APPLICATION_JSON).content(body))
+                        .andExpect(status().isUnauthorized());
+            }
+            verifyNoInteractions(previewBacklog, analyzeDocument);
+            mockMvc.perform(post("/api/v1/analyze-preview").header("X-API-Key", "test-api-key-123")
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true));
+            verify(previewBacklog).previewText(null, "Gestion des stocks");
+        }
+
+        @Test
         @DisplayName("Right key: the request reaches the controller")
         void rightKeyPasses() throws Exception {
             mockMvc.perform(get(SEARCH).header("X-API-Key", "test-api-key-123"))
@@ -280,5 +304,43 @@ class HttpSecurityConfigurationTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("'*' is not allowed");
         assertThat(HttpSecurityConfiguration.parseOrigins(" ")).isEmpty();
+    }
+
+    @Nested
+    @TestPropertySource(properties = {"refinr.cors.allowed-origins=" + ALLOWED,
+            "refinr.security.api-key=test-api-key-123", "refinr.http.max-body-bytes=64"})
+    class BodyLimit extends WebLayer {
+
+        @Test
+        @DisplayName("Body over refinr.http.max-body-bytes: 413 before the API key check and the controller, CORS headers kept")
+        void bodyOverTheLimitIs413() throws Exception {
+            String big = "{\"content\":\"" + "a".repeat(64) + "\"}";
+            mockMvc.perform(post("/api/v1/analyze-preview").header("Origin", ALLOWED)
+                            .contentType(MediaType.APPLICATION_JSON).content(big))
+                    .andExpect(status().isContentTooLarge())
+                    .andExpect(header().string("Access-Control-Allow-Origin", ALLOWED))
+                    .andExpect(jsonPath("$.error").value("The request body exceeds the maximum size of 64 bytes"));
+            verifyNoInteractions(previewBacklog);
+        }
+
+        @Test
+        @DisplayName("Body under the limit: unchanged behaviour (API key still required)")
+        void bodyUnderTheLimitPasses() throws Exception {
+            when(previewBacklog.previewText(null, "Stocks")).thenReturn(List.of());
+            String small = "{\"content\":\"Stocks\"}";
+            mockMvc.perform(post("/api/v1/analyze-preview").contentType(MediaType.APPLICATION_JSON).content(small))
+                    .andExpect(status().isUnauthorized());
+            mockMvc.perform(post("/api/v1/analyze-preview").header("X-API-Key", "test-api-key-123")
+                            .contentType(MediaType.APPLICATION_JSON).content(small))
+                    .andExpect(status().isOk());
+        }
+    }
+
+    @Test
+    @DisplayName("A non-positive refinr.http.max-body-bytes fails at startup with the property name")
+    void nonPositiveBodyLimitFailsAtStartup() {
+        assertThatThrownBy(() -> new HttpSecurityConfiguration().requestBodyLimitFilter(0, new tools.jackson.databind.ObjectMapper()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("refinr.http.max-body-bytes");
     }
 }
