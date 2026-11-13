@@ -2,10 +2,21 @@
 #   REFINR_BACKEND_URL   backend reached by the /api proxy (default http://backend:8080)
 #   REFINR_API_BASE_URL  API base URL used by the browser, served in /config.js (default /api/v1, same origin)
 #   REFINR_API_KEY       optional: added server-side by the proxy as X-API-Key, never sent to the browser
+#   REFINR_SERVER_NAMES  allowed Host headers, built from REFINR_ALLOWED_HOSTS by 05-refinr-server-names.envsh
+
+server_tokens off;
+
+# DNS rebinding protection: any Host that is not listed (or no Host at all) gets its connection closed
+server {
+    listen 8080 default_server;
+    server_name _;
+    access_log off;
+    return 444;
+}
+
 server {
     listen 8080;
-    server_name _;
-    server_tokens off;
+    server_name ${REFINR_SERVER_NAMES};
 
     root /usr/share/nginx/html;
     index index.html;

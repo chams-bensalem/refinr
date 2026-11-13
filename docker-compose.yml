@@ -28,6 +28,8 @@ services:
     environment:
       # Optional API key (empty = disabled), shared with the frontend proxy below
       REFINR_API_KEY: ${REFINR_API_KEY:-}
+      # Accepted Host headers (DNS rebinding protection), same list for the frontend
+      REFINR_ALLOWED_HOSTS: ${REFINR_ALLOWED_HOSTS:-localhost,127.0.0.1,[::1]}
     # Read-only root filesystem: Tomcat's work directory lives in /tmp
     tmpfs:
       - /tmp:uid=10001,gid=10001,mode=0700
@@ -50,6 +52,7 @@ services:
       REFINR_API_BASE_URL: ${REFINR_API_BASE_URL:-/api/v1}
       # Same key as the backend (from .env): added by the proxy, never sent to the browser
       REFINR_API_KEY: ${REFINR_API_KEY:-}
+      REFINR_ALLOWED_HOSTS: ${REFINR_ALLOWED_HOSTS:-localhost,127.0.0.1,[::1]}
     # Read-only root filesystem: nginx (uid 101) writes its generated config and temp files to tmpfs only
     tmpfs:
       - /tmp:uid=101,gid=101,mode=0700
