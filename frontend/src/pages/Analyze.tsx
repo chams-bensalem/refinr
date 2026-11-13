@@ -9,9 +9,15 @@ import BacklogPreview from '../components/BacklogPreview';
 import type { Epic } from '../types';
 import { AlertCircle, CheckCircle, Eye, FileText, Loader2, RotateCcw, Send, Sparkles } from 'lucide-react';
 
-function ErrorBox({ title, error, onDismiss }: { title: string; error: Error; onDismiss: () => void }) {
+function ErrorBox({ title, error, backLabel, onBack, className = 'border-b border-red-100' }: {
+    title: string;
+    error: Error;
+    backLabel: string;
+    onBack: () => void;
+    className?: string;
+}) {
     return (
-        <div className="bg-red-50 border-b border-red-100 p-6">
+        <div role="alert" className={`bg-red-50 p-6 ${className}`}>
             <div className="flex items-start">
                 <AlertCircle className="h-6 w-6 text-red-600 flex-shrink-0" />
                 <div className="ml-3 flex-1">
@@ -22,8 +28,8 @@ function ErrorBox({ title, error, onDismiss }: { title: string; error: Error; on
                             <p className="mt-1 text-xs text-red-500">Reference: {error.correlationId}</p>
                         )}
                     </div>
-                    <button onClick={onDismiss} className="mt-4 text-sm font-medium text-red-600 hover:text-red-500">
-                        Dismiss
+                    <button onClick={onBack} className="mt-4 text-sm font-medium text-red-600 hover:text-red-500">
+                        ← {backLabel}
                     </button>
                 </div>
             </div>
@@ -80,9 +86,9 @@ export default function Analyze() {
             </div>
 
             <div className="bg-white shadow-2xl rounded-2xl overflow-hidden border border-gray-100">
-                {preview.isError && <ErrorBox title="Preview failed" error={preview.error} onDismiss={() => preview.reset()} />}
-                {creation.isError && <ErrorBox title="Creation failed" error={creation.error} onDismiss={() => creation.reset()} />}
-
+                {preview.isError && (
+                    <ErrorBox title="Preview failed" error={preview.error} backLabel="Back to the form" onBack={() => preview.reset()} />
+                )}
                 {preview.isPending ? (
                     <div className="p-12 flex flex-col items-center">
                         <Loader2 className="h-16 w-16 animate-spin text-primary-600 mb-6" />
@@ -122,10 +128,26 @@ export default function Analyze() {
                             <BacklogPreview epics={epics} />
                         )}
 
-                        <p className="mt-6 text-sm text-gray-500">
-                            Nothing has been created yet. The ai-ready verdict is computed again by the server on this content
-                            when the issues are created.
-                        </p>
+                        {creation.isError ? (
+                            <>
+                                {/* Next to the buttons: visible even when the preview is long */}
+                                <ErrorBox
+                                    title="Creation failed"
+                                    error={creation.error}
+                                    backLabel="Back to the preview"
+                                    onBack={() => creation.reset()}
+                                    className="mt-6 rounded-xl border border-red-100"
+                                />
+                                <p className="mt-4 text-sm text-gray-500">
+                                    Some issues may already have been created: check the Jira project before creating again.
+                                </p>
+                            </>
+                        ) : (
+                            <p className="mt-6 text-sm text-gray-500">
+                                Nothing has been created yet. The ai-ready verdict is computed again by the server on this content
+                                when the issues are created.
+                            </p>
+                        )}
 
                         <div className="mt-6 flex flex-col sm:flex-row gap-3">
                             <button

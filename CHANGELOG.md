@@ -14,6 +14,10 @@ Interface web uniquement ; API REST inchangée.
   Epics > Stories > Sous-tâches avec, pour chaque story, le badge `ai-ready` / `validation-necessaire` et sa raison ;
   **Create in Jira** (`POST /api/v1/create-jira` avec le backlog affiché, verdict recalculé par le serveur) mène à la
   page Results. Un `502` où rien n'a pu être créé affiche aussi les raisons sur Results.
+- Erreurs de **Preview** et de **Create in Jira** : message renvoyé par l'API, référence (`correlationId`) et bouton
+  de retour (« Back to the form » / « Back to the preview ») ; l'échec de création s'affiche à côté des boutons et
+  rappelle que des tickets ont pu être créés.
+- Versions du backend et du frontend : `1.0.1`.
 - Libellés : « CDC » remplacé par « spec » / « requirements document », « Doc to Jira » par « Analyze a spec » dans
   l'en-tête, titre d'accueil « Turn a Confluence spec into an agent-ready Jira backlog ».
 
