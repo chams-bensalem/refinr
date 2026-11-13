@@ -31,6 +31,16 @@ class CreateBacklogServiceTest {
         private int next = 1;
 
         @Override
+        public String displayName() {
+            return "Recording";
+        }
+
+        @Override
+        public boolean acceptsProjectId(String project) {
+            return true;
+        }
+
+        @Override
         public String createEpic(Epic epic, String project) {
             fail(epic.getName());
             return record("epic " + epic.getName() + " project=" + project);

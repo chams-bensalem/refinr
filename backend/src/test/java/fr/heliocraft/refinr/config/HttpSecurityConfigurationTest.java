@@ -8,6 +8,7 @@ import fr.heliocraft.refinr.adapters.in.rest.BacklogController;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.CheckHealth;
 import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
+import fr.heliocraft.refinr.application.port.in.DescribeTracker;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
 import fr.heliocraft.refinr.application.port.in.SearchDocuments;
@@ -53,6 +54,7 @@ class HttpSecurityConfigurationTest {
         @MockitoBean CreateEditedBacklog createEditedBacklog;
         @MockitoBean ReassessStory reassessStory;
         @MockitoBean SearchDocuments searchDocuments;
+        @MockitoBean DescribeTracker describeTracker;
         @MockitoBean CheckHealth checkHealth;
 
         @BeforeEach

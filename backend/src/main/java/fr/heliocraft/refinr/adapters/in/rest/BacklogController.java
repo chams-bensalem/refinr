@@ -7,6 +7,7 @@ import fr.heliocraft.refinr.adapters.in.rest.dto.EpicDto;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
+import fr.heliocraft.refinr.application.port.in.DescribeTracker;
 import fr.heliocraft.refinr.application.port.in.InvalidRequestException;
 import fr.heliocraft.refinr.application.port.in.ModelOutputException;
 import fr.heliocraft.refinr.application.port.in.ModelUnavailableException;
@@ -37,31 +38,33 @@ public class BacklogController {
 
     private static final Logger log = LoggerFactory.getLogger(BacklogController.class);
 
-    private static final java.util.regex.Pattern CLE_PROJET = java.util.regex.Pattern.compile("^[A-Z][A-Z0-9]{1,9}$");
-
     private final AnalyzeDocument analyzeDocument;
     private final PreviewBacklog previewBacklog;
     private final CreateEditedBacklog createEditedBacklog;
     private final ReassessStory reassessStory;
     private final SearchDocuments searchDocuments;
+    private final DescribeTracker describeTracker;
 
     public BacklogController(
             AnalyzeDocument analyzeDocument,
             PreviewBacklog previewBacklog,
             CreateEditedBacklog createEditedBacklog,
             ReassessStory reassessStory,
-            SearchDocuments searchDocuments) {
+            SearchDocuments searchDocuments,
+            DescribeTracker describeTracker) {
         this.analyzeDocument = analyzeDocument;
         this.previewBacklog = previewBacklog;
         this.createEditedBacklog = createEditedBacklog;
         this.reassessStory = reassessStory;
         this.searchDocuments = searchDocuments;
+        this.describeTracker = describeTracker;
     }
 
     @PostMapping("/analyze-and-create")
     public ResponseEntity<Map<String, Object>> analyzeAndCreate(@RequestBody Map<String, String> request) {
         String confluencePageId = request.get("confluencePageId");
-        // Projet Jira cible optionnel (sinon jira.project-key) : permet a un outil appelant de remplir un projet qu'il vient de creer.
+        // Projet cible optionnel (sinon le projet par defaut du gestionnaire de tickets actif) : cle Jira ou identifiant
+        // OpenProject selon tracker.provider ; permet a un outil appelant de remplir un projet qu'il vient de creer.
         String projectKey = request.get("projectKey");
         if (!isValidProjectKey(projectKey)) {
             return invalidProjectKey(projectKey);
@@ -129,9 +132,9 @@ public class BacklogController {
         return ResponseEntity.badRequest().body(ErrorResponses.error(e.getMessage()));
     }
 
-    /** Absent ou vide : projet par defaut ; sinon une cle de projet valide (ex. PROJ, DEMO2). */
-    private static boolean isValidProjectKey(String projectKey) {
-        return projectKey == null || projectKey.isBlank() || CLE_PROJET.matcher(projectKey).matches();
+    /** Absent ou vide : projet par defaut ; sinon au format du gestionnaire de tickets actif (ex. PROJ pour Jira). */
+    private boolean isValidProjectKey(String projectKey) {
+        return projectKey == null || projectKey.isBlank() || describeTracker.acceptsProjectId(projectKey);
     }
 
     private static ResponseEntity<Map<String, Object>> invalidProjectKey(String projectKey) {
@@ -168,7 +171,7 @@ public class BacklogController {
     @PostMapping("/create-jira")
     public ResponseEntity<Map<String, Object>> createJira(
             @RequestBody List<EpicDto> request,
-            // Projet cible optionnel (sinon jira.project-key), meme validation que analyze-and-create
+            // Projet cible optionnel (sinon le projet par defaut du gestionnaire actif), meme validation que analyze-and-create
             @RequestParam(required = false) String projectKey) {
         if (!isValidProjectKey(projectKey)) {
             return invalidProjectKey(projectKey);

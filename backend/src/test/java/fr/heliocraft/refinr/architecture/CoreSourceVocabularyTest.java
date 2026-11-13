@@ -20,18 +20,18 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Complement source de la regle ArchUnit {@code no_jira_identifier_in_domain_and_application} : ArchUnit ne voit
+ * Complement source de la regle ArchUnit {@code no_tracker_identifier_in_domain_and_application} : ArchUnit ne voit
  * ni les noms de parametres ni les variables locales. Ce test lit les sources de domain/ et application/ et refuse
- * tout identifiant contenant "jira" (insensible a la casse), commentaires et litteraux exclus.
+ * tout identifiant contenant "jira" ou "openproject" (insensible a la casse), commentaires et litteraux exclus.
  */
 class CoreSourceVocabularyTest {
 
-    private static final String FORBIDDEN = "jira";
+    private static final List<String> FORBIDDEN = List.of("jira", "openproject");
     private static final Path SOURCES = Path.of(System.getProperty("basedir", "."), "src/main/java/fr/heliocraft/refinr");
     private static final Pattern IDENTIFIER = Pattern.compile("[\\p{L}_$][\\p{L}\\p{N}_$]*");
 
     @Test
-    @DisplayName("No identifier of domain/ or application/ sources contains 'jira'")
+    @DisplayName("No identifier of domain/ or application/ sources contains 'jira' or 'openproject'")
     void coreSourcesDoNotSpeakJira() throws IOException {
         List<Path> files = new ArrayList<>();
         for (String layer : List.of("domain", "application")) {
@@ -74,6 +74,19 @@ class CoreSourceVocabularyTest {
         assertEquals(List.of("11:jiraEpicKey", "12:localJira"), forbiddenIdentifiers(stripCommentsAndLiterals(sample)));
     }
 
+    @Test
+    @DisplayName("The scanner also catches OpenProject identifiers, not the word in comments or literals")
+    void scannerSeesOpenProjectIdentifiers() {
+        String sample = """
+                class Sample { // OpenProject in a comment
+                    String url = "openproject";
+                    void create(String openProjectId) {
+                    }
+                }
+                """;
+        assertEquals(List.of("3:openProjectId"), forbiddenIdentifiers(stripCommentsAndLiterals(sample)));
+    }
+
     /** "ligne:identifiant" pour chaque identifiant interdit du code (lignes numerotees a partir de 1). */
     private static List<String> forbiddenIdentifiers(String code) {
         List<String> hits = new ArrayList<>();
@@ -81,7 +94,8 @@ class CoreSourceVocabularyTest {
         for (int i = 0; i < lines.length; i++) {
             Matcher matcher = IDENTIFIER.matcher(lines[i]);
             while (matcher.find()) {
-                if (matcher.group().toLowerCase(Locale.ROOT).contains(FORBIDDEN)) {
+                String identifier = matcher.group().toLowerCase(Locale.ROOT);
+                if (FORBIDDEN.stream().anyMatch(identifier::contains)) {
                     hits.add((i + 1) + ":" + matcher.group());
                 }
             }

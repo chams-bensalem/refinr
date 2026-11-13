@@ -7,6 +7,7 @@ import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.CheckHealth;
 import fr.heliocraft.refinr.application.port.in.CreateBacklog;
 import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
+import fr.heliocraft.refinr.application.port.in.DescribeTracker;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
 import fr.heliocraft.refinr.application.port.in.SearchDocuments;
@@ -19,6 +20,7 @@ import fr.heliocraft.refinr.application.service.AnalyzeDocumentService;
 import fr.heliocraft.refinr.application.service.CheckHealthService;
 import fr.heliocraft.refinr.application.service.CreateBacklogService;
 import fr.heliocraft.refinr.application.service.CreateEditedBacklogService;
+import fr.heliocraft.refinr.application.service.DescribeTrackerService;
 import fr.heliocraft.refinr.application.service.PreviewBacklogService;
 import fr.heliocraft.refinr.application.service.ReassessStoryService;
 import fr.heliocraft.refinr.application.service.SearchDocumentsService;
@@ -68,11 +70,16 @@ public class UseCaseConfig {
     }
 
     @Bean
+    public DescribeTracker describeTracker(IssueTrackerPort issueTracker) {
+        return new DescribeTrackerService(issueTracker);
+    }
+
+    @Bean
     public SearchDocuments searchDocuments(DocumentSourcePort documentSource) {
         return new SearchDocumentsService(documentSource);
     }
 
-    /** Composants dans l'ordre de leur {@code @Order} : confluence, jira, puis les fournisseurs de modele. */
+    /** Composants dans l'ordre de leur {@code @Order} : confluence, gestionnaire de tickets actif, puis les fournisseurs de modele. */
     @Bean
     public CheckHealth checkHealth(List<HealthCheckable> components,
                                    @Value("${refinr.health.cache-ttl:45s}") Duration cacheTtl) {
