@@ -571,7 +571,9 @@ Docker and GitHub Actions updates weekly.
 - [x] **v1.0** — Confluence → Jira, `ai-ready` verdict, `anthropic` / `google` / `openai-compatible` providers,
   multi-arch Docker images, CI.
 - [ ] **v1.1** — **OpenProject** as an issue tracker (a new `IssueTrackerPort` adapter).
-- [ ] **v1.2** — **hosted demo** with **BYOK** (bring your own LLM key), real user authentication for the UI and the
+- [ ] **v1.2** — **document sources beyond Confluence**: file upload (Markdown, Word, PDF) and pasted text, through new
+  `DocumentSourcePort` adapters.
+- [ ] **v1.3** — **hosted demo** with **BYOK** (bring your own LLM key), real user authentication for the UI and the
   API, detailed `/api/v1/health` protected (only `/health/live` stays public).
 - [ ] Editing the preview and reassessment in the web UI (read-only preview since 1.0.1).
 

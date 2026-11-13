@@ -782,7 +782,9 @@ Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour 
 - [x] **v1.0** : Confluence → Jira, verdict `ai-ready`, fournisseurs `anthropic` / `google` / `openai-compatible`,
   images Docker multi-arch, CI.
 - [ ] **v1.1** : **OpenProject** comme gestionnaire de tickets (nouvel adaptateur de `IssueTrackerPort`).
-- [ ] **v1.2** : **démo hébergée** avec **BYOK** (*bring your own key* : chacun fournit sa propre clé de fournisseur IA),
+- [ ] **v1.2** : **sources documentaires au-delà de Confluence** : envoi de fichier (Markdown, Word, PDF) et texte collé,
+  via de nouveaux adaptateurs de `DocumentSourcePort`.
+- [ ] **v1.3** : **démo hébergée** avec **BYOK** (*bring your own key* : chacun fournit sa propre clé de fournisseur IA),
   vraie authentification des utilisateurs de l'interface et de l'API, `/api/v1/health` détaillé protégé
   (seule la sonde `/health/live` restera publique).
 - [ ] Modification de l'aperçu et réévaluation dans l'interface web (aperçu en lecture seule depuis la 1.0.1).
