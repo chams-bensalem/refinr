@@ -587,7 +587,7 @@ curl localhost:8080/api/v1/health
 Build de production sans Docker :
 
 ```bash
-(cd backend && mvn clean package && java -jar target/refinr-1.0.1.jar)
+(cd backend && mvn clean package && java -jar target/refinr-1.1.0.jar)
 (cd frontend && npm run build)   # génère frontend/dist/
 ```
 
@@ -833,7 +833,7 @@ Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour 
 
 ## 🗺️ Limites connues & feuille de route
 
-**Limites de la v1.0**
+**Limites actuelles (v1.1)**
 
 - La création n'est pas transactionnelle : un échec en cours de route laisse les tickets déjà créés
   (réponse partielle `created` / `failed`, à relancer pour les seuls éléments en échec).

@@ -112,6 +112,7 @@ Interface web et documentation ; API REST inchangée.
 - Licence AGPL-3.0-only (en-tête SPDX dans chaque fichier source), CLA, README en anglais et en français,
   `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`.
 
-[Unreleased]: https://github.com/chams-bensalem/refinr/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/chams-bensalem/refinr/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/chams-bensalem/refinr/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/chams-bensalem/refinr/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/chams-bensalem/refinr/releases/tag/v1.0.0
