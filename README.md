@@ -331,6 +331,7 @@ refinr.llm.verdict.max-output-tokens=4096
 | `refinr.llm.verdict.cache.ttl` | `24h` | Durée de vie du cache des verdicts réussis (`0s` = pas de cache) |
 | `refinr.llm.verdict.cache.max-entries` | `1000` | Taille maximale du cache des verdicts (LRU) |
 | `refinr.health.cache-ttl` | `45s` | Durée de mise en cache du health check (`0s` = pas de cache) |
+| `refinr.security.allowed-hosts` | `localhost,127.0.0.1,[::1]` | Hôtes acceptés dans l'en-tête `Host` (protection contre le DNS rebinding), séparés par des virgules, port ignoré ; sinon `403`, y compris sur les health checks ; `*` et liste vide refusés au démarrage (`REFINR_ALLOWED_HOSTS`, même variable pour le frontend) |
 | `refinr.cors.allowed-origins` | `http://localhost:3000` | Origines autorisées à appeler l'API depuis un navigateur (CORS), séparées par des virgules ; vide = même origine uniquement ; `*` refusé au démarrage (`CORS_ALLOWED_ORIGINS`) |
 | `refinr.security.api-key` | *(vide)* | Clé d'API optionnelle : si renseignée, toute requête `/api/**` doit envoyer l'en-tête `X-API-Key` (sauf `/api/v1/health` et `/api/v1/health/live`), sinon `401` ; vide = désactivée (`REFINR_API_KEY`) |
 
@@ -433,8 +434,20 @@ curl localhost:8080/api/v1/health
   utilise l'API avec cette clé.
 - **N'exposez pas le frontend sur Internet sans authentification placée devant** (reverse proxy avec SSO / OAuth2,
   VPN, réseau privé). Par défaut, les ports ne sont publiés que sur `127.0.0.1`.
+- **Hôtes autorisés (`REFINR_ALLOWED_HOSTS`, défaut `localhost,127.0.0.1,[::1]`)** : protection contre le
+  *DNS rebinding*, où une page malveillante fait pointer son propre nom de domaine vers `127.0.0.1` pour appeler
+  l'API locale depuis votre navigateur, avec la clé ajoutée par le proxy. Le navigateur envoie alors ce nom dans
+  `Host` : nginx ferme la connexion (`444`) et le backend répond `403` à tout `Host` non listé. Le contrôle est
+  toujours actif, même sans `REFINR_API_KEY`, y compris sur `/api/v1/health/live`. Les ports sont ignorés
+  (`localhost:3000` et `localhost` sont équivalents).
+- **Déploiement réseau** : ajoutez à la liste le nom DNS ou l'IP par lesquels Refinr est joint, par exemple
+  `REFINR_ALLOWED_HOSTS=localhost,127.0.0.1,[::1],refinr.intranet.example,10.0.0.12` dans `.env` (Compose transmet
+  la même liste au backend et au frontend). Derrière un reverse proxy, c'est le `Host` transmis par ce proxy qui
+  compte : gardez l'en-tête d'origine (`proxy_set_header Host $host` pour nginx) ou listez le nom qu'il envoie.
+  Les noms exacts seulement : pas de joker (`*`, `*.example.com`). Si l'API est appelée depuis une autre origine,
+  ajoutez aussi cette origine à `CORS_ALLOWED_ORIGINS`.
 - `GET /api/v1/health` (détaillé : état de Confluence, Jira, fournisseur et modèle IA, sans clé ni URL) n'exige pas
-  de clé, comme la sonde `/api/v1/health/live`.
+  de clé, comme la sonde `/api/v1/health/live` (mais tous deux exigent un `Host` autorisé).
 
 Build de production sans Docker :
 
@@ -537,6 +550,8 @@ Base URL : `http://localhost:8080/api/v1`
 **Clé d'API** : si `refinr.security.api-key` (`REFINR_API_KEY`) est définie, chaque appel doit envoyer
 `X-API-Key: <clé>` (`/health` et `/health/live` exceptés) ; sinon `401` `{ "success": false, "error": "Missing or invalid API key", "correlationId": "…" }`.
 **CORS** : seules les origines de `refinr.cors.allowed-origins` sont acceptées (plus de `*`).
+**Hôte** : toute requête dont l'en-tête `Host` n'est pas dans `refinr.security.allowed-hosts` reçoit `403`
+`{ "success": false, "error": "Host not allowed", "correlationId": "…" }`, health checks compris.
 
 **Réponse de création (`analyze-and-create` et `create-jira`) :**
 
@@ -639,7 +654,7 @@ Dependabot propose chaque semaine les mises à jour Maven, npm, Docker et GitHub
 | `CreateBacklogServiceTest`, `CreateEditedBacklogServiceTest`, `ReassessStoryServiceTest`, `domain.service.*Test` | Cas d'usage et règles métier, sans framework |
 | `ApplicationWiringTest` | Démarrage du contexte Spring, câblage des cas d'usage, comportement de retry (tel que décrit plus haut) |
 | `ConfigurationDefaultsTest` | Valeurs par défaut identiques dans le code, la configuration d'exemple, `.env.example` et ce README |
-| `HttpSecurityConfigurationTest` | CORS (origine autorisée renvoyée, autre origine refusée, `*` refusé), clé d'API (absente, fausse, valide, health et préflight exemptés, `401` lisible avec CORS, clé jamais renvoyée) |
+| `HttpSecurityConfigurationTest`, `AllowedHostFilterTest` | Hôtes autorisés (`localhost`, `127.0.0.1`, `[::1]` avec ou sans port acceptés ; `evil.example` refusé en `403`, sonde `/health/live` comprise, sans clé d'API ; `*` ou liste vide refusés), CORS (origine autorisée renvoyée, autre origine refusée, `*` refusé), clé d'API (absente, fausse, valide, health et préflight exemptés, `401` lisible avec CORS, clé jamais renvoyée) |
 | `HexagonalArchitectureTest` | Règles d'architecture (ArchUnit) : domaine/application sans framework, sens des dépendances |
 | `FullFlowIntegrationTest` | Parcours complet Confluence → IA → Jira et pannes de chaque service |
 
