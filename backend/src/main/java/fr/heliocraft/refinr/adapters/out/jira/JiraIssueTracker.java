@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.core.annotation.Order;
@@ -36,6 +37,8 @@ import java.util.Map;
 
 @Service
 @Order(2)
+// Seul gestionnaire de tickets instancie quand tracker.provider vaut jira (defaut) ; valeur controlee au demarrage
+@ConditionalOnProperty(name = "tracker.provider", havingValue = "jira", matchIfMissing = true)
 public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
 
     private static final Logger log = LoggerFactory.getLogger(JiraIssueTracker.class);
@@ -77,6 +80,16 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Basic " + encodedAuth)
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .build();
+    }
+
+    @Override
+    public String displayName() {
+        return "Jira";
+    }
+
+    @Override
+    public boolean acceptsProjectId(String project) {
+        return JiraProjectKeys.isValid(project);
     }
 
     public String createEpic(Epic epic) {

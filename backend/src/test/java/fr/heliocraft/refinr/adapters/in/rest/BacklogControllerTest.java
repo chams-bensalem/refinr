@@ -3,6 +3,8 @@
 
 package fr.heliocraft.refinr.adapters.in.rest;
 
+import fr.heliocraft.refinr.adapters.out.jira.JiraProjectKeys;
+import fr.heliocraft.refinr.application.port.in.DescribeTracker;
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
 import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
@@ -60,6 +62,10 @@ class BacklogControllerTest {
     @MockitoBean
     private IssueTrackerPort jiraService;
 
+    // Gestionnaire actif simule : format des projets delegue a la regle Jira reelle (aucune regex recopiee)
+    @MockitoBean
+    private DescribeTracker describeTracker;
+
     private Epic testEpic;
     private Story testStory;
     private Task testTask;
@@ -67,6 +73,7 @@ class BacklogControllerTest {
 
     @BeforeEach
     void setUp() {
+        when(describeTracker.acceptsProjectId(any())).thenAnswer(call -> JiraProjectKeys.isValid(call.getArgument(0)));
         // Setup test data
         testTask = new Task();
         testTask.setTitle("Test Task");
@@ -592,5 +599,77 @@ class BacklogControllerTest {
 
         verifyNoInteractions(jiraService);
         verifyNoInteractions(generator, assessor);
+    }
+
+    // --- Validation de projectKey deleguee au gestionnaire de tickets actif (v1.1) ---
+    // Gestionnaire simule dont le format n'est pas celui de Jira : il accepte "mon-projet" et refuse "PROJ".
+
+    private void trackerAcceptsOnlyMonProjet() {
+        when(describeTracker.acceptsProjectId(any())).thenAnswer(call -> "mon-projet".equals(call.getArgument(0)));
+    }
+
+    @Test
+    @DisplayName("analyze-and-create: a projectKey accepted by the active tracker is used (200)")
+    void analyzeAndCreateUsesProjectKeyAcceptedByActiveTracker() throws Exception {
+        trackerAcceptsOnlyMonProjet();
+        when(confluenceService.getDocumentContent("42")).thenReturn("cdc");
+        when(generator.generate("cdc")).thenReturn(testEpics);
+        when(jiraService.createEpic(any(Epic.class), any())).thenReturn("1");
+        when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("2");
+
+        mockMvc.perform(post("/api/v1/analyze-and-create")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"confluencePageId\":\"42\",\"projectKey\":\"mon-projet\"}"))
+                .andExpect(status().isOk());
+
+        verify(describeTracker).acceptsProjectId("mon-projet");
+        verify(jiraService).createEpic(any(Epic.class), eq("mon-projet"));
+    }
+
+    @Test
+    @DisplayName("analyze-and-create: a projectKey refused by the active tracker gives 400 before reading the document")
+    void analyzeAndCreateRejectsProjectKeyRefusedByActiveTracker() throws Exception {
+        trackerAcceptsOnlyMonProjet();
+
+        mockMvc.perform(post("/api/v1/analyze-and-create")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"confluencePageId\":\"42\",\"projectKey\":\"PROJ\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("Invalid projectKey: PROJ"));
+
+        verify(describeTracker).acceptsProjectId("PROJ");
+        verifyNoInteractions(confluenceService, generator, jiraService);
+    }
+
+    @Test
+    @DisplayName("create-jira: a projectKey parameter accepted by the active tracker is used (200)")
+    void createUsesProjectKeyAcceptedByActiveTracker() throws Exception {
+        trackerAcceptsOnlyMonProjet();
+        when(jiraService.createEpic(any(Epic.class), any())).thenReturn("1");
+        when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("2");
+        when(jiraService.createSubtask(any(Task.class), anyString(), any())).thenReturn("3");
+
+        mockMvc.perform(post("/api/v1/create-jira").param("projectKey", "mon-projet")
+                .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
+                .andExpect(status().isOk());
+
+        verify(describeTracker).acceptsProjectId("mon-projet");
+        verify(jiraService).createEpic(any(Epic.class), eq("mon-projet"));
+    }
+
+    @Test
+    @DisplayName("create-jira: a projectKey parameter refused by the active tracker gives 400 without creating anything")
+    void createRejectsProjectKeyRefusedByActiveTracker() throws Exception {
+        trackerAcceptsOnlyMonProjet();
+
+        mockMvc.perform(post("/api/v1/create-jira").param("projectKey", "PROJ")
+                .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("Invalid projectKey: PROJ"));
+
+        verify(describeTracker).acceptsProjectId("PROJ");
+        verifyNoInteractions(assessor, jiraService);
     }
 }

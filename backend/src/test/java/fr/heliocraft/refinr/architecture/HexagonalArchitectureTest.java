@@ -25,7 +25,7 @@ import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.sli
 
 /**
  * Regles de l'architecture hexagonale (cf. CLAUDE.md) : domaine et application sans framework,
- * dependances orientees vers le centre, adaptateurs independants, aucun vocabulaire Jira au centre.
+ * dependances orientees vers le centre, adaptateurs independants, aucun vocabulaire Jira ni OpenProject au centre.
  */
 @AnalyzeClasses(packages = "fr.heliocraft.refinr", importOptions = ImportOption.DoNotIncludeTests.class)
 class HexagonalArchitectureTest {
@@ -102,10 +102,10 @@ class HexagonalArchitectureTest {
                     + " l'accompagnent");
 
     @ArchTest
-    static final ArchRule no_jira_identifier_in_domain_and_application = classes()
+    static final ArchRule no_tracker_identifier_in_domain_and_application = classes()
             .that().resideInAnyPackage(DOMAIN, APPLICATION)
-            .should(haveNoIdentifierContaining("jira"))
-            .because("le centre reste agnostique du gestionnaire de tickets (OpenProject en v1.1)");
+            .should(haveNoIdentifierContaining("jira")).andShould(haveNoIdentifierContaining("openproject"))
+            .because("le centre reste agnostique du gestionnaire de tickets (Jira, OpenProject en v1.1)");
 
     /**
      * Nom de package, de classe, de champ ou de methode (insensible a la casse : jira, Jira, JIRA). Les noms de

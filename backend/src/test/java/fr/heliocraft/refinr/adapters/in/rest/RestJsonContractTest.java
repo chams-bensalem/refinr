@@ -6,6 +6,7 @@ package fr.heliocraft.refinr.adapters.in.rest;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
+import fr.heliocraft.refinr.application.port.in.DescribeTracker;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
 import fr.heliocraft.refinr.application.port.in.SearchDocuments;
@@ -70,6 +71,9 @@ class RestJsonContractTest {
 
     @MockitoBean
     private SearchDocuments searchDocuments;
+
+    @MockitoBean
+    private DescribeTracker describeTracker;
 
     @Test
     @DisplayName("analyze-preview serializes every Epic/Story/Task field exactly as the snapshot")

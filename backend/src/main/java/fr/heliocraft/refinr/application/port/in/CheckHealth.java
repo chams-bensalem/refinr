@@ -7,7 +7,7 @@ import fr.heliocraft.refinr.domain.model.ComponentHealth;
 
 import java.util.List;
 
-/** Etat des dependances externes (Confluence, Jira, fournisseurs de modele). */
+/** Etat des dependances externes (source documentaire, gestionnaire de tickets actif, fournisseurs de modele). */
 public interface CheckHealth {
 
     HealthReport check();

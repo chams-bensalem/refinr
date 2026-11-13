@@ -304,6 +304,7 @@ without `/wiki`).
 
 | Property | Default | Description |
 |---|---|---|
+| `tracker.provider` | `jira` | Issue tracker of the instance (one per instance): `jira` (`openproject` arrives in v1.1). Unknown value or missing property of the chosen tracker: startup fails with an explicit message |
 | `confluence.base-url` / `jira.base-url` | — | Atlassian Cloud site URL (without `/wiki`) |
 | `confluence.username` / `jira.username` | — | Atlassian account e-mail |
 | `confluence.token` / `jira.token` | — | Atlassian API token |
@@ -441,7 +442,7 @@ Base URL: `http://localhost:8080/api/v1`
 
 | Method | Endpoint | Body / parameters | Description |
 |---|---|---|---|
-| `POST` | `/analyze-and-create` | `{ "confluencePageId": "…", "projectKey": "PROJ" }` *(projectKey optional, `^[A-Z][A-Z0-9]{1,9}$`)* | Reads, analyzes and creates the whole hierarchy in Jira |
+| `POST` | `/analyze-and-create` | `{ "confluencePageId": "…", "projectKey": "PROJ" }` *(projectKey optional: project of the active tracker — Jira key `^[A-Z][A-Z0-9]{1,9}$`, or OpenProject identifier `^[a-z0-9_-]{1,100}$` / numeric id once available in v1.1)* | Reads, analyzes and creates the whole hierarchy in Jira |
 | `POST` | `/analyze-preview` | `{ "confluencePageId": "…" }` | Analyzes without creating issues |
 | `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optional, same format)* | Creates a generated structure; the server recomputes the verdict (client `aiReady` / `aiReadyReason` ignored) |
 | `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Reassesses a `validation-necessaire` story (`409` if it is not one) |

@@ -383,6 +383,7 @@ refinr.llm.verdict.max-output-tokens=4096
 
 | Propriété | Défaut | Description |
 |---|---|---|
+| `tracker.provider` | `jira` | Gestionnaire de tickets de l'instance (un seul par instance) : `jira` (`openproject` arrive en v1.1). Valeur inconnue ou propriété absente du gestionnaire choisi : arrêt au démarrage avec un message explicite |
 | `confluence.base-url` / `jira.base-url` | — | URL du site Atlassian Cloud (sans `/wiki`) |
 | `confluence.username` / `jira.username` | — | E-mail du compte Atlassian |
 | `confluence.token` / `jira.token` | — | Token API Atlassian |
@@ -620,7 +621,7 @@ Base URL : `http://localhost:8080/api/v1`
 
 | Méthode | Endpoint | Corps / paramètres | Description |
 |---|---|---|---|
-| `POST` | `/analyze-and-create` | `{ "confluencePageId": "…", "projectKey": "PROJ" }` *(projectKey optionnel, format `^[A-Z][A-Z0-9]{1,9}$`)* | Lit, analyse et crée toute la hiérarchie dans Jira |
+| `POST` | `/analyze-and-create` | `{ "confluencePageId": "…", "projectKey": "PROJ" }` *(projectKey optionnel : projet du gestionnaire de tickets actif — clé Jira `^[A-Z][A-Z0-9]{1,9}$`, ou identifiant OpenProject `^[a-z0-9_-]{1,100}$` / id numérique quand il sera disponible en v1.1)* | Lit, analyse et crée toute la hiérarchie dans Jira |
 | `POST` | `/analyze-preview` | `{ "confluencePageId": "…" }` | Analyse sans créer de tickets |
 | `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optionnel, même format)* | Crée une structure déjà générée, dans `projectKey` ou le projet par défaut ; verdict `ai-ready` recalculé par le serveur (`aiReady` / `aiReadyReason` du client ignorés) |
 | `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Réévalue une story `validation-necessaire` (`409` si elle ne l'est pas) |

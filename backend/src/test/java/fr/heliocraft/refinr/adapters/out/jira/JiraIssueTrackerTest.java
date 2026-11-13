@@ -522,4 +522,13 @@ class JiraIssueTrackerTest {
 
         assertEquals("Jira unreachable", error.getMessage());
     }
+
+    @Test
+    @DisplayName("Jira is the display name and project keys follow JiraProjectKeys")
+    void describesJiraProjects() {
+        assertEquals("Jira", jiraService.displayName());
+        assertTrue(jiraService.acceptsProjectId("PROJ"));
+        assertFalse(jiraService.acceptsProjectId("mon-projet"));
+        assertFalse(jiraService.acceptsProjectId(null));
+    }
 }
