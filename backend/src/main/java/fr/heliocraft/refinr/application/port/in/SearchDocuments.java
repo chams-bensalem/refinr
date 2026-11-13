@@ -13,6 +13,7 @@ public interface SearchDocuments {
     /**
      * {@code space} null ou vide : tous les espaces lisibles par le compte de la source.
      * @throws InvalidRequestException si l'espace n'a pas le format de la source active, ou si le titre est vide
+     * @throws DocumentSourceUnavailableException si la source n'a pas pu repondre
      */
     List<DocumentSummary> search(String space, String title);
 }

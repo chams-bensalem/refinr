@@ -18,6 +18,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 ### Changed
 - Identifiant de document absent ou vide : `400 documentId is required` au lieu d'un `500` ; identifiant au mauvais
   format pour la source active (Confluence : numérique) : `400 Invalid documentId`, sans appel à la source (#20).
+- Erreurs de la source documentaire (lecture et recherche), Confluence compris : `404` si le document est absent ou non
+  visible pour le compte, `502` si la source refuse les identifiants ou les droits, est en erreur ou injoignable — au
+  lieu d'un `500` générique. Message sûr et utile (outil, identifiant du document, statut HTTP), sans URL ni corps brut.
 
 ### Deprecated
 - `GET /api/v1/confluence/search` (`spaceKey` obligatoire) : alias de `GET /api/v1/documents/search`, inchangé, avec

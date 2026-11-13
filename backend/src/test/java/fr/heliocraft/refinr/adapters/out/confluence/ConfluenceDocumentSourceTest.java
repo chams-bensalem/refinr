@@ -9,6 +9,7 @@ import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.*;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import fr.heliocraft.refinr.application.port.out.DocumentSourceException;
 import fr.heliocraft.refinr.domain.model.DocumentSummary;
 
 import java.io.IOException;
@@ -383,5 +384,53 @@ class ConfluenceDocumentSourceTest {
         assertNull(source.documentUrl("12a"));
         assertNull(source.documentUrl(null));
         assertNull(confluenceService.documentUrl("123"));
+    }
+
+    @Test
+    @DisplayName("Read errors become safe DocumentSourceExceptions: 404 not found, 401/403/5xx unavailable, no URL or body")
+    void readErrorsAreSafe() {
+        record Case(int status, DocumentSourceException.Reason reason, String message) {}
+        for (Case c : List.of(
+                new Case(404, DocumentSourceException.Reason.NOT_FOUND,
+                        "Confluence could not read page 42: not found or not visible to the account (HTTP 404)"),
+                new Case(401, DocumentSourceException.Reason.UNAVAILABLE, "Confluence rejected the credentials (HTTP 401)"),
+                new Case(403, DocumentSourceException.Reason.UNAVAILABLE,
+                        "Confluence could not read page 42: the account lacks the permission (HTTP 403)"),
+                new Case(400, DocumentSourceException.Reason.UNAVAILABLE, "Confluence could not read page 42 (HTTP 400)"))) {
+            mockWebServer.enqueue(new MockResponse().setResponseCode(c.status())
+                    .addHeader("Content-Type", "application/json").setBody("{\"message\":\"secret detail\"}"));
+
+            DocumentSourceException e = assertThrows(DocumentSourceException.class,
+                    () -> confluenceService.getDocumentContent("42"));
+
+            assertEquals(c.reason(), e.reason(), String.valueOf(c.status()));
+            assertEquals(c.message(), e.getMessage());
+        }
+    }
+
+    @Test
+    @DisplayName("Unreachable Confluence and search errors are safe DocumentSourceExceptions too")
+    void unreachableAndSearchErrorsAreSafe() throws IOException {
+        mockWebServer.enqueue(new MockResponse().setResponseCode(403).setBody("{}"));
+        DocumentSourceException search = assertThrows(DocumentSourceException.class,
+                () -> confluenceService.searchDocuments("SPACE", "spec"));
+        assertEquals(DocumentSourceException.Reason.UNAVAILABLE, search.reason());
+        assertEquals("Confluence could not search pages: the account lacks the permission (HTTP 403)", search.getMessage());
+
+        // Un 404 de la recherche (ex. base-url sans /wiki) n'est pas « document introuvable » : source indisponible
+        mockWebServer.enqueue(new MockResponse().setResponseCode(404).setBody("{}"));
+        DocumentSourceException search404 = assertThrows(DocumentSourceException.class,
+                () -> confluenceService.searchDocuments(null, "spec"));
+        assertEquals(DocumentSourceException.Reason.UNAVAILABLE, search404.reason());
+
+        String url = mockWebServer.url("/").toString();
+        mockWebServer.shutdown();
+        ConfluenceDocumentSource down = new ConfluenceDocumentSource(WebClient.builder().baseUrl(url).build(), "");
+        DocumentSourceException unreachable = assertThrows(DocumentSourceException.class,
+                () -> down.getDocumentContent("42"));
+        assertEquals(DocumentSourceException.Reason.UNAVAILABLE, unreachable.reason());
+        assertEquals("Confluence is unreachable", unreachable.getMessage());
+        assertFalse(unreachable.getMessage().contains("localhost"));
+        mockWebServer = new MockWebServer();
     }
 }
