@@ -14,6 +14,9 @@ crée Epic → Story → Subtask dans Jira avec un verdict `ai-ready` / `validat
 - Scan secrets : `gitleaks detect --source . --no-banner` (staged : `gitleaks protect --staged`)
 - Hooks git versionnés (`.githooks/` : pre-commit gitleaks, commit-msg anti-attribution IA) : `git config core.hooksPath .githooks` une fois par clone
 - Config locale : `cp .env.example .env` (secrets) et `cp backend/src/main/resources/application-example.properties backend/src/main/resources/application.properties` (le backend importe `../.env`)
+- Stack Docker : `docker compose up -d --build` puis `curl localhost:8080/api/v1/health` (profil `--profile ollama` optionnel)
+- JDK : Maven sélectionne un JDK 25 par Toolchains (`select-jdk-toolchain`), quel que soit le JDK qui lance `mvn`
+- CI : `.github/workflows/ci.yml` (tests, lint/build, gitleaks, images multi-arch, smoke compose) ; Dependabot : `.github/dependabot.yml`
 - Mettre cette section à jour en cas de changement d'outillage.
 
 ## Architecture (hexagonale)

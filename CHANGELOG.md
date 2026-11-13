@@ -5,6 +5,20 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ## [Unreleased]
 
+### Added — packaging et sécurité
+- Images Docker `refinr-backend` (JRE 25, non-root) et `refinr-frontend` (nginx non-root), multi-arch `amd64`/`arm64`,
+  et `docker-compose.yml` (backend + frontend, profil optionnel `ollama`, configuration par `.env`).
+- `GET /api/v1/health/live` : sonde de vivacité `{"status":"UP"}`, sans appel aux services externes.
+- Clé d'API optionnelle `refinr.security.api-key` (`REFINR_API_KEY`) : si elle est définie, les appels `/api/**`
+  sans en-tête `X-API-Key` valide reçoivent `401` (`/api/v1/health` et `/api/v1/health/live` exceptés). Désactivée par défaut.
+- URL de l'API du frontend configurable à l'exécution (`/config.js`, `REFINR_API_BASE_URL` dans l'image).
+- CI GitHub Actions (tests, lint, build, scan de secrets, build des images, smoke test Compose) et Dependabot.
+
+### Changed — CORS
+- **BREAKING** : CORS n'accepte plus toutes les origines (`*`) : seules celles de `refinr.cors.allowed-origins`
+  (`CORS_ALLOWED_ORIGINS`, défaut `http://localhost:3000`) ; une autre origine reçoit `403`. `*` est refusé au
+  démarrage. Sans effet pour l'interface web (même origine via le proxy Vite ou nginx).
+
 ### Changed — configuration IA (incompatible)
 - Fournisseurs IA configurés par `refinr.llm.analysis.*` et `refinr.llm.verdict.*` (`provider` : `anthropic`,
   `google` ou `openai-compatible`, `base-url`, `model`, `api-key`, `timeout`, `max-output-tokens`…), variables
