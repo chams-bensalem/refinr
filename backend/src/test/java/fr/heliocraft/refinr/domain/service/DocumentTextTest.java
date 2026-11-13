@@ -27,5 +27,10 @@ class DocumentTextTest {
         assertTrue(DocumentText.hasUsefulText("Plain text spec"));
         assertTrue(DocumentText.hasUsefulText("<p>42</p>"));
         assertTrue(DocumentText.hasUsefulText("<p>Créer un élément</p>"));
+        // Macro de code Confluence : son contenu (CDATA) est du texte utile
+        assertTrue(DocumentText.hasUsefulText("<ac:structured-macro ac:name=\"code\"><ac:plain-text-body>"
+                + "<![CDATA[openapi: 3.0.0\npaths:\n  /orders:\n    get: {}]]></ac:plain-text-body></ac:structured-macro>"));
+        assertTrue(DocumentText.hasUsefulText("<ac:plain-text-body><![CDATA[if (a > b) { return a; }]]></ac:plain-text-body>"));
+        assertFalse(DocumentText.hasUsefulText("<ac:plain-text-body><![CDATA[ \n ]]></ac:plain-text-body>"));
     }
 }
