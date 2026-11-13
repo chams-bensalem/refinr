@@ -28,10 +28,14 @@ public class SourceConfiguration {
 
     /** Proprietes obligatoires par source disponible. */
     static final Map<String, List<String>> REQUIRED_PROPERTIES = Map.of(
-            "confluence", List.of("confluence.base-url", "confluence.username", "confluence.token"));
+            "confluence", List.of("confluence.base-url", "confluence.username", "confluence.token"),
+            "bookstack", List.of("bookstack.base-url", "bookstack.token-id", "bookstack.token-secret"));
+
+    /** Valeurs acceptees, triees, pour les messages d'erreur. */
+    static final String ACCEPTED = String.join(", ", REQUIRED_PROPERTIES.keySet().stream().sorted().toList());
 
     /** Sources annoncees pour la v1.2, refusees tant que leur adaptateur n'existe pas. */
-    static final Set<String> PLANNED = Set.of("bookstack", "xwiki");
+    static final Set<String> PLANNED = Set.of("xwiki");
 
     /** Statique : execute avant l'instanciation des beans, donc avant les erreurs de placeholder des adaptateurs. */
     @Bean
@@ -42,13 +46,13 @@ public class SourceConfiguration {
     static void check(Environment environment) {
         String provider = environment.getProperty(PROPERTY, DEFAULT_PROVIDER).toLowerCase(Locale.ROOT);
         if (PLANNED.contains(provider)) {
-            throw new IllegalStateException(PROPERTY + " '" + provider + "' is not available yet: expected "
-                    + DEFAULT_PROVIDER);
+            throw new IllegalStateException(PROPERTY + " '" + provider + "' is not available yet: expected one of "
+                    + ACCEPTED);
         }
         List<String> required = REQUIRED_PROPERTIES.get(provider);
         if (required == null) {
             throw new IllegalStateException("Unknown " + PROPERTY + " '" + environment.getProperty(PROPERTY)
-                    + "': expected one of " + DEFAULT_PROVIDER);
+                    + "': expected one of " + ACCEPTED);
         }
         List<String> missing = required.stream().filter(name -> !environment.containsProperty(name)).toList();
         if (!missing.isEmpty()) {
