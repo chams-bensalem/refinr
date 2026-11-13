@@ -5,6 +5,18 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ## [Unreleased]
 
+## [1.0.1] - Unreleased
+
+Interface web uniquement ; API REST inchangée.
+
+### Changed
+- Page **Analyze** : plus de création en un clic. **Preview** (`POST /api/v1/analyze-preview`) affiche
+  Epics > Stories > Sous-tâches avec, pour chaque story, le badge `ai-ready` / `validation-necessaire` et sa raison ;
+  **Create in Jira** (`POST /api/v1/create-jira` avec le backlog affiché, verdict recalculé par le serveur) mène à la
+  page Results. Un `502` où rien n'a pu être créé affiche aussi les raisons sur Results.
+- Libellés : « CDC » remplacé par « spec » / « requirements document », « Doc to Jira » par « Analyze a spec » dans
+  l'en-tête, titre d'accueil « Turn a Confluence spec into an agent-ready Jira backlog ».
+
 ## [1.0.0] - 2026-11-13
 
 **Initial public release.** Les choix techniques sont consignés dans [DECISIONS.md](DECISIONS.md).
@@ -59,4 +71,5 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`.
 
 [Unreleased]: https://github.com/chams-bensalem/refinr/compare/v1.0.0...HEAD
+[1.0.1]: https://github.com/chams-bensalem/refinr/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/chams-bensalem/refinr/releases/tag/v1.0.0

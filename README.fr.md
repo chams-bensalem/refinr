@@ -152,7 +152,7 @@ Le projet est un monorepo :
 - 📊 **Logs JSON structurés** (Logstash) avec `correlationId` par requête.
 
 ### Interface web
-- 🏠 Page d'accueil, page **Analyze** (saisie de l'ID de page Confluence, suivi des étapes), page **Results** (compteurs Epics / Stories / Subtasks, tickets créés et, en cas de création partielle, éléments non créés avec leur raison).
+- 🏠 Page d'accueil, page **Analyze** (saisie de l'ID de page Confluence, aperçu Epics > Stories > Sous-tâches avec le verdict de chaque story et sa raison, puis création sur confirmation), page **Results** (compteurs Epics / Stories / Subtasks, tickets créés et, en cas de création partielle, éléments non créés avec leur raison).
 - 🟢 Indicateurs d'état des services dans l'en-tête.
 
 ---
@@ -561,10 +561,12 @@ curl "http://localhost:8080/api/v1/confluence/search?spaceKey=SPACE&title=cahier
 ### Via l'interface web
 
 1. Ouvrez <http://localhost:3000> et vérifiez que les indicateurs de santé de l'en-tête sont **verts**.
-2. Cliquez sur **Analyze**.
-3. Collez l'**ID de la page Confluence** et lancez l'analyse.
-4. Suivez les étapes : *lecture Confluence → analyse IA → création Jira*.
-5. Sur la page **Results**, consultez le récapitulatif puis ouvrez votre projet Jira.
+2. Ouvrez **Analyze a spec**.
+3. Collez l'**ID de la page Confluence** et cliquez sur **Preview** : rien n'est encore créé.
+4. Relisez l'aperçu Epics > Stories > Sous-tâches et, pour chaque story, le badge `ai-ready` / `validation-necessaire`
+   et sa raison.
+5. Cliquez sur **Create in Jira** (le verdict est recalculé par le serveur sur ce contenu), puis consultez le
+   récapitulatif sur la page **Results** et ouvrez votre projet Jira.
 
 ### Via l'API (workflow recommandé : prévisualiser puis créer)
 
@@ -770,7 +772,7 @@ Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour 
 - La création n'est pas transactionnelle : un échec en cours de route laisse les tickets déjà créés
   (réponse partielle `created` / `failed`, à relancer pour les seuls éléments en échec).
 - Confluence Cloud et Jira Cloud uniquement ; types de tickets `Epic`, `Story` et `Subtask` requis.
-- L'interface web ne propose pas encore la prévisualisation éditable ni la réévaluation (disponibles par l'API).
+- L'aperçu de l'interface web est en lecture seule et la réévaluation n'y figure pas encore (modification de l'aperçu et réévaluation disponibles par l'API).
 - Pas d'authentification des utilisateurs : clé d'API partagée, ajoutée par le proxy (cf. [Sécurité](#sécurité)).
 - Cache des verdicts en mémoire, local à chaque instance.
 
@@ -782,7 +784,7 @@ Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour 
 - [ ] **v1.2** : **démo hébergée** avec **BYOK** (*bring your own key* : chacun fournit sa propre clé de fournisseur IA),
   vraie authentification des utilisateurs de l'interface et de l'API, `/api/v1/health` détaillé protégé
   (seule la sonde `/health/live` restera publique).
-- [ ] Prévisualisation éditable et réévaluation dans l'interface web.
+- [ ] Modification de l'aperçu et réévaluation dans l'interface web (aperçu en lecture seule depuis la 1.0.1).
 
 ---
 

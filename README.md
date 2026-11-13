@@ -397,8 +397,10 @@ curl "http://localhost:8080/api/v1/confluence/search?spaceKey=SPACE&title=spec"
 # { "success": true, "results": [ { "id": "123456789", "title": "My spec", "url": "https://your-site.atlassian.net/wiki/..." } ] }
 ```
 
-**Web UI**: open <http://localhost:3000>, check the health indicators in the header are green, click **Analyze**,
-paste the page ID, follow the steps (Confluence → AI analysis → Jira) and read the summary on **Results**.
+**Web UI**: open <http://localhost:3000>, check the health indicators in the header are green, open **Analyze a spec**,
+paste the page ID and click **Preview**. Review the Epics > Stories > Sub-tasks and the `ai-ready` /
+`validation-necessaire` badge (with its reason) of each story, then click **Create in Jira** — nothing is created
+before that — and read the summary on **Results**.
 
 **API — preview, edit, then create** (recommended):
 
@@ -559,7 +561,7 @@ Docker and GitHub Actions updates weekly.
 - Creation is not transactional: a failure midway leaves the issues already created (partial response
   `created` / `failed`; re-send only what failed).
 - Confluence Cloud and Jira Cloud only; the `Epic`, `Story` and `Subtask` issue types are required.
-- The web UI does not offer the editable preview or the reassessment yet (both available through the API).
+- The web UI preview is read-only, and reassessment is not in the UI yet (editing the preview and reassessment are available through the API).
 - No user authentication: a shared API key added by the proxy (see [Security](#security)).
 - Verdict cache in memory, local to each instance.
 
@@ -570,7 +572,7 @@ Docker and GitHub Actions updates weekly.
 - [ ] **v1.1** — **OpenProject** as an issue tracker (a new `IssueTrackerPort` adapter).
 - [ ] **v1.2** — **hosted demo** with **BYOK** (bring your own LLM key), real user authentication for the UI and the
   API, detailed `/api/v1/health` protected (only `/health/live` stays public).
-- [ ] Editable preview and reassessment in the web UI.
+- [ ] Editing the preview and reassessment in the web UI (read-only preview since 1.0.1).
 
 ---
 
