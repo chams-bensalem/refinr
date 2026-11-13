@@ -4,7 +4,8 @@
 // Contrat JSON de l'API backend (/api/v1). Champs optionnels : absents ou null selon l'etape (apercu / creation).
 
 export interface AnalyzeRequest {
-    confluencePageId: string;
+    /** Identifiant du document dans la source active (id Confluence ou BookStack, reference XWiki). */
+    documentId: string;
     /** Projet cible du gestionnaire de tickets actif (cle Jira ou identifiant OpenProject) ; absent : projet par defaut. */
     projectKey?: string;
 }
@@ -70,6 +71,8 @@ export interface PreviewResponse {
     success: boolean;
     message: string;
     epics: Epic[];
+    /** Lien vers le document analyse dans la source active, si la source sait le construire. */
+    documentUrl?: string | null;
 }
 
 /** Reponse de analyze-and-create / create-jira : 200 (tout cree) ou 207 (creation partielle). */
@@ -101,8 +104,13 @@ export interface ServiceHealth {
 
 export interface HealthStatus {
     status: 'UP' | 'DEGRADED';
-    /** confluence, gestionnaire de tickets actif (jira ou openproject), ai, aiVerdict eventuel. */
+    /** source active (confluence, bookstack ou xwiki), gestionnaire de tickets actif (jira ou openproject), ai, aiVerdict eventuel. */
     services: Record<string, ServiceHealth>;
+}
+
+/** Source documentaire active de l'instance (GET /source). */
+export interface SourceInfo {
+    name: string;
 }
 
 /** Gestionnaire de tickets actif de l'instance (GET /tracker). */

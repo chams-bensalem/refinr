@@ -6,9 +6,10 @@ import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, createBacklog, previewBacklog } from '../api/client';
 import BacklogPreview from '../components/BacklogPreview';
+import { documentIdHelp, GENERIC_SOURCE, useSourceName } from '../hooks/useSource';
 import { useTrackerName } from '../hooks/useTrackerName';
 import type { Epic } from '../types';
-import { AlertCircle, CheckCircle, Eye, FileText, Loader2, RotateCcw, Send, Sparkles } from 'lucide-react';
+import { AlertCircle, CheckCircle, ExternalLink, Eye, FileText, Loader2, RotateCcw, Send, Sparkles } from 'lucide-react';
 
 function ErrorBox({ title, error, backLabel, onBack, className = 'border-b border-red-100' }: {
     title: string;
@@ -52,6 +53,9 @@ export default function Analyze() {
     const [pageId, setPageId] = useState('');
     const navigate = useNavigate();
     const tracker = useTrackerName();
+    const source = useSourceName();
+    const help = documentIdHelp(source);
+    const page = source === GENERIC_SOURCE ? 'the page' : `the ${source} page`;
 
     // Synchronous lock against a double click or a double Enter: isPending only changes after the next render,
     // so two events in the same tick would both pass a check on isPending.
@@ -84,7 +88,7 @@ export default function Analyze() {
         }
         inFlight.current = true;
         creation.reset();
-        preview.mutate({ confluencePageId: pageId.trim() });
+        preview.mutate({ documentId: pageId.trim() });
     };
 
     const startCreation = () => {
@@ -108,7 +112,7 @@ export default function Analyze() {
                 </div>
                 <h1 className="text-4xl font-bold text-gray-900 mb-3">Analyze a spec</h1>
                 <p className="text-xl text-gray-600">
-                    Preview the backlog drafted from a Confluence requirements document, then create it in {tracker}
+                    Preview the backlog drafted from a requirements document in {source}, then create it in {tracker}
                 </p>
             </div>
 
@@ -129,7 +133,7 @@ export default function Analyze() {
                                 <div className="flex-shrink-0 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
                                     <CheckCircle className="h-4 w-4 text-white" />
                                 </div>
-                                <span className="text-gray-700">Fetching the Confluence page</span>
+                                <span className="text-gray-700">Fetching {page}</span>
                             </div>
                             <div className="flex items-center space-x-3">
                                 <div className="flex-shrink-0 w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center animate-pulse">
@@ -143,6 +147,17 @@ export default function Analyze() {
                     <div className="p-8">
                         <div className="flex flex-wrap items-baseline justify-between gap-2 mb-6">
                             <h2 className="text-2xl font-bold text-gray-900">Backlog preview</h2>
+                            {preview.data?.documentUrl && (
+                                <a
+                                    href={preview.data.documentUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700"
+                                >
+                                    <ExternalLink className="h-4 w-4 mr-1" />
+                                    Open the spec in {source}
+                                </a>
+                            )}
                             <p className="text-sm text-gray-600">
                                 {counts.epics} epic(s) · {counts.stories} stories · {counts.subtasks} sub-tasks ·{' '}
                                 <span className="font-semibold text-green-700">{counts.aiReady} ai-ready</span>
@@ -208,7 +223,7 @@ export default function Analyze() {
                     <form onSubmit={handleSubmit} className="p-8">
                         <div className="mb-8">
                             <label htmlFor="pageId" className="block text-sm font-semibold text-gray-900 mb-3">
-                                Confluence Page ID
+                                {help.label}
                             </label>
                             <div className="relative">
                                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -219,14 +234,14 @@ export default function Analyze() {
                                     id="pageId"
                                     value={pageId}
                                     onChange={(e) => setPageId(e.target.value)}
-                                    placeholder="Enter page ID (e.g., 123456)"
+                                    placeholder={help.placeholder}
                                     className="block w-full pl-12 pr-4 py-4 text-lg border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
                                     required
                                 />
                             </div>
                             <p className="mt-3 text-sm text-gray-500 flex items-center">
                                 <span className="inline-block w-1.5 h-1.5 bg-gray-400 rounded-full mr-2" />
-                                Find the page ID in your Confluence URL
+                                {help.hint}
                             </p>
                         </div>
 
@@ -236,7 +251,7 @@ export default function Analyze() {
                                 What happens next?
                             </h4>
                             <ol className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-blue-800 list-decimal list-inside">
-                                <li>Fetch the spec from Confluence</li>
+                                <li>Fetch the spec from {source}</li>
                                 <li>Draft Epics, Stories and Sub-tasks with AI</li>
                                 <li>Review the preview and each ai-ready verdict</li>
                                 <li>Create the backlog in {tracker} when you confirm</li>
@@ -257,7 +272,7 @@ export default function Analyze() {
 
             <div className="mt-8 text-center">
                 <p className="text-sm text-gray-500">
-                    💡 Tip: make sure your Confluence page is accessible and contains a well-structured requirements document
+                    💡 Tip: make sure the Refinr account can read {page} and that it contains a well-structured requirements document
                 </p>
             </div>
         </div>

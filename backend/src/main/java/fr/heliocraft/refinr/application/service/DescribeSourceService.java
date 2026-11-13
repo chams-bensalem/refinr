@@ -23,4 +23,10 @@ public class DescribeSourceService implements DescribeSource {
     public boolean acceptsSpace(String space) {
         return space != null && !space.isBlank() && documentSource.acceptsSpace(space);
     }
+
+    @Override
+    public String documentUrl(String documentId) {
+        return documentId != null && documentSource.acceptsDocumentId(documentId)
+                ? documentSource.documentUrl(documentId) : null;
+    }
 }

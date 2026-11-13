@@ -33,4 +33,16 @@ class DescribeSourceServiceTest {
         assertFalse(service.acceptsSpace(" "));
         verifyNoInteractions(source);
     }
+
+    @Test
+    @DisplayName("documentUrl comes from the source, only for an id it accepts (no call for an invalid id)")
+    void documentUrl() {
+        when(source.acceptsDocumentId("42")).thenReturn(true);
+        when(source.documentUrl("42")).thenReturn("https://docs.example.com/link/42");
+
+        assertEquals("https://docs.example.com/link/42", service.documentUrl("42"));
+        assertNull(service.documentUrl("x"));
+        assertNull(service.documentUrl(null));
+        verify(source, never()).documentUrl("x");
+    }
 }

@@ -102,7 +102,7 @@ public class BacklogController {
         try {
             String documentId = documentId(request);
             log.info("Received request to analyze {} document: {}", describeSource.displayName(), documentId);
-            return creationResponse(analyzeDocument.analyzeAndCreate(documentId, projectKey));
+            return withDocumentUrl(creationResponse(analyzeDocument.analyzeAndCreate(documentId, projectKey)), documentId);
 
         } catch (InvalidRequestException e) {
             return invalidRequest(e);
@@ -144,6 +144,21 @@ public class BacklogController {
         body.put("failed", result.failed());
         body.put("epics", RestBacklogMapper.toDto(result.epics()));
         return ResponseEntity.status(status).body(body);
+    }
+
+    /**
+     * Ajoute {@code documentUrl} (lien vers le document dans la source active) quand il est connu : ajout
+     * retrocompatible, absent si la source ne sait pas construire le lien.
+     */
+    private ResponseEntity<Map<String, Object>> withDocumentUrl(ResponseEntity<Map<String, Object>> response,
+                                                                String documentId) {
+        String url = describeSource.documentUrl(documentId);
+        if (url == null || response.getBody() == null) {
+            return response;
+        }
+        Map<String, Object> body = new LinkedHashMap<>(response.getBody());
+        body.put("documentUrl", url);
+        return ResponseEntity.status(response.getStatusCode()).body(body);
     }
 
     /** 502 : le modele n'a pas produit de resultat exploitable (sortie invalide apres relances, ou tronquee). */
@@ -192,12 +207,12 @@ public class BacklogController {
             String documentId = documentId(request);
             log.info("Preview request for {} document: {}", describeSource.displayName(), documentId);
             List<Epic> epics = previewBacklog.preview(documentId);
-            
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Preview generated successfully",
-                    "epics", RestBacklogMapper.toDto(epics)
-            ));
+
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("success", true);
+            body.put("message", "Preview generated successfully");
+            body.put("epics", RestBacklogMapper.toDto(epics));
+            return withDocumentUrl(ResponseEntity.ok(body), documentId);
             
         } catch (InvalidRequestException e) {
             return invalidRequest(e);

@@ -2,7 +2,7 @@
 
 # 📄 ➜ 🎯 Refinr
 
-**Refinr transforme une spec Confluence en backlog Jira (Epic → Story → Sous-tâche) et indique, story par story, si un agent de code peut l'implémenter sans décision humaine.**
+**Refinr transforme une spec Confluence, BookStack ou XWiki en backlog Jira ou OpenProject (Epic → Story → Sous-tâche) et indique, story par story, si un agent de code peut l'implémenter sans décision humaine.**
 
 [English](README.md) · **Français**
 
@@ -16,6 +16,8 @@ Epics · User Stories · Sous-tâches · Critères d'acceptation · Story points
 ![Gemini](https://img.shields.io/badge/Gemini-2.5%20Flash-4285F4?logo=googlegemini&logoColor=white)
 ![Jira](https://img.shields.io/badge/Jira-Cloud-0052CC?logo=jira&logoColor=white)
 ![Confluence](https://img.shields.io/badge/Confluence-Cloud-172B4D?logo=confluence&logoColor=white)
+![BookStack](https://img.shields.io/badge/BookStack-v26-0288D1?logo=bookstack&logoColor=white)
+![XWiki](https://img.shields.io/badge/XWiki-18.4%20LTS-E74C3C)
 [![Licence : AGPL-3.0-only](https://img.shields.io/badge/licence-AGPL--3.0--only-blue)](LICENSE)
 
 </div>
@@ -41,7 +43,7 @@ et un doute vaut toujours `validation-necessaire`. Résultat : une file prête p
 
 ```bash
 git clone https://github.com/chams-bensalem/refinr.git && cd refinr
-cp .env.example .env    # renseignez Confluence, Jira et le fournisseur IA
+cp .env.example .env    # renseignez la source documentaire, le gestionnaire de tickets et le fournisseur IA
 docker compose up -d --build   # UI http://localhost:3000 · API http://localhost:8080
 ```
 
@@ -115,7 +117,10 @@ Le projet est un monorepo :
 - 🔌 **Fournisseurs au choix**, configurés séparément pour l'analyse et le verdict : `anthropic` (Claude — ⚠️ *non testé en conditions réelles* : seuls des tests sur serveur HTTP simulé existent, aucun appel à l'API Anthropic n'a encore été fait), `google` (Gemini) ou `openai-compatible` (OpenAI — ⚠️ *non testé en conditions réelles*, comme `anthropic` —, DeepSeek, Mistral, Groq, OpenRouter, Ollama, LiteLLM, vLLM…).
 - 📐 **Sortie validée par JSON Schema** (mode JSON natif du fournisseur quand il existe) ; sortie invalide ⇒ jusqu'à 2 relances avec la liste des erreurs, puis erreur `502` propre. Sortie tronquée par la limite de tokens ⇒ erreur explicite, sans relance. Fournisseur indisponible (après les nouveaux essais) ⇒ `502`.
 - 🚫 **Document vide refusé** : une page sans texte utile (vide, balises vides, images seules) donne un `400` explicite, sans appel à l'IA.
-- 📖 **Lecture Confluence** : récupération du contenu d'une page via son ID (format *storage*) et recherche de pages par espace + titre (CQL).
+- 📖 **Sources documentaires** (une par instance, `source.provider`) : **Confluence Cloud** (défaut), **BookStack** et
+  **XWiki** (v1.2). La page est lue en HTML (inclusions BookStack et macros XWiki comme `{{include}}` / `{{code}}`
+  développées) avec un compte dédié en lecture seule ; recherche par titre dans toute la source ou dans un espace /
+  livre (`GET /api/v1/documents/search`) ; lien vers le document analysé dans l'aperçu (cf. [Sources documentaires](#sources-documentaires)).
 - 🧠 **Découpage Scrum proportionné** : 1 Epic pour un besoin court, un Epic par module pour un cahier des charges complet — sans jamais inventer de fonctionnalités absentes du document.
 - 📝 **User stories normalisées** : format *As a / I want / So that*, titre, description.
 - ✅ **Critères d'acceptation testables** au format *Given / When / Then* (2 à 5 par story).
@@ -145,17 +150,18 @@ Le projet est un monorepo :
   | Appel | Nouvel essai | Détail |
   |---|---|---|
   | Lecture d'une page Confluence | ✅ sur HTTP `429` et `500` | 2 nouveaux essais, après 1 s puis 2 s (`503` et autres erreurs : pas de nouvel essai) |
+  | Lecture et recherche BookStack / XWiki | ✅ sur HTTP `429` et `5xx` | 2 nouveaux essais, après 1 s puis 2 s ; délai de 30 s par appel |
   | Appels IA (analyse, verdict, réévaluation), tous fournisseurs | ✅ sur HTTP `429`, `5xx` (dont `503` de Gemini et `529` d'Anthropic) et fournisseur injoignable | 2 nouveaux essais, `Retry-After` prioritaire (plafonné à 30 s), sinon 2 s puis 8 s à ± 20 % près (configurable : `refinr.llm.*.max-retries`, `retry-base-delay`, `retry-multiplier`, `retry-jitter`, `retry-max-delay`) ; jamais après un délai dépassé (`timeout` : 300 s analyse, 90 s verdict) ni sur une autre erreur `4xx` (`401` : clé refusée) |
   | Sortie IA invalide (JSON illisible ou non conforme au schéma) | ✅ relance **avec la liste des erreurs** | `refinr.llm.max-repair-attempts` (2) relances, puis `502` (`create-jira` : `validation-necessaire`) |
   | Sortie IA tronquée (limite de tokens) | ❌ | erreur explicite `502` : augmenter `max-output-tokens` |
   | Recherche Confluence | ❌ | |
   | **Création Jira** (Epic, Story, Subtask) | ❌ | POST non idempotent : un échec est listé dans la réponse partielle (`created` / `failed`, statut `207` ou `502`), les autres éléments sont créés ; relancez seulement ce qui a échoué |
   | Lecture / mise à jour Jira (`reassess-story`), health check | ❌ | |
-- 🩺 **Health check par port** : état de Confluence, du gestionnaire de tickets actif (Jira ou OpenProject) et de chaque fournisseur IA (clé et modèle vérifiés par une lecture gratuite, présence du modèle Ollama incluse), mis en cache 45 s, sans aucune clé ni URL dans la réponse.
+- 🩺 **Health check par port** : état de la source documentaire active (Confluence, BookStack ou XWiki), du gestionnaire de tickets actif (Jira ou OpenProject) et de chaque fournisseur IA (clé et modèle vérifiés par une lecture gratuite, présence du modèle Ollama incluse), mis en cache 45 s, sans aucune clé ni URL dans la réponse.
 - 📊 **Logs JSON structurés** (Logstash) avec `correlationId` par requête.
 
 ### Interface web
-- 🏠 Page d'accueil, page **Analyze** (saisie de l'ID de page Confluence, aperçu Epics > Stories > Sous-tâches avec le verdict de chaque story et sa raison, puis création sur confirmation), page **Results** (compteurs Epics / Stories / Subtasks, tickets créés et, en cas de création partielle, éléments non créés avec leur raison).
+- 🏠 Page d'accueil, page **Analyze** (saisie de l'identifiant de la page, avec le libellé et l'aide de la source active, aperçu Epics > Stories > Sous-tâches avec le verdict de chaque story et sa raison, puis création sur confirmation), page **Results** (compteurs Epics / Stories / Subtasks, tickets créés et, en cas de création partielle, éléments non créés avec leur raison).
 - 🟢 Indicateurs d'état des services dans l'en-tête.
 
 ---
@@ -168,14 +174,14 @@ sequenceDiagram
     actor U as Utilisateur
     participant F as Frontend (React)
     participant B as Backend Refinr
-    participant C as Confluence Cloud
+    participant C as Source documentaire<br/>(Confluence / BookStack / XWiki)
     participant A as LLM d'analyse<br/>(anthropic / google / openai-compatible)
     participant V as LLM de verdict<br/>(optionnel)
     participant J as Jira Cloud
 
-    U->>F: Saisit l'ID de la page Confluence
+    U->>F: Saisit l'identifiant de la page (ou la référence XWiki)
     F->>B: POST /api/v1/analyze-and-create
-    B->>C: GET /wiki/rest/api/content/{id}?expand=body.storage
+    B->>C: Lecture de la page par son API REST
     C-->>B: Contenu HTML de la page
     B->>A: Prompt « Scrum Master » + document
     A-->>B: JSON {epics: [Epic → Stories → Tasks]} validé par JSON Schema
@@ -195,7 +201,8 @@ sequenceDiagram
 
 **En résumé :**
 
-1. **Lecture** — le backend récupère la page Confluence avec un token API Atlassian (Basic Auth).
+1. **Lecture** — le backend récupère la page dans la source active, en HTML : format *storage* de Confluence (token
+   API Atlassian), HTML de la page BookStack (jeton d'API) ou HTML rendu par XWiki (compte technique).
 2. **Analyse** — le contenu est injecté dans un prompt structuré ; le LLM répond en JSON (mode JSON natif du fournisseur), validé par un JSON Schema ; une sortie invalide est relancée avec la liste des erreurs.
 3. **Verdict** — soit inclus dans l'analyse, soit calculé par un fournisseur dédié, par lots de stories (un appel par lot, verdicts en cache par contenu de story).
 4. **Création** — chaque Epic, Story puis Sous-tâche est créée dans Jira ; la description est convertie en ADF (Atlassian Document Format) et la story reçoit le label `ai-ready` ou `validation-necessaire`.
@@ -223,12 +230,12 @@ flowchart LR
         UC --> P2(["BacklogGeneratorPort"])
         UC --> P3(["ReadinessAssessorPort"])
         UC --> P4(["IssueTrackerPort"])
-        P1 -.- CONF["adapters/out/confluence"]
+        P1 -.- CONF["adapters/out/confluence · bookstack · xwiki"]
         P2 -.- LLM["adapters/out/llm<br/>anthropic · google · openai-compatible"]
         P3 -.- LLM
         P4 -.- JIRA["adapters/out/jira<br/>ADF, labels, story points"]
     end
-    CONF --> C[("Confluence Cloud")]
+    CONF --> C[("Confluence / BookStack / XWiki")]
     LLM --> L[("Fournisseur LLM")]
     JIRA --> J[("Jira Cloud")]
 ```
@@ -253,6 +260,8 @@ refinr/
         │   │   │   ├── in/rest/                     # BacklogController (/api/v1/*), HealthCheckController, DTO JSON
         │   │   │   └── out/
         │   │   │       ├── confluence/              # ConfluenceDocumentSource
+        │   │   │       ├── bookstack/               # BookStackDocumentSource (v1.2)
+        │   │   │       ├── xwiki/                   # XWikiDocumentSource (v1.2)
         │   │   │       ├── jira/                    # JiraIssueTracker : labels, priorité, ADF, réévaluation
         │   │   │       └── llm/                     # Clients anthropic / google / openai-compatible, analyse, verdict par lots, cache, JSON Schema
         │   │   └── config/                          # Câblage des cas d'usage et des fournisseurs LLM, Retry, LoggingFilter (correlationId)
@@ -281,9 +290,11 @@ refinr/
 
 ### Comptes & accès
 
-- Un site **Atlassian Cloud** (`https://<votre-site>.atlassian.net`) avec Confluence et Jira.
-- Un **token API Atlassian** : <https://id.atlassian.com/manage-profile/security/api-tokens>.
-- Les droits de **lecture** sur l'espace Confluence et de **création de tickets** dans le projet Jira.
+- Une **source documentaire** : Confluence Cloud avec un **token API Atlassian**
+  (<https://id.atlassian.com/manage-profile/security/api-tokens>), BookStack (jeton d'API d'un compte dédié) ou XWiki
+  (compte technique dédié) — cf. [Sources documentaires](#sources-documentaires).
+- Un **gestionnaire de tickets** : Jira Cloud (droits de **création de tickets** dans le projet) ou OpenProject
+  (cf. [OpenProject](#openproject)).
 - Le projet Jira doit proposer les types de tickets **`Epic`**, **`Story`** et **`Subtask`**.
 - *(Fournisseur `google`)* une clé **Google AI Studio** : <https://aistudio.google.com/apikey> ; *(fournisseur `anthropic`, non testé en conditions réelles)* une clé API Anthropic.
 
@@ -346,7 +357,10 @@ cp backend/src/main/resources/application-example.properties backend/src/main/re
 ```properties
 server.port=8080
 
-# --- Confluence -------------------------------------------------
+# --- Source documentaire : confluence (défaut), bookstack ou xwiki ---
+source.provider=${SOURCE_PROVIDER:confluence}
+
+# --- Confluence (source.provider=confluence) ---------------------
 confluence.base-url=${CONFLUENCE_BASE_URL:https://your-site.atlassian.net}
 confluence.username=${CONFLUENCE_USERNAME:you@example.com}
 confluence.token=${CONFLUENCE_TOKEN:}
@@ -385,8 +399,16 @@ refinr.llm.verdict.max-output-tokens=4096
 
 | Propriété | Défaut | Description |
 |---|---|---|
+| `source.provider` | `confluence` | Source documentaire de l'instance (une seule par instance) : `confluence`, `bookstack` ou `xwiki`. Valeur inconnue ou propriété absente de la source choisie : arrêt au démarrage avec un message explicite |
+| `bookstack.base-url` | — | URL de BookStack (si `source.provider=bookstack`) |
+| `bookstack.token-id` / `bookstack.token-secret` | — | Jeton d'API du compte Refinr |
+| `bookstack.web-url` | *(vide)* | Adresse web utilisée uniquement pour les liens vers les pages ; vide = `bookstack.base-url` |
+| `xwiki.base-url` | — | URL de XWiki (si `source.provider=xwiki`), en HTTPS |
+| `xwiki.username` / `xwiki.password` | — | Compte technique (HTTP Basic) |
+| `xwiki.web-url` | *(vide)* | Adresse web utilisée uniquement pour les liens vers les pages ; vide = `xwiki.base-url` |
+| `xwiki.wiki` | `xwiki` | Wiki à lire (wiki principal par défaut) |
 | `tracker.provider` | `jira` | Gestionnaire de tickets de l'instance (un seul par instance) : `jira` ou `openproject`. Valeur inconnue ou propriété absente du gestionnaire choisi : arrêt au démarrage avec un message explicite |
-| `confluence.base-url` / `jira.base-url` | — | URL du site Atlassian Cloud (sans `/wiki`) |
+| `confluence.base-url` / `jira.base-url` | — | URL du site Atlassian Cloud (sans `/wiki`) ; `confluence.*` seulement si `source.provider=confluence` |
 | `confluence.username` / `jira.username` | — | E-mail du compte Atlassian |
 | `confluence.token` / `jira.token` | — | Token API Atlassian |
 | `jira.project-key` | — | Clé du projet utilisé si `projectKey` n'est pas fourni |
@@ -448,6 +470,77 @@ Les anciennes clés sont **refusées au démarrage** (message listant la corresp
 | `ai.verdict.timeout-seconds=90` | `refinr.llm.verdict.timeout=90s` |
 
 Les variables d'environnement **du système** ne sont pas contrôlées (une `GEMINI_API_KEY` peut servir à d'autres outils) : seuls les fichiers de configuration et le `.env` le sont.
+
+### Sources documentaires
+
+Refinr lit la spec dans **une seule** source documentaire par instance, choisie par `SOURCE_PROVIDER` : `confluence`
+(défaut), `bookstack` ou `xwiki` (v1.2). Seules les propriétés de la source choisie sont requises : une instance
+BookStack ou XWiki n'a besoin d'aucune variable `CONFLUENCE_*`. Dans chaque outil, utilisez un **compte dédié en
+lecture seule** : Refinr n'écrit jamais dans la source.
+
+#### Confluence
+
+Variables `CONFLUENCE_BASE_URL` (sans `/wiki`), `CONFLUENCE_USERNAME`, `CONFLUENCE_TOKEN` (cf. ci-dessus).
+
+- **Droits** : lecture des espaces qui contiennent les specs.
+- **ID d'une page** : le nombre dans l'URL de la page (cf. [Trouver l'identifiant d'une page](#trouver-lidentifiant-dune-page)) ;
+  `space` de la recherche = clé d'espace.
+
+#### BookStack
+
+Vérifié avec BookStack v26.09 (API REST à jetons). BookStack ne publie **aucune image Docker officielle** : celle qui a
+servi aux tests de Refinr est l'image **communautaire** [`linuxserver/bookstack`](https://hub.docker.com/r/linuxserver/bookstack).
+
+```bash
+SOURCE_PROVIDER=bookstack
+BOOKSTACK_BASE_URL=https://bookstack.example.com   # en Docker, une instance locale : http://host.docker.internal:<port>
+BOOKSTACK_TOKEN_ID=votre-token-id-bookstack
+BOOKSTACK_TOKEN_SECRET=votre-token-secret-bookstack
+BOOKSTACK_WEB_URL=                                 # liens de l'interface ; vide = BOOKSTACK_BASE_URL
+```
+
+- **Compte** : un utilisateur dédié dont le rôle n'a que *Access system API* et le droit *View* sur les pages
+  (*Page : View All*, ou *View* sur les livres à analyser) ; *Book : View All* seulement pour chercher par **slug** de
+  livre. Jeton d'API créé sur la fiche de l'utilisateur (*Settings → Users → {utilisateur} → API Tokens*).
+- **ID d'une page** : sélectionnez du texte de la page ; la bulle affiche le permalien `…/link/42` : **42** est l'ID.
+  Il ne change pas quand la page est renommée.
+- **Recherche dans un livre** : préférez l'**id numérique du livre** comme `space`. Un slug de livre est d'abord
+  résolu et exige *Book : View All* ; un slug inconnu ou invisible donne une recherche vide (avec un avertissement
+  dans les logs du serveur).
+- Contenu lu : le HTML de la page, inclusions BookStack (`{{@id}}`) développées. Une page que le compte ne voit pas
+  répond « introuvable » (`404`) : BookStack ne fait pas la différence.
+
+#### XWiki
+
+Vérifié avec XWiki 18.4 LTS (API REST).
+
+```bash
+SOURCE_PROVIDER=xwiki
+XWIKI_BASE_URL=https://xwiki.example.com     # HTTPS uniquement : le compte utilise HTTP Basic
+XWIKI_USERNAME=refinr_bot                     # lettres, chiffres et _ uniquement
+XWIKI_PASSWORD=votre-mot-de-passe-xwiki
+XWIKI_WEB_URL=                                # liens de l'interface ; vide = XWIKI_BASE_URL
+XWIKI_WIKI=xwiki                              # wiki à lire (wiki principal par défaut)
+```
+
+> ⚠️ **HTTP Basic uniquement derrière HTTPS** : le mot de passe du compte technique accompagne chaque requête.
+>
+> ⚠️ **Retirez le compte de `XWiki.XWikiAllGroup`** (ou restreignez ce groupe) : XWiki y ajoute tout nouvel
+> utilisateur, et ce groupe a par défaut le droit *edit* — donc *view* — sur **tout le wiki**. Donnez ensuite au compte
+> le seul droit **View** sur les espaces à analyser (droits de chaque espace, dans son administration).
+
+- **Identifiant d'une page** : la **référence de la page** de l'onglet *Information*, en bas de la page, par ex.
+  `Specs.Inventaire.WebHome` (préfixe `xwiki:` facultatif). Le chemin de la page `/bin/view/Specs/Inventaire/` écrit
+  avec des points (`Specs.Inventaire`) fonctionne aussi : Refinr essaie la page imbriquée `Specs.Inventaire.WebHome`,
+  puis la page terminale.
+- **Pages renommées suivies** : l'ancienne référence continue de fonctionner (XWiki laisse une redirection, que Refinr suit).
+- Contenu lu : le HTML **rendu par XWiki**, macros exécutées avec les droits du compte (`{{include}}`, `{{code}}`…) ;
+  les blocs d'erreur des macros en échec (message et pile Java) sont retirés avant l'analyse.
+- **Recherche** : sans espace, recherche en base sur le titre (sous-chaîne, insensible à la casse). Avec un espace
+  (ex. `Specs` ou `Specs.Sous`), recherche Solr qui inclut les sous-espaces : **sensible aux accents** (`conges` ne
+  trouve pas « congés ») et **légèrement différée** (une page toute neuve peut mettre quelques secondes à apparaître).
+- Le health n'est `UP` que si XWiki reconnaît le compte : des identifiants faux n'échouent pas chez XWiki, ils
+  basculent silencieusement en accès invité.
 
 ### OpenProject
 
@@ -520,7 +613,7 @@ curl -s http://localhost:8080/api/v1/health | jq
 }
 ```
 
-`DEGRADED` signifie qu'au moins un service est `DOWN` ; le champ `error` donne une cause courte et sans donnée sensible : `HTTP 401` (token invalide), `HTTP 404` (projet introuvable), `unreachable` (service injoignable), `timeout`, `model qwen3:8b not found` (modèle Ollama non téléchargé)… `aiVerdict` apparaît quand un fournisseur de verdict distinct est configuré. Le résultat est gardé en cache `refinr.health.cache-ttl` (45 s). Le détail est dans les logs du backend.
+La clé de la source est celle de la source active (`confluence`, `bookstack` ou `xwiki`). `DEGRADED` signifie qu'au moins un service est `DOWN` ; le champ `error` donne une cause courte et sans donnée sensible : `HTTP 401` (token invalide), `HTTP 404` (projet introuvable), `unreachable` (service injoignable), `timeout`, `model qwen3:8b not found` (modèle Ollama non téléchargé)… `aiVerdict` apparaît quand un fournisseur de verdict distinct est configuré. Le résultat est gardé en cache `refinr.health.cache-ttl` (45 s). Le détail est dans les logs du backend.
 
 En cas d'erreur, les endpoints du backlog (`/api/v1/*`, hors health checks) renvoient `{ "success": false, "error": "<message générique>", "correlationId": "…" }` : jamais le message brut de l'exception ; le `correlationId` permet de retrouver le détail dans les logs.
 
@@ -587,7 +680,7 @@ curl localhost:8080/api/v1/health
 Build de production sans Docker :
 
 ```bash
-(cd backend && mvn clean package && java -jar target/refinr-1.1.0.jar)
+(cd backend && mvn clean package && java -jar target/refinr-1.2.0.jar)
 (cd frontend && npm run build)   # génère frontend/dist/
 ```
 
@@ -595,9 +688,12 @@ Build de production sans Docker :
 
 ## 🧭 Utilisation
 
-### Trouver l'ID d'une page Confluence
+### Trouver l'identifiant d'une page
 
-Ouvrez la page dans Confluence : l'ID est le nombre dans l'URL.
+- **BookStack** : sélectionnez du texte de la page ; l'ID est le nombre du permalien `…/link/42`.
+- **XWiki** : onglet *Information* en bas de la page → *Page reference* (ex. `Specs.Inventaire.WebHome`), ou le chemin
+  `/bin/view/Specs/Inventaire/` écrit avec des points.
+- **Confluence** : ouvrez la page ; l'ID est le nombre dans l'URL.
 
 ```
 https://votre-site.atlassian.net/wiki/spaces/SPACE/pages/123456789/Mon+cahier+des+charges
@@ -607,7 +703,7 @@ https://votre-site.atlassian.net/wiki/spaces/SPACE/pages/123456789/Mon+cahier+de
 Ou recherchez-la via l'API :
 
 ```bash
-curl "http://localhost:8080/api/v1/confluence/search?spaceKey=SPACE&title=cahier"
+curl -G "http://localhost:8080/api/v1/documents/search" --data-urlencode "title=cahier" --data-urlencode "space=SPACE"
 ```
 
 ```json
@@ -618,10 +714,11 @@ curl "http://localhost:8080/api/v1/confluence/search?spaceKey=SPACE&title=cahier
 
 1. Ouvrez <http://localhost:3000> et vérifiez que les indicateurs de santé de l'en-tête sont **verts**.
 2. Ouvrez **Analyze a spec**.
-3. Collez l'**ID de la page Confluence** et cliquez sur **Preview** : rien n'est encore créé.
+3. Collez l'**identifiant de la page** (le libellé et l'aide s'adaptent à la source active) et cliquez sur
+   **Preview** : rien n'est encore créé ; l'aperçu propose un lien vers la page analysée.
 4. Relisez l'aperçu Epics > Stories > Sous-tâches et, pour chaque story, le badge `ai-ready` / `validation-necessaire`
    et sa raison.
-5. Cliquez sur **Create in Jira** (le verdict est recalculé par le serveur sur ce contenu), puis consultez le
+5. Cliquez sur **Create in Jira** (ou OpenProject ; le verdict est recalculé par le serveur sur ce contenu), puis consultez le
    récapitulatif sur la page **Results** et ouvrez votre projet Jira.
 
 ### Via l'API (workflow recommandé : prévisualiser puis créer)
@@ -630,7 +727,7 @@ curl "http://localhost:8080/api/v1/confluence/search?spaceKey=SPACE&title=cahier
 # 1. Prévisualiser la structure sans rien créer
 curl -s -X POST http://localhost:8080/api/v1/analyze-preview \
   -H "Content-Type: application/json" \
-  -d '{"confluencePageId": "123456789"}' > preview.json
+  -d '{"documentId": "123456789"}' > preview.json
 
 # 2. (optionnel) Relire / modifier les epics dans preview.json
 #    (le verdict ai-ready sera recalculé à la création : inutile de modifier aiReady / aiReadyReason)
@@ -645,7 +742,7 @@ Ou en une seule étape, éventuellement dans un autre projet :
 ```bash
 curl -s -X POST http://localhost:8080/api/v1/analyze-and-create \
   -H "Content-Type: application/json" \
-  -d '{"confluencePageId": "123456789", "projectKey": "DEMO"}'
+  -d '{"documentId": "123456789", "projectKey": "DEMO"}'
 ```
 
 ### Débloquer une story `validation-necessaire`
@@ -675,17 +772,25 @@ Base URL : `http://localhost:8080/api/v1`
 
 | Méthode | Endpoint | Corps / paramètres | Description |
 |---|---|---|---|
-| `POST` | `/analyze-and-create` | `{ "confluencePageId": "…", "projectKey": "PROJ" }` *(projectKey optionnel : projet du gestionnaire de tickets actif — clé Jira `^[A-Z][A-Z0-9]{1,9}$`, ou identifiant OpenProject `^[a-z0-9_-]{1,100}$` / id numérique)* | Lit, analyse et crée toute la hiérarchie dans Jira |
-| `POST` | `/analyze-preview` | `{ "confluencePageId": "…" }` | Analyse sans créer de tickets |
+| `POST` | `/analyze-and-create` | `{ "documentId": "…", "projectKey": "PROJ" }` *(documentId : ID de page ou référence XWiki dans la source active ; projectKey optionnel : projet du gestionnaire de tickets actif — clé Jira `^[A-Z][A-Z0-9]{1,9}$`, ou identifiant OpenProject `^[a-z0-9_-]{1,100}$` / id numérique)* | Lit, analyse et crée toute la hiérarchie dans le gestionnaire actif |
+| `POST` | `/analyze-preview` | `{ "documentId": "…" }` | Analyse sans créer de tickets ; `documentUrl` (lien vers la page) ajouté s'il est connu |
 | `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optionnel, même format)* | Crée une structure déjà générée, dans `projectKey` ou le projet par défaut ; verdict `ai-ready` recalculé par le serveur (`aiReady` / `aiReadyReason` du client ignorés) |
 | `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Réévalue une story `validation-necessaire` (`409` si elle ne l'est pas) |
-| `GET` | `/confluence/search` | `?spaceKey=SPACE&title=…` | Recherche de pages Confluence (CQL) : `{ success, results: [{ id, title, url }] }` |
+| `GET` | `/documents/search` | `?title=…&space=…` *(space optionnel : clé d'espace Confluence, id ou slug de livre BookStack, référence d'espace XWiki)* | Recherche par titre dans la source active, 25 résultats au plus : `{ success, results: [{ id, title, url }] }` |
+| `GET` | `/source` | — | Source documentaire active : `{ "name": "Confluence" }`, `"BookStack"` ou `"XWiki"` (utilisé par l'interface web) |
 | `GET` | `/tracker` | — | Gestionnaire de tickets actif : `{ "name": "Jira" }` ou `{ "name": "OpenProject" }` (utilisé par l'interface web) |
-| `GET` | `/health` | — | Santé détaillée Confluence / gestionnaire de tickets actif (`jira` ou `openproject`) / IA (analyse, et verdict s'il est distinct), en cache 45 s |
+| `GET` | `/health` | — | Santé détaillée de la source active (`confluence`, `bookstack` ou `xwiki`) / gestionnaire de tickets actif (`jira` ou `openproject`) / IA (analyse, et verdict s'il est distinct), en cache 45 s |
 | `GET` | `/health/live` | — | Sonde de vivacité `{ "status": "UP" }`, sans appel aux services externes (conteneurs, orchestrateurs) |
 
 **Clé d'API** : si `refinr.security.api-key` (`REFINR_API_KEY`) est définie, chaque appel doit envoyer
 `X-API-Key: <clé>` (`/health` et `/health/live` exceptés) ; sinon `401` `{ "success": false, "error": "Missing or invalid API key", "correlationId": "…" }`.
+**Erreurs de document** (`analyze-*`) : `400` si `documentId` est absent ou mal formé, ou si le document est vide ;
+`404` si la page est introuvable ou invisible pour le compte Refinr ; `502` si la source est indisponible
+(identifiants ou droits refusés, erreur, délai) — avec un message sûr qui cite la page et le statut HTTP, jamais une
+URL ni un corps brut.
+**Alias dépréciés** (toujours acceptés) : `confluencePageId` à la place de `documentId` (les deux avec des valeurs
+différentes → `400`) ; `GET /confluence/search?spaceKey=…&title=…`, qui répond avec les en-têtes `Deprecation` et
+`Link: </api/v1/documents/search>; rel="successor-version"`.
 **CORS** : seules les origines de `refinr.cors.allowed-origins` sont acceptées (plus de `*`).
 **Hôte** : toute requête dont l'en-tête `Host` n'est pas dans `refinr.security.allowed-hosts` reçoit `403`
 `{ "success": false, "error": "Host not allowed", "correlationId": "…" }`, health checks compris.
@@ -809,13 +914,20 @@ Les appels HTTP externes sont simulés avec **OkHttp MockWebServer** : aucun acc
 | `ai: DOWN — HTTP 401` | Clé du fournisseur refusée | Vérifier `LLM_ANALYSIS_API_KEY` / `LLM_VERDICT_API_KEY` |
 | Démarrage refusé : *Obsolete LLM configuration* | Anciennes clés (`ai.provider`, `GEMINI_API_KEY`…) | Renommer selon la correspondance affichée (voir « Migration depuis l'ancienne configuration IA ») |
 | `confluence: DOWN` / `401` | Token ou e-mail Atlassian invalide | Régénérer le token API, vérifier `*.username` |
+| Démarrage refusé : *Missing configuration for source.provider=…* / *Unknown source.provider* | Propriété absente pour la source choisie (`application.properties` local antérieur à la 1.2), ou faute de frappe | Recopier la ligne `source.provider` et le bloc `bookstack.*` / `xwiki.*` depuis `application-example.properties` |
+| `bookstack: DOWN — HTTP 401` / `HTTP 403` | Jeton faux, ou rôle sans *Access system API* | Vérifier `BOOKSTACK_TOKEN_ID` / `BOOKSTACK_TOKEN_SECRET` et le rôle |
+| `xwiki: DOWN — credentials refused (guest access)` | Nom d'utilisateur ou mot de passe faux (XWiki bascule silencieusement en invité) | Vérifier `XWIKI_USERNAME` (sensible à la casse) et `XWIKI_PASSWORD` |
+| `404` *…not found or not visible to the account* | ID ou référence de page faux, ou page invisible pour le compte | Vérifier l'identifiant ([Sources documentaires](#sources-documentaires)) et les droits du compte sur la page |
+| `502` *… rejected the credentials* / *… is unreachable* | Identifiants refusés par la source, source arrêtée ou injoignable | Voir `GET /api/v1/health` |
+| Recherche BookStack dans un livre sans résultat | Slug de livre inconnu ou invisible (exige *Book : View All*) | Utiliser l'id numérique du livre comme `space` |
+| Recherche XWiki dans un espace sans une page attendue | Solr est sensible aux accents et indexe avec quelques secondes de retard | Chercher avec les accents exacts, ou sans `space` (recherche en base) |
 | `jira: DOWN` / `404` | `jira.project-key` inexistant ou inaccessible | Vérifier la clé et les droits du compte |
 | `Failed to create Epic … priority` | Projet team-managed sans champ priorité | `jira.priority-enabled=false` |
 | `issuetype … invalid` | Types `Epic` / `Story` / `Subtask` absents | Vérifier la configuration du projet Jira |
 | `502` *did not produce a valid result* | Sortie IA non conforme au schéma, même après relances | Utiliser un modèle plus capable ; `json-mode=json_schema` si le fournisseur le permet |
 | `502` *output was truncated* | Limite de tokens atteinte | Augmenter `refinr.llm.analysis.max-output-tokens` |
 | `502` *The AI provider is unavailable* | Fournisseur injoignable, clé refusée, quota épuisé ou délai dépassé (après les nouveaux essais) | Voir `GET /api/v1/health` et les logs (`correlationId`) |
-| `400` *The document is empty or contains no text to analyze* | Page Confluence vide, non publiée ou sans texte (images seules) | Publier le contenu de la page, puis relancer |
+| `400` *The document is empty or contains no text to analyze* | Page vide, non publiée ou sans texte (images seules) | Publier le contenu de la page, puis relancer |
 | Toutes les stories en `validation-necessaire` | Fournisseur de verdict injoignable | Vérifier `LLM_VERDICT_BASE_URL` / `LLM_VERDICT_API_KEY` ou vider `LLM_VERDICT_PROVIDER` |
 | `ai: UP` mais chaque analyse échoue : *does not know the model or endpoint (HTTP 404)* | Modèle retiré pour la génération : le health Google ne fait que lire le modèle (`GET /v1beta/models/{modèle}`), qui peut encore répondre pour un modèle retiré | Passer `LLM_ANALYSIS_MODEL` à un modèle actuel (exemple par défaut : `gemini-3.6-flash`) |
 | IA surchargée : *HTTP 503* | Fournisseur saturé (forte demande) | Réessayer quelques minutes plus tard |
@@ -833,12 +945,13 @@ Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour 
 
 ## 🗺️ Limites connues & feuille de route
 
-**Limites actuelles (v1.1)**
+**Limites actuelles (v1.2)**
 
 - La création n'est pas transactionnelle : un échec en cours de route laisse les tickets déjà créés
   (réponse partielle `created` / `failed`, à relancer pour les seuls éléments en échec).
-- Source : Confluence Cloud uniquement ; gestionnaire de tickets : Jira Cloud (types `Epic`, `Story` et `Subtask` requis) ou
-  OpenProject (préparation décrite dans [OpenProject](#openproject)), un seul par instance.
+- Une seule source documentaire par instance (Confluence Cloud, BookStack ou XWiki) et un seul gestionnaire de tickets
+  (Jira Cloud, types `Epic`, `Story` et `Subtask` requis, ou OpenProject, préparation décrite dans
+  [OpenProject](#openproject)) ; pas encore d'envoi de fichier ni de texte collé.
 - L'aperçu de l'interface web est en lecture seule et la réévaluation n'y figure pas encore (modification de l'aperçu et réévaluation disponibles par l'API).
 - Pas d'authentification des utilisateurs : clé d'API partagée, ajoutée par le proxy (cf. [Sécurité](#sécurité)).
 - Cache des verdicts en mémoire, local à chaque instance.
@@ -848,12 +961,14 @@ Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour 
 - [x] **v1.0** : Confluence → Jira, verdict `ai-ready`, fournisseurs `anthropic` / `google` / `openai-compatible`,
   images Docker multi-arch, CI.
 - [x] **v1.1** : **OpenProject** comme gestionnaire de tickets (`tracker.provider=openproject`, nouvel adaptateur de `IssueTrackerPort`).
-- [ ] **v1.2** : **sources documentaires au-delà de Confluence** : envoi de fichier (Markdown, Word, PDF) et texte collé,
-  via de nouveaux adaptateurs de `DocumentSourcePort`.
-- [ ] **v1.3** : **démo hébergée** avec **BYOK** (*bring your own key* : chacun fournit sa propre clé de fournisseur IA),
-  vraie authentification des utilisateurs de l'interface et de l'API, `/api/v1/health` détaillé protégé
-  (seule la sonde `/health/live` restera publique).
-- [ ] Modification de l'aperçu et réévaluation dans l'interface web (aperçu en lecture seule depuis la 1.0.1).
+- [x] **v1.2** : **BookStack** et **XWiki** comme sources documentaires (`source.provider`, nouveaux adaptateurs de
+  `DocumentSourcePort`), `documentId` et `/documents/search` neutres.
+- [ ] Envoi de fichier (Markdown, Word, PDF) et texte collé comme source.
+- [ ] Console d'administration (sources et gestionnaires configurés depuis l'interface, plusieurs sources par instance).
+- [ ] **Linear** et **GitHub Issues** comme gestionnaires de tickets.
+- [ ] **Serveur MCP** pour piloter Refinr depuis un agent de code.
+- [ ] Démo hébergée avec BYOK (*bring your own key*) et vraie authentification des utilisateurs ; modification de
+  l'aperçu et réévaluation dans l'interface web.
 
 ---
 

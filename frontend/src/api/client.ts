@@ -3,7 +3,7 @@
 
 import axios, { isAxiosError } from 'axios';
 import { apiBaseUrl } from '../config';
-import type { AnalyzeRequest, ApiErrorBody, CreationResponse, Epic, HealthStatus, PreviewResponse, TrackerInfo } from '../types';
+import type { AnalyzeRequest, ApiErrorBody, CreationResponse, Epic, HealthStatus, PreviewResponse, SourceInfo, TrackerInfo } from '../types';
 
 const api = axios.create({
     baseURL: apiBaseUrl(),
@@ -36,7 +36,7 @@ function toApiError(error: unknown): ApiError {
     return new ApiError(error instanceof Error ? error.message : 'Unexpected error');
 }
 
-/** Apercu du backlog genere depuis la page Confluence, sans rien creer (verdict ai-ready inclus). */
+/** Apercu du backlog genere depuis le document de la source active, sans rien creer (verdict ai-ready inclus). */
 export const previewBacklog = async (request: AnalyzeRequest): Promise<PreviewResponse> => {
     try {
         const response = await api.post<PreviewResponse>('/analyze-preview', request);
@@ -69,6 +69,16 @@ export const createBacklog = async (epics: Epic[], projectKey?: string): Promise
         throw new ApiError(typeof body?.error === 'string' ? body.error : `Request failed (HTTP ${response.status})`, body);
     } catch (error) {
         throw error instanceof ApiError ? error : toApiError(error);
+    }
+};
+
+/** Nom de la source documentaire active (Confluence, BookStack ou XWiki), pour les libelles. */
+export const getSource = async (): Promise<SourceInfo> => {
+    try {
+        const response = await api.get<SourceInfo>('/source');
+        return response.data;
+    } catch (error) {
+        throw toApiError(error);
     }
 };
 

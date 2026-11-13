@@ -2,7 +2,7 @@
 
 # 📄 ➜ 🎯 Refinr
 
-**Refinr turns a Confluence spec into a Jira backlog (Epic → Story → Sub-task) and tells you, story by story, whether a coding agent can build it without a human decision.**
+**Refinr turns a spec from Confluence, BookStack or XWiki into a Jira or OpenProject backlog (Epic → Story → Sub-task) and tells you, story by story, whether a coding agent can build it without a human decision.**
 
 **English** · [Français](README.fr.md)
 
@@ -13,6 +13,8 @@
 ![Gemini](https://img.shields.io/badge/Gemini-2.5%20Flash-4285F4?logo=googlegemini&logoColor=white)
 ![Jira](https://img.shields.io/badge/Jira-Cloud-0052CC?logo=jira&logoColor=white)
 ![Confluence](https://img.shields.io/badge/Confluence-Cloud-172B4D?logo=confluence&logoColor=white)
+![BookStack](https://img.shields.io/badge/BookStack-v26-0288D1?logo=bookstack&logoColor=white)
+![XWiki](https://img.shields.io/badge/XWiki-18.4%20LTS-E74C3C)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
 
 </div>
@@ -38,7 +40,7 @@ doubt defaults to `validation-necessaire`. You get a queue your agents can pull 
 
 ```bash
 git clone https://github.com/chams-bensalem/refinr.git && cd refinr
-cp .env.example .env           # fill in Confluence, Jira and your LLM provider
+cp .env.example .env           # fill in your document source, your issue tracker and your LLM provider
 docker compose up -d --build   # UI http://localhost:3000 · API http://localhost:8080
 ```
 
@@ -84,6 +86,13 @@ Tried an untested provider? Please report back — see [CONTRIBUTING.md](CONTRIB
 
 ## 🚀 Features
 
+**Document sources (one per instance)**
+- 📚 **Confluence Cloud** (default), **BookStack** and **XWiki** (v1.2) with `source.provider`: the page is read as
+  HTML (BookStack includes and XWiki macros such as `{{include}}` / `{{code}}` expanded), with a dedicated read-only
+  account (see [Document sources](#document-sources)).
+- 🔎 Title search in the whole source or in one space / book (`GET /api/v1/documents/search`), and a link back to the
+  analyzed document in the preview.
+
 **AI analysis of the spec**
 - 🔌 **Pick your provider**, separately for the analysis and for the verdict: `anthropic`, `google` or
   `openai-compatible` (OpenAI, DeepSeek, Mistral, Groq, OpenRouter, Ollama, LiteLLM, vLLM…).
@@ -117,7 +126,7 @@ Tried an untested provider? Please report back — see [CONTRIBUTING.md](CONTRIB
   `created` / `failed` (`207` or `502`) and the remaining issues are still created.
 
 **Operations**
-- 🩺 Health check per outbound port (Confluence, the active tracker, each LLM provider), cached 45 s, never exposing a key or URL.
+- 🩺 Health check per outbound port (the active document source, the active tracker, each LLM provider), cached 45 s, never exposing a key or URL.
 - 📊 Structured JSON logs with a `correlationId` per request; error responses never echo raw exception messages.
 - 🐳 Multi-arch (`amd64` / `arm64`) non-root images, read-only containers, ports bound to `127.0.0.1`, CORS allowlist,
   optional `X-API-Key`, DNS rebinding protection.
@@ -132,14 +141,14 @@ sequenceDiagram
     actor U as User
     participant F as Frontend (React)
     participant B as Refinr backend
-    participant C as Confluence Cloud
+    participant C as Document source<br/>(Confluence / BookStack / XWiki)
     participant A as Analysis LLM<br/>(anthropic / google / openai-compatible)
     participant V as Verdict LLM<br/>(optional)
     participant J as Jira Cloud
 
-    U->>F: Enters the Confluence page ID
+    U->>F: Enters the page ID (or XWiki page reference)
     F->>B: POST /api/v1/analyze-and-create
-    B->>C: GET /wiki/rest/api/content/{id}?expand=body.storage
+    B->>C: Read the page through its REST API
     C-->>B: Page HTML
     B->>A: "Scrum Master" prompt + document
     A-->>B: JSON {epics: [Epic → Stories → Tasks]} validated by JSON Schema
@@ -157,7 +166,8 @@ sequenceDiagram
     F-->>U: Results
 ```
 
-1. **Read** — the backend fetches the Confluence page with an Atlassian API token (Basic Auth).
+1. **Read** — the backend fetches the page from the active source as HTML: Confluence storage format (Atlassian API
+   token), BookStack page HTML (API token) or the HTML rendered by XWiki (technical account).
 2. **Analyze** — the content goes into a structured prompt; the LLM answers in JSON, validated by a JSON Schema;
    invalid output is sent back with the list of errors.
 3. **Verdict** — either part of the analysis, or computed by a dedicated provider, in batches.
@@ -171,8 +181,9 @@ sequenceDiagram
 ## 🧱 Architecture
 
 Hexagonal (ports & adapters): the domain and the use cases are plain Java, with no Spring, HTTP client or JSON library
-(enforced by ArchUnit tests); every external service sits behind a port. `IssueTrackerPort` stays tracker-agnostic,
-which is what makes the OpenProject adapter of v1.1 possible.
+(enforced by ArchUnit tests); every external service sits behind a port. `IssueTrackerPort` and `DocumentSourcePort`
+stay tool-agnostic, which is what makes the OpenProject adapter of v1.1 and the BookStack and XWiki adapters of v1.2
+possible.
 
 ```mermaid
 flowchart LR
@@ -189,12 +200,12 @@ flowchart LR
         UC --> P2(["BacklogGeneratorPort"])
         UC --> P3(["ReadinessAssessorPort"])
         UC --> P4(["IssueTrackerPort"])
-        P1 -.- CONF["adapters/out/confluence"]
+        P1 -.- CONF["adapters/out/confluence · bookstack · xwiki"]
         P2 -.- LLM["adapters/out/llm<br/>anthropic · google · openai-compatible"]
         P3 -.- LLM
         P4 -.- JIRA["adapters/out/jira<br/>ADF, labels, story points"]
     end
-    CONF --> C[("Confluence Cloud")]
+    CONF --> C[("Confluence / BookStack / XWiki")]
     LLM --> L[("LLM provider")]
     JIRA --> J[("Jira Cloud")]
 ```
@@ -205,7 +216,7 @@ flowchart LR
 | [`frontend/`](frontend) | Web UI | React 18 · TypeScript · Vite · Tailwind · TanStack Query |
 
 Package layout under `backend/src/main/java/fr/heliocraft/refinr/`: `domain/` (model, rules), `application/`
-(`port/in`, `port/out`, `service`), `adapters/in/rest`, `adapters/out/{confluence,jira,llm}`, `config/` (wiring,
+(`port/in`, `port/out`, `service`), `adapters/in/rest`, `adapters/out/{confluence,bookstack,xwiki,jira,openproject,llm}`, `config/` (wiring,
 LLM providers, retry, HTTP security, `correlationId`). Technical choices are recorded in [DECISIONS.md](DECISIONS.md) (French).
 
 ---
@@ -220,10 +231,11 @@ LLM providers, retry, HTTP security, `correlationId`). Technical choices are rec
 | **Node.js** + npm | 22.12+ (reference: `.nvmrc`) | Frontend |
 | **Ollama** | recent | Optional local LLM (the default provider) |
 
-- An **Atlassian Cloud** site (`https://<your-site>.atlassian.net`) with Confluence and Jira, and an
-  [Atlassian API token](https://id.atlassian.com/manage-profile/security/api-tokens).
-- Read access to the Confluence space, issue creation rights in the Jira project, which must offer the **`Epic`**,
-  **`Story`** and **`Subtask`** issue types.
+- A **document source**: Confluence Cloud with an
+  [Atlassian API token](https://id.atlassian.com/manage-profile/security/api-tokens), BookStack (API token of a
+  dedicated account) or XWiki (dedicated technical account) — see [Document sources](#document-sources).
+- An **issue tracker**: Jira Cloud (issue types **`Epic`**, **`Story`** and **`Subtask`**, issue creation rights) or
+  OpenProject (see [OpenProject](#openproject)).
 - For `google`: a [Google AI Studio key](https://aistudio.google.com/apikey); for `anthropic` or a hosted
   `openai-compatible` service: that provider's key.
 - The default `qwen3:8b` needs about **8 GB of free RAM/VRAM**; on a smaller machine pick a lighter model or a hosted provider.
@@ -299,8 +311,79 @@ JIRA_STORY_POINTS_FIELD=       # e.g. customfield_10016; empty = story points no
   estimate* (team-managed) or *Story Points* (company-managed), often `customfield_10016`. The field must be on the
   Story creation screen.
 
-Confluence takes the same three variables (`CONFLUENCE_BASE_URL`, `CONFLUENCE_USERNAME`, `CONFLUENCE_TOKEN`, base URL
-without `/wiki`).
+### Document sources
+
+Refinr reads the spec from **one** document source per instance, selected with `SOURCE_PROVIDER`: `confluence`
+(default), `bookstack` or `xwiki` (v1.2). Only the properties of the chosen source are required: an instance on
+BookStack or XWiki needs no `CONFLUENCE_*` variable. In every tool, use a **dedicated read-only account**: Refinr
+never writes to the source.
+
+#### Confluence
+
+```bash
+SOURCE_PROVIDER=confluence          # default
+CONFLUENCE_BASE_URL=https://your-site.atlassian.net   # without /wiki
+CONFLUENCE_USERNAME=you@example.com
+CONFLUENCE_TOKEN=your-atlassian-api-token
+```
+
+- **Rights**: read access to the spaces holding your specs.
+- **Page ID**: the number in the page URL (`…/wiki/spaces/SPACE/pages/123456789/My+spec`). Search `space` = space key.
+
+#### BookStack
+
+Checked against BookStack v26.09 (REST API with tokens). BookStack publishes **no official Docker image**: the one
+used to test Refinr is the **community** image [`linuxserver/bookstack`](https://hub.docker.com/r/linuxserver/bookstack).
+
+```bash
+SOURCE_PROVIDER=bookstack
+BOOKSTACK_BASE_URL=https://bookstack.example.com   # in Docker, a local instance is http://host.docker.internal:<port>
+BOOKSTACK_TOKEN_ID=your-bookstack-token-id
+BOOKSTACK_TOKEN_SECRET=your-bookstack-token-secret
+BOOKSTACK_WEB_URL=                                 # links in the UI; empty = BOOKSTACK_BASE_URL
+```
+
+- **Account**: a dedicated user with a role holding only *Access system API* and *View* on pages (*Page: View All*,
+  or *View* on the books to analyze); add *Book: View All* only if you search by book **slug**. API token created on
+  the user's profile (*Settings → Users → {user} → API Tokens*).
+- **Page ID**: select some text on the page: the bubble shows the permalink `…/link/42`, and **42** is the ID. It
+  does not change when the page is renamed.
+- **Search in a book**: prefer the **numeric book ID** as `space`. A book slug is resolved first and needs
+  *Book: View All*; an unknown or invisible slug gives an empty result (with a warning in the server logs).
+- Content read: the page HTML, BookStack includes (`{{@id}}`) expanded. A page the account cannot see answers
+  *not found* (`404`): BookStack does not tell the difference.
+
+#### XWiki
+
+Checked against XWiki 18.4 LTS (REST API).
+
+```bash
+SOURCE_PROVIDER=xwiki
+XWIKI_BASE_URL=https://xwiki.example.com     # HTTPS only: the account uses HTTP Basic
+XWIKI_USERNAME=refinr_bot                     # letters, digits and _ only
+XWIKI_PASSWORD=your-xwiki-password
+XWIKI_WEB_URL=                                # links in the UI; empty = XWIKI_BASE_URL
+XWIKI_WIKI=xwiki                              # wiki to read (main wiki by default)
+```
+
+> ⚠️ **HTTP Basic only behind HTTPS**: the technical account's password travels with every request.
+>
+> ⚠️ **Remove the account from `XWiki.XWikiAllGroup`** (or restrict that group): XWiki adds every new user to it,
+> and by default it has *edit* — hence *view* — on the **whole wiki**. Then grant the account only the **View** right
+> on the spaces to analyze (rights of each space, in its administration).
+
+- **Page ID**: the **page reference** of the *Information* tab at the bottom of the page, e.g.
+  `Specs.Inventory.WebHome` (`xwiki:` prefix optional). The page path `/bin/view/Specs/Inventory/` written with dots
+  (`Specs.Inventory`) also works: Refinr tries the nested page `Specs.Inventory.WebHome`, then the terminal page.
+- **Renamed pages are followed**: the old reference keeps working (XWiki leaves a redirect, which Refinr follows).
+- Content read: the HTML **rendered by XWiki**, macros executed with the account's rights (`{{include}}`,
+  `{{code}}`…); the error blocks of failed macros (message and Java stack trace) are removed before the analysis.
+- **Search**: without a space, a database title search (substring, case-insensitive). With a space (e.g. `Specs` or
+  `Specs.Sub`), a Solr search that includes sub-spaces: **accent-sensitive** (`conges` does not find *congés*) and
+  **slightly delayed** (a brand-new page can take a few seconds to appear).
+- The health check is `UP` only if XWiki recognizes the account: wrong credentials do not fail on XWiki, they fall
+  back to guest access silently.
+
 
 ### OpenProject
 
@@ -350,8 +433,16 @@ How the backlog maps to OpenProject:
 
 | Property | Default | Description |
 |---|---|---|
+| `source.provider` | `confluence` | Document source of the instance (one per instance): `confluence`, `bookstack` or `xwiki`. Unknown value or missing property of the chosen source: startup fails with an explicit message |
+| `bookstack.base-url` | — | BookStack URL (when `source.provider=bookstack`) |
+| `bookstack.token-id` / `bookstack.token-secret` | — | API token of the Refinr account |
+| `bookstack.web-url` | *(empty)* | Web address used only for the links to pages; empty = `bookstack.base-url` |
+| `xwiki.base-url` | — | XWiki URL (when `source.provider=xwiki`), HTTPS |
+| `xwiki.username` / `xwiki.password` | — | Technical account (HTTP Basic) |
+| `xwiki.web-url` | *(empty)* | Web address used only for the links to pages; empty = `xwiki.base-url` |
+| `xwiki.wiki` | `xwiki` | Wiki to read (main wiki by default) |
 | `tracker.provider` | `jira` | Issue tracker of the instance (one per instance): `jira` or `openproject`. Unknown value or missing property of the chosen tracker: startup fails with an explicit message |
-| `confluence.base-url` / `jira.base-url` | — | Atlassian Cloud site URL (without `/wiki`) |
+| `confluence.base-url` / `jira.base-url` | — | Atlassian Cloud site URL (without `/wiki`); `confluence.*` only when `source.provider=confluence` |
 | `confluence.username` / `jira.username` | — | Atlassian account e-mail |
 | `confluence.token` / `jira.token` | — | Atlassian API token |
 | `jira.project-key` | — | Project used when the request sets no `projectKey` |
@@ -438,24 +529,25 @@ ollama serve && ollama pull qwen3:8b                 # 1. local LLM (default pro
 (cd frontend && npm install && npm run dev)           # 3. UI  → http://localhost:3000 (Vite proxies /api)
 ```
 
-Production build: `(cd backend && mvn clean package && java -jar target/refinr-1.1.0.jar)` and
+Production build: `(cd backend && mvn clean package && java -jar target/refinr-1.2.0.jar)` and
 `(cd frontend && npm run build)` (output in `frontend/dist/`).
 
 ---
 
 ## 🧭 Usage
 
-**Find the page ID**: it is the number in the Confluence URL
-(`https://your-site.atlassian.net/wiki/spaces/SPACE/pages/123456789/My+spec`), or search for it:
+**Find the page ID**: see [Document sources](#document-sources) for each tool (Confluence: the number in the URL;
+BookStack: the number of the permalink; XWiki: the page reference), or search by title, in the whole source or in
+one space / book:
 
 ```bash
-curl "http://localhost:8080/api/v1/confluence/search?spaceKey=SPACE&title=spec"
+curl -G "http://localhost:8080/api/v1/documents/search" --data-urlencode "title=spec" --data-urlencode "space=SPACE"
 # { "success": true, "results": [ { "id": "123456789", "title": "My spec", "url": "https://your-site.atlassian.net/wiki/..." } ] }
 ```
 
 **Web UI**: open <http://localhost:3000>, check the health indicators in the header are green, open **Analyze a spec**,
 paste the page ID and click **Preview**. Review the Epics > Stories > Sub-tasks and the `ai-ready` /
-`validation-necessaire` badge (with its reason) of each story, then click **Create in Jira** — nothing is created
+`validation-necessaire` badge (with its reason) of each story, then click **Create in Jira** (or OpenProject) — nothing is created
 before that — and read the summary on **Results**.
 
 **API — preview, edit, then create** (recommended):
@@ -463,7 +555,7 @@ before that — and read the summary on **Results**.
 ```bash
 # 1. Preview the structure without creating anything
 curl -s -X POST http://localhost:8080/api/v1/analyze-preview \
-  -H "Content-Type: application/json" -d '{"confluencePageId": "123456789"}' > preview.json
+  -H "Content-Type: application/json" -d '{"documentId": "123456789"}' > preview.json
 
 # 2. (optional) edit the epics in preview.json — the ai-ready verdict is recomputed at creation
 
@@ -472,7 +564,7 @@ jq '.epics' preview.json | curl -s -X POST "http://localhost:8080/api/v1/create-
   -H "Content-Type: application/json" -d @-
 ```
 
-Or in one step: `POST /api/v1/analyze-and-create` with `{"confluencePageId": "123456789", "projectKey": "DEMO"}`.
+Or in one step: `POST /api/v1/analyze-and-create` with `{"documentId": "123456789", "projectKey": "DEMO"}`.
 
 **Unblock a `validation-necessaire` story**:
 
@@ -497,19 +589,26 @@ Base URL: `http://localhost:8080/api/v1`
 
 | Method | Endpoint | Body / parameters | Description |
 |---|---|---|---|
-| `POST` | `/analyze-and-create` | `{ "confluencePageId": "…", "projectKey": "PROJ" }` *(projectKey optional: project of the active tracker — Jira key `^[A-Z][A-Z0-9]{1,9}$`, or OpenProject identifier `^[a-z0-9_-]{1,100}$` / numeric id)* | Reads, analyzes and creates the whole hierarchy in Jira |
-| `POST` | `/analyze-preview` | `{ "confluencePageId": "…" }` | Analyzes without creating issues |
+| `POST` | `/analyze-and-create` | `{ "documentId": "…", "projectKey": "PROJ" }` *(documentId: page ID or XWiki reference of the active source; projectKey optional: project of the active tracker — Jira key `^[A-Z][A-Z0-9]{1,9}$`, or OpenProject identifier `^[a-z0-9_-]{1,100}$` / numeric id)* | Reads, analyzes and creates the whole hierarchy in the active tracker |
+| `POST` | `/analyze-preview` | `{ "documentId": "…" }` | Analyzes without creating issues; `documentUrl` (link to the page) added when known |
 | `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optional, same format)* | Creates a generated structure; the server recomputes the verdict (client `aiReady` / `aiReadyReason` ignored) |
 | `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Reassesses a `validation-necessaire` story (`409` if it is not one) |
-| `GET` | `/confluence/search` | `?spaceKey=SPACE&title=…` | Confluence page search (CQL): `{ success, results: [{ id, title, url }] }` |
+| `GET` | `/documents/search` | `?title=…&space=…` *(space optional: Confluence space key, BookStack book ID or slug, XWiki space reference)* | Title search in the active source, 25 results at most: `{ success, results: [{ id, title, url }] }` |
+| `GET` | `/source` | — | Active document source: `{ "name": "Confluence" }`, `"BookStack"` or `"XWiki"` (used by the web UI) |
 | `GET` | `/tracker` | — | Active issue tracker: `{ "name": "Jira" }` or `{ "name": "OpenProject" }` (used by the web UI) |
-| `GET` | `/health` | — | Detailed health of Confluence / the active tracker (`jira` or `openproject`) / LLM (analysis, and verdict when separate), cached 45 s |
+| `GET` | `/health` | — | Detailed health of the active source (`confluence`, `bookstack` or `xwiki`) / the active tracker (`jira` or `openproject`) / LLM (analysis, and verdict when separate), cached 45 s |
 | `GET` | `/health/live` | — | Liveness probe `{ "status": "UP" }`, no external call |
 
 - **API key**: when `REFINR_API_KEY` is set, send `X-API-Key: <key>` (`/health` and `/health/live` excepted), otherwise `401`.
 - **CORS**: only the origins in `refinr.cors.allowed-origins`. **Host**: a `Host` not in `refinr.security.allowed-hosts` gets `403`.
 - **Errors**: `{ "success": false, "error": "<generic message>", "correlationId": "…" }` — never the raw exception;
   the `correlationId` points to the details in the logs.
+- **Document errors** (`analyze-*`): `400` missing or malformed `documentId`, or empty document; `404` page not found
+  or not visible to the Refinr account; `502` source unavailable (credentials or rights refused, error, timeout) —
+  with a safe message naming the page and the HTTP status, never a URL or a raw body.
+- **Deprecated aliases** (still accepted): `confluencePageId` instead of `documentId` (both with different values →
+  `400`); `GET /confluence/search?spaceKey=…&title=…`, answered with the `Deprecation` and
+  `Link: </api/v1/documents/search>; rel="successor-version"` headers.
 
 **Creation responses** (`analyze-and-create`, `create-jira`):
 
@@ -536,7 +635,7 @@ Base URL: `http://localhost:8080/api/v1`
 }
 ```
 
-**Retries**: Confluence page reads (`429`, `500`: 2 retries, 1 s then 2 s) and LLM calls (`429`, `5xx`, unreachable:
+**Retries**: document source reads (Confluence `429`, `500`; BookStack and XWiki `429`, `5xx`: 2 retries, 1 s then 2 s) and LLM calls (`429`, `5xx`, unreachable:
 2 retries, `Retry-After` first, capped at 30 s, never after a timeout) are retried. **Jira issue creation is never
 retried** — a `POST` is not idempotent and a retry after a server-side success would duplicate the issue; failures
 go to `failed` and you re-send only those.
@@ -600,6 +699,13 @@ Docker and GitHub Actions updates weekly.
 | `ai: DOWN — HTTP 401` | Provider key refused | Check `LLM_ANALYSIS_API_KEY` / `LLM_VERDICT_API_KEY` |
 | Startup refused: *Obsolete LLM configuration* | Pre-1.0 keys (`ai.provider`, `GEMINI_API_KEY`…) | Rename them as the message says |
 | `confluence: DOWN` / `401` | Invalid Atlassian token or e-mail | Regenerate the token, check `*_USERNAME` |
+| Startup refused: *Missing configuration for source.provider=…* / *Unknown source.provider* | A property of the chosen source is absent (local `application.properties` older than 1.2), or a typo | Copy the `source.provider` line and the `bookstack.*` / `xwiki.*` block from `application-example.properties` |
+| `bookstack: DOWN — HTTP 401` / `HTTP 403` | Wrong token, or the role lacks *Access system API* | Check `BOOKSTACK_TOKEN_ID` / `BOOKSTACK_TOKEN_SECRET` and the role |
+| `xwiki: DOWN — credentials refused (guest access)` | Wrong user name or password (XWiki falls back to guest silently) | Check `XWIKI_USERNAME` (case-sensitive) and `XWIKI_PASSWORD` |
+| `404` *…not found or not visible to the account* | Wrong page ID / reference, or the account cannot view the page | Check the ID ([Document sources](#document-sources)) and the account's rights on the page |
+| `502` *… rejected the credentials* / *… is unreachable* | Source credentials refused, source down or unreachable | See `GET /api/v1/health` |
+| BookStack search in a book returns nothing | Book slug unknown or not visible (needs *Book: View All*) | Use the numeric book ID as `space` |
+| XWiki search in a space misses a page | Solr is accent-sensitive and indexes a few seconds late | Search with the exact accents, or without `space` (database search) |
 | `jira: DOWN` / `404` | Unknown or inaccessible project key | Check the key and the account's permissions |
 | `Field 'priority' cannot be set` | Team-managed project | `JIRA_PRIORITY_ENABLED=false` |
 | `issuetype … invalid` | `Epic` / `Story` / `Subtask` missing | Check the Jira project's issue types |
@@ -623,12 +729,13 @@ Docker and GitHub Actions updates weekly.
 
 ## 🗺️ Limitations & roadmap
 
-**Current limitations (v1.1)**
+**Current limitations (v1.2)**
 
 - Creation is not transactional: a failure midway leaves the issues already created (partial response
   `created` / `failed`; re-send only what failed).
-- Confluence Cloud only as a source; Jira Cloud (`Epic`, `Story` and `Subtask` issue types required) or OpenProject
-  (setup in [OpenProject](#openproject)) as the tracker, one per instance.
+- One document source per instance (Confluence Cloud, BookStack or XWiki) and one tracker per instance (Jira Cloud,
+  `Epic`, `Story` and `Subtask` issue types required, or OpenProject, setup in [OpenProject](#openproject)); no file
+  upload or pasted text yet.
 - The web UI preview is read-only, and reassessment is not in the UI yet (editing the preview and reassessment are available through the API).
 - No user authentication: a shared API key added by the proxy (see [Security](#security)).
 - Verdict cache in memory, local to each instance.
@@ -638,11 +745,14 @@ Docker and GitHub Actions updates weekly.
 - [x] **v1.0** — Confluence → Jira, `ai-ready` verdict, `anthropic` / `google` / `openai-compatible` providers,
   multi-arch Docker images, CI.
 - [x] **v1.1** — **OpenProject** as an issue tracker (`tracker.provider=openproject`, a new `IssueTrackerPort` adapter).
-- [ ] **v1.2** — **document sources beyond Confluence**: file upload (Markdown, Word, PDF) and pasted text, through new
-  `DocumentSourcePort` adapters.
-- [ ] **v1.3** — **hosted demo** with **BYOK** (bring your own LLM key), real user authentication for the UI and the
-  API, detailed `/api/v1/health` protected (only `/health/live` stays public).
-- [ ] Editing the preview and reassessment in the web UI (read-only preview since 1.0.1).
+- [x] **v1.2** — **BookStack** and **XWiki** as document sources (`source.provider`, new `DocumentSourcePort`
+  adapters), neutral `documentId` and `/documents/search`.
+- [ ] File upload (Markdown, Word, PDF) and pasted text as a source.
+- [ ] Administration console (sources and trackers configured from the UI, several sources per instance).
+- [ ] **Linear** and **GitHub Issues** as issue trackers.
+- [ ] **MCP server** to drive Refinr from a coding agent.
+- [ ] Hosted demo with BYOK (bring your own LLM key) and real user authentication; editing the preview and
+  reassessment in the web UI.
 
 ---
 

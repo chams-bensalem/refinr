@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -53,5 +54,15 @@ class ConfluenceHealthTest {
         assertEquals("HTTP 401", health.details().get("error"));
         assertFalse(health.toString().contains("token=abc"));
         assertFalse(health.toString().contains(String.valueOf(server.getPort())));
+    }
+
+    @Test
+    @DisplayName("DOWN without any call when confluence.base-url is empty")
+    void emptyBaseUrl() {
+        ConfluenceDocumentSource noBaseUrl = new ConfluenceDocumentSource(WebClient.create(server.url("/").toString()), " ");
+
+        assertEquals(List.of(ComponentHealth.down("confluence", "confluence.base-url not set", java.util.Map.of())),
+                noBaseUrl.health());
+        assertEquals(0, server.getRequestCount());
     }
 }
