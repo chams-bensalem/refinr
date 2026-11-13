@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: 2026 Chams Bensalem
+# SPDX-License-Identifier: AGPL-3.0-only
 # Sourced by the nginx entrypoint before the templates are rendered.
 # REFINR_ALLOWED_HOSTS (comma-separated, ports ignored) -> REFINR_SERVER_NAMES (space-separated nginx server_name list).
 # Fails the container start on an empty list, '*' or a character that could alter the nginx configuration.

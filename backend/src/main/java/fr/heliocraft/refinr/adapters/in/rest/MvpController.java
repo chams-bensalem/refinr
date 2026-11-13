@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Chams Bensalem
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package fr.heliocraft.refinr.adapters.in.rest;
 
 import fr.heliocraft.refinr.adapters.in.rest.dto.EpicDto;

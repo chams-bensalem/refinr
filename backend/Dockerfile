@@ -1,4 +1,6 @@
 # syntax=docker/dockerfile:1
+# SPDX-FileCopyrightText: 2026 Chams Bensalem
+# SPDX-License-Identifier: AGPL-3.0-only
 # Refinr backend: Spring Boot on a Java 25 JRE, non-root (multi-arch: linux/amd64, linux/arm64).
 # Configuration comes from environment variables only (see .env.example); no secret is baked into the image.
 

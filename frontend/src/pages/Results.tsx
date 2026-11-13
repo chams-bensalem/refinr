@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Chams Bensalem
+// SPDX-License-Identifier: AGPL-3.0-only
+
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, FileText, ListChecks, Target, XCircle } from 'lucide-react';
 import type { CreationResponse, IssueType } from '../types';

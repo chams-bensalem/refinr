@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: 2026 Chams Bensalem
+# SPDX-License-Identifier: AGPL-3.0-only
 # Refuses commit messages carrying AI attribution trailers.
 # Enable once per clone:  git config core.hooksPath .githooks
 if grep -qiE 'Co-Authored-By:[[:space:]]*Claude|Generated with Claude Code|Claude-Session:' "$1"; then

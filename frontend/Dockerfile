@@ -1,4 +1,6 @@
 # syntax=docker/dockerfile:1
+# SPDX-FileCopyrightText: 2026 Chams Bensalem
+# SPDX-License-Identifier: AGPL-3.0-only
 # Refinr frontend: static build served by an unprivileged nginx (multi-arch: linux/amd64, linux/arm64).
 
 # --- Build: run on the build machine's own architecture (the output is plain static files) ---

@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Chams Bensalem
+# SPDX-License-Identifier: AGPL-3.0-only
 # Refinr frontend - generated at container start by the nginx image (envsubst on REFINR_* variables only).
 #   REFINR_BACKEND_URL   backend reached by the /api proxy (default http://backend:8080)
 #   REFINR_API_BASE_URL  API base URL used by the browser, served in /config.js (default /api/v1, same origin)
