@@ -5,6 +5,25 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-13
+
+Première version publique. Projet issu d'un MVP interne, réécrit en monorepo (backend Java 25 / Spring Boot 4,
+frontend React) ; les entrées ci-dessous décrivent les écarts avec ce MVP.
+
+### Added — licence et documentation
+- Licence **AGPL-3.0-only** (`LICENSE`, texte officiel de la FSF) ; en-tête `SPDX-License-Identifier: AGPL-3.0-only`
+  (et `SPDX-FileCopyrightText`) dans chaque fichier source, contrôlé par `scripts/check-spdx.sh` (hook pre-commit
+  et job CI `license-headers`). Licence déclarée dans `pom.xml` (remplace l'Apache-2.0 hérité du parent Spring Boot)
+  et `package.json`.
+- Contributor License Agreement (`CLA.md`), signé sur chaque pull request par CLA Assistant.
+- `README.md` en anglais (pitch, verdict agent-ready, démarrage rapide Docker, statut réel des fournisseurs IA,
+  architecture, feuille de route) ; la documentation française devient `README.fr.md`.
+- `CONTRIBUTING.md`, `SECURITY.md` (signalement privé de vulnérabilités GitHub), `CODE_OF_CONDUCT.md`
+  (Contributor Covenant 2.1).
+
+### Changed
+- Version du frontend alignée sur celle du backend : `1.0.0`.
+
 ### Added — packaging et sécurité
 - Images Docker `refinr-backend` (JRE 25, non-root) et `refinr-frontend` (nginx non-root), multi-arch `amd64`/`arm64`,
   et `docker-compose.yml` (backend + frontend, profil optionnel `ollama`, configuration par `.env`).
@@ -129,3 +148,6 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 - Frontend : mention « Powered by Gemini AI » et chiffres marketing inventés (90 % de temps gagné, 2 min, 100 %
   de précision), bouton « View Demo » sans action.
 - Endpoint de debug `POST /api/v1/mvp/test-issue-types`.
+
+[Unreleased]: https://github.com/chams-bensalem/refinr/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/chams-bensalem/refinr/releases/tag/v1.0.0
