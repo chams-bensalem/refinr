@@ -16,7 +16,7 @@
 
     <groupId>fr.heliocraft</groupId>
     <artifactId>refinr</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <name>Refinr</name>
     <description>Refinr - turns a Confluence spec into a Jira backlog (Epic, Story, Subtask) with an ai-ready verdict</description>
     <url>https://github.com/chams-bensalem/refinr</url>
