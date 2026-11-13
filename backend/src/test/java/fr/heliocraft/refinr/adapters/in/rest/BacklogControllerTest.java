@@ -6,6 +6,7 @@ package fr.heliocraft.refinr.adapters.in.rest;
 import fr.heliocraft.refinr.adapters.out.confluence.ConfluenceIds;
 import fr.heliocraft.refinr.adapters.out.jira.JiraProjectKeys;
 import fr.heliocraft.refinr.application.port.in.DescribeTracker;
+import fr.heliocraft.refinr.application.port.out.DocumentSourceException;
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
 import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
@@ -796,5 +797,43 @@ class BacklogControllerTest {
         mockMvc.perform(get("/api/v1/confluence/search").param("title", "cahier"))
                 .andExpect(status().isBadRequest());
         verify(confluenceService).searchDocuments("SPACE", "cahier");
+    }
+
+    @Test
+    @DisplayName("Source errors: not found is a 404, unavailable is a 502, both with the adapter's safe message")
+    void sourceErrorsAreMapped() throws Exception {
+        when(confluenceService.getDocumentContent("404")).thenThrow(new DocumentSourceException(
+                DocumentSourceException.Reason.NOT_FOUND, "Some source: page 404 not found", null));
+        when(confluenceService.getDocumentContent("502")).thenThrow(new DocumentSourceException(
+                DocumentSourceException.Reason.UNAVAILABLE, "Some source rejected the token (HTTP 401)", null));
+        when(confluenceService.searchDocuments(any(), any())).thenThrow(new DocumentSourceException(
+                DocumentSourceException.Reason.UNAVAILABLE, "Some source is unreachable", null));
+
+        for (String endpoint : List.of("/api/v1/analyze-preview", "/api/v1/analyze-and-create")) {
+            mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content("{\"documentId\":\"404\"}"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").value("Some source: page 404 not found"));
+            mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content("{\"documentId\":\"502\"}"))
+                    .andExpect(status().isBadGateway())
+                    .andExpect(jsonPath("$.error").value("Some source rejected the token (HTTP 401)"));
+        }
+        for (String uri : List.of("/api/v1/documents/search?title=t", "/api/v1/confluence/search?spaceKey=SPACE&title=t")) {
+            mockMvc.perform(get(uri))
+                    .andExpect(status().isBadGateway())
+                    .andExpect(jsonPath("$.error").value("Some source is unreachable"));
+        }
+        verifyNoInteractions(generator, jiraService);
+    }
+
+    @Test
+    @DisplayName("A not-found failure during a search is a 502, never a 404 or a 500")
+    void searchNotFoundIs502() throws Exception {
+        when(confluenceService.searchDocuments(any(), any())).thenThrow(new DocumentSourceException(
+                DocumentSourceException.Reason.NOT_FOUND, "Some source could not search pages (HTTP 404)", null));
+
+        mockMvc.perform(get("/api/v1/documents/search").param("title", "t"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.error").value("Some source could not search pages (HTTP 404)"));
     }
 }

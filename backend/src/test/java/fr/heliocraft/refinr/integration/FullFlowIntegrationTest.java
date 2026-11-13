@@ -160,20 +160,44 @@ class FullFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("Confluence failure: generic error, neither the AI nor Jira is called")
+    @DisplayName("Confluence 404: 404 with a safe message (page id, no URL, no raw body), neither the AI nor Jira is called")
     void shouldHandleConfluenceAPIFailure() throws Exception {
         confluence.enqueue(json(404, "{\"message\":\"Page not found\"}"));
 
-        mockMvc.perform(post("/api/v1/analyze-and-create")
+        String body = mockMvc.perform(post("/api/v1/analyze-and-create")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"confluencePageId\":\"999999\"}"))
-                .andExpect(status().is5xxServerError())
+                .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.correlationId").exists());
+                .andExpect(jsonPath("$.error").value(
+                        "Confluence could not read page 999999: not found or not visible to the account (HTTP 404)"))
+                .andExpect(jsonPath("$.correlationId").exists())
+                .andReturn().getResponse().getContentAsString();
 
+        Assertions.assertFalse(body.contains("localhost"), body);
+        Assertions.assertFalse(body.contains("Page not found"), body);
         Assertions.assertEquals(1, confluenceCalls(), "404 is not retried");
         Assertions.assertEquals(0, geminiCalls());
         Assertions.assertEquals(0, jiraCalls());
+    }
+
+    @Test
+    @DisplayName("Confluence 500: retried twice despite the safe wrapping, then 502 with a safe message")
+    void confluenceServerErrorIsRetriedThen502() throws Exception {
+        for (int i = 0; i < 3; i++) {
+            confluence.enqueue(json(500, "{\"message\":\"boom at http://internal\"}"));
+        }
+
+        String body = mockMvc.perform(post("/api/v1/analyze-preview")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"documentId\":\"123\"}"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.error").value("Confluence could not read page 123 (HTTP 500)"))
+                .andReturn().getResponse().getContentAsString();
+
+        Assertions.assertFalse(body.contains("internal"), body);
+        Assertions.assertEquals(3, confluenceCalls(), "1 call + 2 retries");
+        Assertions.assertEquals(0, geminiCalls());
     }
 
     @Test

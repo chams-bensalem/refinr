@@ -8,6 +8,8 @@ import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
 import fr.heliocraft.refinr.application.port.in.DescribeSource;
+import fr.heliocraft.refinr.application.port.in.DocumentNotFoundException;
+import fr.heliocraft.refinr.application.port.in.DocumentSourceUnavailableException;
 import fr.heliocraft.refinr.application.port.in.DescribeTracker;
 import fr.heliocraft.refinr.application.port.in.InvalidRequestException;
 import fr.heliocraft.refinr.application.port.in.ModelOutputException;
@@ -104,6 +106,10 @@ public class BacklogController {
 
         } catch (InvalidRequestException e) {
             return invalidRequest(e);
+        } catch (DocumentNotFoundException e) {
+            return documentNotFound(e);
+        } catch (DocumentSourceUnavailableException e) {
+            return sourceUnavailable(e);
         } catch (ModelOutputException e) {
             return modelOutputFailure(e);
         } catch (ModelUnavailableException e) {
@@ -154,6 +160,18 @@ public class BacklogController {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ErrorResponses.error("The AI provider is unavailable"));
     }
 
+    /** 404 : document absent ou non visible pour le compte ; message sur ecrit par l'adaptateur (ni URL ni corps brut). */
+    private static ResponseEntity<Map<String, Object>> documentNotFound(DocumentNotFoundException e) {
+        log.warn("Document not found: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponses.error(e.getMessage()));
+    }
+
+    /** 502 : la source documentaire n'a pas pu repondre (identifiants, droits, indisponibilite, delai), message sur. */
+    private static ResponseEntity<Map<String, Object>> sourceUnavailable(DocumentSourceUnavailableException e) {
+        log.warn("Document source unavailable: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ErrorResponses.error(e.getMessage()));
+    }
+
     /** 400 : entree refusee par le cas d'usage ; son message, ecrit par l'application, est renvoye tel quel. */
     private static ResponseEntity<Map<String, Object>> invalidRequest(InvalidRequestException e) {
         return ResponseEntity.badRequest().body(ErrorResponses.error(e.getMessage()));
@@ -183,6 +201,10 @@ public class BacklogController {
             
         } catch (InvalidRequestException e) {
             return invalidRequest(e);
+        } catch (DocumentNotFoundException e) {
+            return documentNotFound(e);
+        } catch (DocumentSourceUnavailableException e) {
+            return sourceUnavailable(e);
         } catch (ModelOutputException e) {
             return modelOutputFailure(e);
         } catch (ModelUnavailableException e) {
@@ -286,6 +308,12 @@ public class BacklogController {
 
         } catch (InvalidRequestException e) {
             return invalidRequest(e);
+        } catch (DocumentSourceUnavailableException e) {
+            return sourceUnavailable(e);
+        } catch (DocumentNotFoundException e) {
+            // Une recherche ne vise pas un document : un « introuvable » de la source y est une indisponibilite (502)
+            log.warn("Document source search failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ErrorResponses.error(e.getMessage()));
         } catch (Exception e) {
             log.error("Error searching {} documents", describeSource.displayName(), e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to search the documents"));

@@ -28,7 +28,7 @@ public class PreviewBacklogService implements PreviewBacklog {
     @Override
     public List<Epic> preview(String documentId) {
         DocumentAnalysis.requireValidId(documentSource, documentId);
-        String content = documentSource.getDocumentContent(documentId);
+        String content = SourceFailures.translate(() -> documentSource.getDocumentContent(documentId));
         DocumentAnalysis.requireUsefulText(content);
         List<Epic> epics = LlmFailures.translate(() -> generator.generate(content));
         if (separateAssessor != null) {

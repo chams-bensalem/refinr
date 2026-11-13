@@ -28,6 +28,6 @@ public class SearchDocumentsService implements SearchDocuments {
         if (title == null || title.isBlank()) {
             throw new InvalidRequestException("title is required");
         }
-        return documentSource.searchDocuments(anySpace ? null : space, title);
+        return SourceFailures.translate(() -> documentSource.searchDocuments(anySpace ? null : space, title));
     }
 }

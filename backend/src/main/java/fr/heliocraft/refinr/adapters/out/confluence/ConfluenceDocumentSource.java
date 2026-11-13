@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.adapters.out.confluence;
 
+import fr.heliocraft.refinr.application.port.out.DocumentSourceException;
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
 import fr.heliocraft.refinr.application.port.out.HealthCheckable;
 import fr.heliocraft.refinr.domain.model.ComponentHealth;
@@ -123,9 +124,10 @@ public class ConfluenceDocumentSource implements DocumentSourcePort, HealthCheck
 
             log.info("Page content retrieved successfully");
             return content;
-        } catch (Exception e) {
-            log.error("Error reading Confluence page", e);
-            throw new RuntimeException("Failed to read Confluence page: " + e.getMessage(), e);
+        } catch (RuntimeException e) {
+            DocumentSourceException failure = failure("read page " + pageId, e, true);
+            log.warn("Confluence read failed: {}", failure.getMessage());
+            throw failure;
         }
     }
 
@@ -150,9 +152,10 @@ public class ConfluenceDocumentSource implements DocumentSourcePort, HealthCheck
             List<DocumentSummary> results = toSummaries(response);
             log.info("Search completed: {} result(s)", results.size());
             return results;
-        } catch (Exception e) {
-            log.error("Error searching Confluence pages", e);
-            throw new RuntimeException("Failed to search Confluence pages: " + e.getMessage(), e);
+        } catch (RuntimeException e) {
+            DocumentSourceException failure = failure("search pages", e, false);
+            log.warn("Confluence search failed: {}", failure.getMessage());
+            throw failure;
         }
     }
 
@@ -195,6 +198,37 @@ public class ConfluenceDocumentSource implements DocumentSourcePort, HealthCheck
             }
         }
         return summaries;
+    }
+
+    /**
+     * Erreur sure pour le client : action, statut HTTP et droit en cause, jamais d'URL ni de corps de reponse
+     * (le message d'une {@link WebClientResponseException} contient l'URL appelee). 404 a la lecture d'une page :
+     * document introuvable ; le reste (404 d'une recherche, 401, 403, 429, 5xx, injoignable, reponse inattendue) :
+     * source indisponible.
+     */
+    static DocumentSourceException failure(String action, Throwable error, boolean pageRead) {
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            if (t instanceof WebClientResponseException response) {
+                int status = response.getStatusCode().value();
+                return switch (status) {
+                    case 404 -> new DocumentSourceException(pageRead
+                            ? DocumentSourceException.Reason.NOT_FOUND : DocumentSourceException.Reason.UNAVAILABLE,
+                            "Confluence could not " + action + ": not found or not visible to the account (HTTP 404)", error);
+                    case 401 -> new DocumentSourceException(DocumentSourceException.Reason.UNAVAILABLE,
+                            "Confluence rejected the credentials (HTTP 401)", error);
+                    case 403 -> new DocumentSourceException(DocumentSourceException.Reason.UNAVAILABLE,
+                            "Confluence could not " + action + ": the account lacks the permission (HTTP 403)", error);
+                    default -> new DocumentSourceException(DocumentSourceException.Reason.UNAVAILABLE,
+                            "Confluence could not " + action + " (HTTP " + status + ")", error);
+                };
+            }
+            if (t instanceof WebClientRequestException) {
+                return new DocumentSourceException(DocumentSourceException.Reason.UNAVAILABLE,
+                        "Confluence is unreachable", error);
+            }
+        }
+        return new DocumentSourceException(DocumentSourceException.Reason.UNAVAILABLE,
+                "Confluence could not " + action + ": unexpected response", error);
     }
 
     /** Lecture minimale de l'API REST Confluence (sous /wiki), avec un delai court. */
