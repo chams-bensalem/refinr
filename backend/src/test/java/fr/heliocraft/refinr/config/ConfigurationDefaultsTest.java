@@ -182,6 +182,17 @@ class ConfigurationDefaultsTest {
     }
 
     @Test
+    @DisplayName("XWiki: credentials empty by default in the example config, web-url optional, main wiki xwiki by default")
+    void xwikiDefaultsAreAligned() throws IOException {
+        assertEquals("", exampleDefault("xwiki.username"));
+        assertEquals("", exampleDefault("xwiki.password"));
+        assertEquals("", exampleDefault("xwiki.web-url"));
+        assertEquals("", envExample("XWIKI_WEB_URL"));
+        assertEquals("xwiki", exampleDefault("xwiki.wiki"));
+        assertEquals("xwiki", envExample("XWIKI_WIKI"));
+    }
+
+    @Test
     @DisplayName("No separate verdict provider by default")
     void verdictIsOptional() throws IOException {
         assertEquals("", exampleDefault("refinr.llm.verdict.provider"));

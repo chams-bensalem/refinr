@@ -6,14 +6,21 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 ## [Unreleased]
 
 ### Added
-- `source.provider` (`SOURCE_PROVIDER`, défaut `confluence`) : une source documentaire par instance, `confluence` ou
-  `bookstack`. Valeur inconnue ou propriété absente de la source choisie : arrêt au démarrage avec un message listant
-  les propriétés manquantes (`xwiki` annoncé, refusé tant que son adaptateur n'existe pas). Les propriétés
-  `confluence.*` ne sont plus requises si la source n'est pas Confluence.
+- `source.provider` (`SOURCE_PROVIDER`, défaut `confluence`) : une source documentaire par instance, `confluence`,
+  `bookstack` ou `xwiki`. Valeur inconnue ou propriété absente de la source choisie : arrêt au démarrage avec un message
+  listant les propriétés manquantes. Les propriétés `confluence.*` ne sont plus requises si la source n'est pas
+  Confluence.
 - Source **BookStack** (API REST à jetons, vérifiée avec BookStack v26.09) : contenu lu dans le champ `html` de la page
   (inclusions développées), recherche par titre dans tout BookStack ou dans un livre (id ou slug), liens par permalien
   `/link/{id}`, health par `/api/system`. Configuration `bookstack.*` / `BOOKSTACK_*` (`bookstack.web-url` optionnelle
   pour les liens) ; compte dédié avec les seules permissions *Access system API* et *View* sur les pages.
+- Source **XWiki** (API REST, vérifiée avec XWiki 18.4 LTS) : HTML rendu par XWiki (macros `{{include}}`, `{{code}}`…
+  exécutées avec les droits du compte, blocs d'erreur de macro et piles Java retirés), identifiant = référence de la
+  page (onglet *Information* → *Page reference*, ou `Espace.Page` recopié de l'URL : page imbriquée puis page
+  terminale), page renommée suivie jusqu'à sa nouvelle référence, recherche par titre dans tout le wiki ou dans un
+  espace et ses sous-espaces, health vérifiant que XWiki reconnaît bien le compte. Configuration `xwiki.*` /
+  `XWIKI_*` (`xwiki.web-url`, `xwiki.wiki` optionnelles) ; compte technique en HTTP Basic (à n'utiliser qu'en HTTPS)
+  avec le seul droit *View* sur les espaces à analyser.
 - API : champ neutre `documentId` pour `analyze-preview` et `analyze-and-create` (`confluencePageId` toujours accepté
   comme alias ; les deux avec des valeurs différentes → `400`).
 - API : `GET /api/v1/documents/search?title=…&space=…` (`space` optionnel : sans lui, tous les espaces lisibles par le
@@ -32,7 +39,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ### Migration
 - Recopier dans `application.properties` la ligne `source.provider=${SOURCE_PROVIDER:confluence}` (facultatif :
-  `confluence` est la valeur par défaut) et, pour BookStack, le bloc `bookstack.*` de `application-example.properties`.
+  `confluence` est la valeur par défaut) et, pour BookStack ou XWiki, le bloc `bookstack.*` ou `xwiki.*` de
+  `application-example.properties`.
 
 ## [1.1.0] - 2026-11-13
 

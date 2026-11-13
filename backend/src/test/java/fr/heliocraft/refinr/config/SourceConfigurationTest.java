@@ -5,6 +5,7 @@ package fr.heliocraft.refinr.config;
 
 import fr.heliocraft.refinr.adapters.out.bookstack.BookStackDocumentSource;
 import fr.heliocraft.refinr.adapters.out.confluence.ConfluenceDocumentSource;
+import fr.heliocraft.refinr.adapters.out.xwiki.XWikiDocumentSource;
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,8 +24,13 @@ class SourceConfigurationTest {
             "source.provider=bookstack", "bookstack.base-url=http://localhost:9",
             "bookstack.token-id=test-id", "bookstack.token-secret=test-secret"};
 
+    private static final String[] XWIKI_PROPERTIES = {
+            "source.provider=xwiki", "xwiki.base-url=http://localhost:9",
+            "xwiki.username=refinr_bot", "xwiki.password=test-password"};
+
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withUserConfiguration(SourceConfiguration.class, ConfluenceDocumentSource.class, BookStackDocumentSource.class);
+            .withUserConfiguration(SourceConfiguration.class, ConfluenceDocumentSource.class, BookStackDocumentSource.class,
+                    XWikiDocumentSource.class);
 
     @Test
     @DisplayName("Without source.provider, Confluence is the only document source (backward compatible default)")
@@ -54,7 +60,7 @@ class SourceConfigurationTest {
         runner.withPropertyValues(CONFLUENCE_PROPERTIES).withPropertyValues("source.provider=notion").run(context -> {
             assertThat(context).hasFailed();
             assertThat(context.getStartupFailure())
-                    .hasMessage("Unknown source.provider 'notion': expected one of bookstack, confluence");
+                    .hasMessage("Unknown source.provider 'notion': expected one of bookstack, confluence, xwiki");
         });
     }
 
@@ -64,20 +70,32 @@ class SourceConfigurationTest {
         runner.withPropertyValues(CONFLUENCE_PROPERTIES).withPropertyValues("source.provider=").run(context -> {
             assertThat(context).hasFailed();
             assertThat(context.getStartupFailure())
-                    .hasMessage("Unknown source.provider '': expected one of bookstack, confluence");
+                    .hasMessage("Unknown source.provider '': expected one of bookstack, confluence, xwiki");
         });
     }
 
     @Test
-    @DisplayName("XWiki is announced but refused until its adapter exists ('not available yet')")
-    void plannedSourcesAreNotAvailableYet() {
+    @DisplayName("source.provider=xwiki (any case) selects XWiki as the only source, without any confluence.* property")
+    void xwikiSelectedWithoutConfluence() {
         for (String value : new String[] {"xwiki", "XWiki"}) {
-            runner.withPropertyValues("source.provider=" + value).run(context -> {
-                assertThat(context).hasFailed();
-                assertThat(context.getStartupFailure()).hasMessage("source.provider 'xwiki' is not available yet: "
-                        + "expected one of bookstack, confluence");
+            runner.withPropertyValues(XWIKI_PROPERTIES).withPropertyValues("source.provider=" + value).run(context -> {
+                assertThat(context).hasNotFailed();
+                assertThat(context).hasSingleBean(DocumentSourcePort.class);
+                assertThat(context).hasSingleBean(XWikiDocumentSource.class);
+                assertThat(context).doesNotHaveBean(ConfluenceDocumentSource.class);
+                assertThat(context.getBean(DocumentSourcePort.class).displayName()).isEqualTo("XWiki");
             });
         }
+    }
+
+    @Test
+    @DisplayName("Missing XWiki properties are all listed in one startup error; web-url and wiki are optional")
+    void missingXWikiPropertiesAreListed() {
+        runner.withPropertyValues("source.provider=xwiki", "xwiki.base-url=http://localhost:9").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasMessage(
+                    "Missing configuration for source.provider=xwiki: xwiki.username, xwiki.password");
+        });
     }
 
     @Test
