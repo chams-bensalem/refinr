@@ -318,4 +318,70 @@ class ConfluenceDocumentSourceTest {
         assertEquals("space=\"~557058:0a1b2c3d-4e5f\" AND title~\"notes\"",
             mockWebServer.takeRequest().getRequestUrl().queryParameter("cql"));
     }
+
+    @Test
+    @DisplayName("Search without a space uses only the title clause, with the same escaping: a crafted title cannot add clauses")
+    void searchWithoutSpaceEscapesTitle() throws InterruptedException {
+        mockWebServer.enqueue(jsonResponse("{\"results\": []}"));
+        mockWebServer.enqueue(jsonResponse("{\"results\": []}"));
+
+        confluenceService.searchDocuments(null, "x\" OR space=\"SECRET");
+        confluenceService.searchDocuments("  ", "x\" OR space=\"SECRET\\");
+
+        assertEquals("title~\"x\\\" OR space=\\\"SECRET\"",
+            mockWebServer.takeRequest().getRequestUrl().queryParameter("cql"));
+        assertEquals("title~\"x\\\" OR space=\\\"SECRET\\\\\"",
+            mockWebServer.takeRequest().getRequestUrl().queryParameter("cql"));
+    }
+
+    @Test
+    @DisplayName("Search sends the same result limit with and without a space")
+    void searchLimitIsTheSameWithAndWithoutSpace() throws InterruptedException {
+        mockWebServer.enqueue(jsonResponse("{\"results\": []}"));
+        mockWebServer.enqueue(jsonResponse("{\"results\": []}"));
+
+        confluenceService.searchDocuments("SPACE", "spec");
+        confluenceService.searchDocuments(null, "spec");
+
+        String withSpace = mockWebServer.takeRequest().getRequestUrl().queryParameter("limit");
+        String withoutSpace = mockWebServer.takeRequest().getRequestUrl().queryParameter("limit");
+        assertEquals(String.valueOf(ConfluenceDocumentSource.SEARCH_LIMIT), withSpace);
+        assertEquals(withSpace, withoutSpace);
+        assertEquals("25", withoutSpace);
+    }
+
+    @Test
+    @DisplayName("Search without a space still rejects a blank title, without calling Confluence")
+    void searchWithoutSpaceRejectsBlankTitle() {
+        assertThrows(IllegalArgumentException.class, () -> confluenceService.searchDocuments(null, " "));
+        assertEquals(0, mockWebServer.getRequestCount());
+    }
+
+    @Test
+    @DisplayName("Formats: numeric page ids and Confluence space keys only; display name is Confluence")
+    void formats() {
+        assertEquals("Confluence", confluenceService.displayName());
+        assertTrue(confluenceService.acceptsDocumentId("123456789"));
+        for (String id : new String[] {null, "", " ", "12a", "-1", "1 2", "../1", "123456789012345678901"}) {
+            assertFalse(confluenceService.acceptsDocumentId(id), String.valueOf(id));
+        }
+        assertTrue(confluenceService.acceptsSpace("SPACE"));
+        assertTrue(confluenceService.acceptsSpace("~557058:0a1b2c3d-4e5f"));
+        for (String space : new String[] {null, "", "SPACE OR type=page", "Projet.Sous", "\"x\""}) {
+            assertFalse(confluenceService.acceptsSpace(space), String.valueOf(space));
+        }
+    }
+
+    @Test
+    @DisplayName("Web link of a page: {site}/wiki/pages/viewpage.action?pageId={id}; null without site URL or for an invalid id")
+    void documentUrl() {
+        ConfluenceDocumentSource source = new ConfluenceDocumentSource(
+            WebClient.builder().baseUrl(mockWebServer.url("/").toString()).build(), "https://your-site.atlassian.net/");
+
+        assertEquals("https://your-site.atlassian.net/wiki/pages/viewpage.action?pageId=123",
+            source.documentUrl("123"));
+        assertNull(source.documentUrl("12a"));
+        assertNull(source.documentUrl(null));
+        assertNull(confluenceService.documentUrl("123"));
+    }
 }

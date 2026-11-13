@@ -7,6 +7,7 @@ import fr.heliocraft.refinr.adapters.in.rest.dto.EpicDto;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
+import fr.heliocraft.refinr.application.port.in.DescribeSource;
 import fr.heliocraft.refinr.application.port.in.DescribeTracker;
 import fr.heliocraft.refinr.application.port.in.InvalidRequestException;
 import fr.heliocraft.refinr.application.port.in.ModelOutputException;
@@ -20,6 +21,7 @@ import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Readiness;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -38,12 +40,21 @@ public class BacklogController {
 
     private static final Logger log = LoggerFactory.getLogger(BacklogController.class);
 
+    // Identifiant du document a analyser : champ neutre, et ancien nom garde comme alias (clients existants)
+    static final String DOCUMENT_ID = "documentId";
+    static final String LEGACY_DOCUMENT_ID = "confluencePageId";
+
+    // Alias deprecie de GET /documents/search (RFC 9745 : date de depreciation, RFC 8288 : remplacant)
+    static final String LEGACY_SEARCH_DEPRECATION = "@1794528000";
+    static final String LEGACY_SEARCH_SUCCESSOR = "</api/v1/documents/search>; rel=\"successor-version\"";
+
     private final AnalyzeDocument analyzeDocument;
     private final PreviewBacklog previewBacklog;
     private final CreateEditedBacklog createEditedBacklog;
     private final ReassessStory reassessStory;
     private final SearchDocuments searchDocuments;
     private final DescribeTracker describeTracker;
+    private final DescribeSource describeSource;
 
     public BacklogController(
             AnalyzeDocument analyzeDocument,
@@ -51,18 +62,34 @@ public class BacklogController {
             CreateEditedBacklog createEditedBacklog,
             ReassessStory reassessStory,
             SearchDocuments searchDocuments,
-            DescribeTracker describeTracker) {
+            DescribeTracker describeTracker,
+            DescribeSource describeSource) {
         this.analyzeDocument = analyzeDocument;
         this.previewBacklog = previewBacklog;
         this.createEditedBacklog = createEditedBacklog;
         this.reassessStory = reassessStory;
         this.searchDocuments = searchDocuments;
         this.describeTracker = describeTracker;
+        this.describeSource = describeSource;
+    }
+
+    /**
+     * Identifiant du document : {@code documentId}, ou son alias {@code confluencePageId}. Valeurs vides ignorees ;
+     * deux valeurs differentes -> 400. Absent : renvoye tel quel, le cas d'usage repond 400 « documentId is required ».
+     */
+    private static String documentId(Map<String, String> request) {
+        String id = request.get(DOCUMENT_ID);
+        String legacy = request.get(LEGACY_DOCUMENT_ID);
+        boolean hasId = id != null && !id.isBlank();
+        boolean hasLegacy = legacy != null && !legacy.isBlank();
+        if (hasId && hasLegacy && !id.equals(legacy)) {
+            throw new InvalidRequestException(DOCUMENT_ID + " and " + LEGACY_DOCUMENT_ID + " differ");
+        }
+        return hasId ? id : hasLegacy ? legacy : id;
     }
 
     @PostMapping("/analyze-and-create")
     public ResponseEntity<Map<String, Object>> analyzeAndCreate(@RequestBody Map<String, String> request) {
-        String confluencePageId = request.get("confluencePageId");
         // Projet cible optionnel (sinon le projet par defaut du gestionnaire de tickets actif) : cle Jira ou identifiant
         // OpenProject selon tracker.provider ; permet a un outil appelant de remplir un projet qu'il vient de creer.
         String projectKey = request.get("projectKey");
@@ -70,10 +97,10 @@ public class BacklogController {
             return invalidProjectKey(projectKey);
         }
         
-        log.info("Received request to analyze Confluence page: {}", confluencePageId);
-
         try {
-            return creationResponse(analyzeDocument.analyzeAndCreate(confluencePageId, projectKey));
+            String documentId = documentId(request);
+            log.info("Received request to analyze {} document: {}", describeSource.displayName(), documentId);
+            return creationResponse(analyzeDocument.analyzeAndCreate(documentId, projectKey));
 
         } catch (InvalidRequestException e) {
             return invalidRequest(e);
@@ -143,12 +170,10 @@ public class BacklogController {
 
     @PostMapping("/analyze-preview")
     public ResponseEntity<Map<String, Object>> analyzePreview(@RequestBody Map<String, String> request) {
-        String confluencePageId = request.get("confluencePageId");
-        
-        log.info("Preview request for Confluence page: {}", confluencePageId);
-
         try {
-            List<Epic> epics = previewBacklog.preview(confluencePageId);
+            String documentId = documentId(request);
+            log.info("Preview request for {} document: {}", describeSource.displayName(), documentId);
+            List<Epic> epics = previewBacklog.preview(documentId);
             
             return ResponseEntity.ok(Map.of(
                     "success", true,
@@ -176,7 +201,7 @@ public class BacklogController {
         if (!isValidProjectKey(projectKey)) {
             return invalidProjectKey(projectKey);
         }
-        log.info("Received request to create {} epics in Jira", request.size());
+        log.info("Received request to create {} epics in {}", request.size(), describeTracker.displayName());
 
         try {
             List<Epic> epics = RestBacklogMapper.toDomain(request);
@@ -184,7 +209,7 @@ public class BacklogController {
             return creationResponse(createEditedBacklog.create(epics, projectKey));
 
         } catch (Exception e) {
-            log.error("Error creating Jira tickets", e);
+            log.error("Error creating issues in {}", describeTracker.displayName(), e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to create the issues"));
         }
     }
@@ -225,15 +250,35 @@ public class BacklogController {
         }
     }
 
+    /** Recherche de documents de la source active par titre, dans un espace optionnel (format de la source). */
+    @GetMapping("/documents/search")
+    public ResponseEntity<Map<String, Object>> searchDocuments(
+            @RequestParam(required = false) String space,
+            @RequestParam(required = false) String title) {
+        return search(space, title);
+    }
+
+    /**
+     * Alias deprecie de {@code GET /documents/search}, garde pour les clients existants : {@code spaceKey} reste
+     * obligatoire et le meme message d'erreur est renvoye ; en-tetes {@code Deprecation} et {@code Link} en plus.
+     */
     @GetMapping("/confluence/search")
     public ResponseEntity<Map<String, Object>> searchConfluencePages(
             @RequestParam String spaceKey,
             @RequestParam String title) {
-        
-        log.info("Searching Confluence pages: space={}, title={}", spaceKey, title);
+        ResponseEntity<Map<String, Object>> response = describeSource.acceptsSpace(spaceKey)
+                ? search(spaceKey, title)
+                : ResponseEntity.badRequest().body(ErrorResponses.error("Invalid spaceKey"));
+        return ResponseEntity.status(response.getStatusCode())
+                .header("Deprecation", LEGACY_SEARCH_DEPRECATION)
+                .header(HttpHeaders.LINK, LEGACY_SEARCH_SUCCESSOR)
+                .body(response.getBody());
+    }
 
+    private ResponseEntity<Map<String, Object>> search(String space, String title) {
+        log.info("Searching {} documents: space={}, title={}", describeSource.displayName(), space, title);
         try {
-            List<DocumentSummary> results = searchDocuments.search(spaceKey, title);
+            List<DocumentSummary> results = searchDocuments.search(space, title);
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "results", results
@@ -242,7 +287,7 @@ public class BacklogController {
         } catch (InvalidRequestException e) {
             return invalidRequest(e);
         } catch (Exception e) {
-            log.error("Error searching Confluence", e);
+            log.error("Error searching {} documents", describeSource.displayName(), e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to search the documents"));
         }
     }

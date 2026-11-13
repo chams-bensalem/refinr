@@ -16,9 +16,31 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class SearchDocumentsServiceTest {
 
-    /** Source simulee : journalise les recherches recues. */
+    /** Source simulee : journalise les recherches recues ; seuls les espaces "SPACE" et "~..." ont son format. */
     static class RecordingSource implements DocumentSourcePort {
         final List<String> searches = new ArrayList<>();
+        final List<String> checkedSpaces = new ArrayList<>();
+
+        @Override
+        public String displayName() {
+            return "Test source";
+        }
+
+        @Override
+        public boolean acceptsSpace(String space) {
+            checkedSpaces.add(space);
+            return space.equals("SPACE") || space.startsWith("~");
+        }
+
+        @Override
+        public boolean acceptsDocumentId(String documentId) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String documentUrl(String documentId) {
+            throw new UnsupportedOperationException();
+        }
 
         @Override
         public String getDocumentContent(String documentId) {
@@ -26,24 +48,25 @@ class SearchDocumentsServiceTest {
         }
 
         @Override
-        public List<DocumentSummary> searchDocuments(String spaceKey, String title) {
-            searches.add(spaceKey + "|" + title);
+        public List<DocumentSummary> searchDocuments(String space, String title) {
+            searches.add(space + "|" + title);
             return List.of(new DocumentSummary("1", title, null));
         }
     }
 
     @Test
-    @DisplayName("Rejects an invalid space key or a blank title with InvalidRequestException, before any search")
+    @DisplayName("Rejects a space refused by the source or a blank title with InvalidRequestException, before any search")
     void rejectsInvalidInput() {
         RecordingSource source = new RecordingSource();
         SearchDocumentsService service = new SearchDocumentsService(source);
 
-        assertEquals("Invalid spaceKey",
+        assertEquals("Invalid space",
             assertThrows(InvalidRequestException.class, () -> service.search("SPACE OR type=page", "t")).getMessage());
-        assertEquals("Invalid spaceKey",
-            assertThrows(InvalidRequestException.class, () -> service.search(null, "t")).getMessage());
         assertEquals("title is required",
             assertThrows(InvalidRequestException.class, () -> service.search("SPACE", " ")).getMessage());
+        assertEquals("title is required",
+            assertThrows(InvalidRequestException.class, () -> service.search(null, null)).getMessage());
+        assertEquals(List.of("SPACE OR type=page", "SPACE"), source.checkedSpaces);
         assertTrue(source.searches.isEmpty());
     }
 
@@ -55,5 +78,18 @@ class SearchDocumentsServiceTest {
         new SearchDocumentsService(source).search("~557058:0a1b2c3d-4e5f", "notes");
 
         assertEquals(List.of("~557058:0a1b2c3d-4e5f|notes"), source.searches);
+    }
+
+    @Test
+    @DisplayName("Without a space (absent or blank), searches every space: null is passed to the source, no format check")
+    void searchesEverySpaceWithoutSpace() {
+        RecordingSource source = new RecordingSource();
+        SearchDocumentsService service = new SearchDocumentsService(source);
+
+        service.search(null, "notes");
+        service.search("  ", "spec");
+
+        assertEquals(List.of("null|notes", "null|spec"), source.searches);
+        assertTrue(source.checkedSpaces.isEmpty());
     }
 }

@@ -238,3 +238,10 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
 - **CSRF** : les écritures REST authentifiées (formulaires) exigent l'en-tête `XWiki-Form-Token` (fourni dans les réponses) ; **inutile pour les lectures** de Refinr.
 - **Multi-wiki** : wiki principal `xwiki` (préfixe des références et segment `/wikis/xwiki/`) ; sous-wikis non testés → `xwiki.wiki` optionnelle, défaut `xwiki`.
 
+### Cœur neutre vis-à-vis de la source (v1.2 phase 1)
+
+- **`source.provider` contrôlé au démarrage par `SourceConfiguration`**, même mécanique que `tracker.provider` (valeur inconnue, propriétés manquantes listées, vide toléré) ; `ConfluenceDocumentSource` porte `@ConditionalOnProperty(source.provider=confluence, matchIfMissing)` → aucune propriété `confluence.*` lue pour une autre source.
+- **Formats délégués à l'adaptateur** (`DocumentSourcePort.acceptsSpace` / `acceptsDocumentId`, comme `acceptsProjectId` côté tracker) : identifiant et espace n'ont pas la même forme d'un outil à l'autre (id numérique, slug, référence XWiki) ; la regex Confluence quitte le cœur (`ConfluenceIds`).
+- **`GET /api/v1/source` → `{"name": …}`**, endpoint séparé symétrique de `GET /api/v1/tracker` plutôt qu'un champ ajouté à `/tracker` : chaque endpoint décrit un seul port, sans URL ni clé.
+- **Alias dépréciés conservés à l'identique** (`confluencePageId`, `GET /confluence/search` avec `spaceKey` obligatoire et le même message `Invalid spaceKey`) ; dépréciation signalée par les en-têtes `Deprecation` (RFC 9745) et `Link rel="successor-version"` (RFC 8288), sans changer le corps.
+- **Recherche Confluence sans espace** : même clause de titre échappée que la recherche par espace, et `limit=25` explicite dans les deux cas (valeur par défaut de l'API Confluence, désormais testée).

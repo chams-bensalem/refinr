@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.adapters.in.rest;
 
+import fr.heliocraft.refinr.adapters.out.confluence.ConfluenceIds;
 import fr.heliocraft.refinr.adapters.out.jira.JiraProjectKeys;
 import fr.heliocraft.refinr.application.port.in.DescribeTracker;
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
@@ -74,6 +75,11 @@ class BacklogControllerTest {
     @BeforeEach
     void setUp() {
         when(describeTracker.acceptsProjectId(any())).thenAnswer(call -> JiraProjectKeys.isValid(call.getArgument(0)));
+        when(describeTracker.displayName()).thenReturn("Jira");
+        // Source active simulee : formats delegues aux regles Confluence reelles (aucune regex recopiee)
+        when(confluenceService.displayName()).thenReturn("Confluence");
+        when(confluenceService.acceptsDocumentId(any())).thenAnswer(call -> ConfluenceIds.isPageId(call.getArgument(0)));
+        when(confluenceService.acceptsSpace(any())).thenAnswer(call -> ConfluenceIds.isSpaceKey(call.getArgument(0)));
         // Setup test data
         testTask = new Task();
         testTask.setTitle("Test Task");
@@ -156,17 +162,18 @@ class BacklogControllerTest {
     }
 
     @Test
-    @DisplayName("Should handle missing confluencePageId")
+    @DisplayName("Missing document id (no field, or blank) is a 400, without reading the source (issue #20)")
     void shouldHandleMissingConfluencePageId() throws Exception {
-        // Given - when confluencePageId is null, the service should fail
-        when(confluenceService.getDocumentContent(null))
-            .thenThrow(new RuntimeException("Page ID is required"));
-
-        // When/Then
-        mockMvc.perform(post("/api/v1/analyze-and-create")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{}"))
-                .andExpect(status().is5xxServerError());
+        for (String endpoint : List.of("/api/v1/analyze-and-create", "/api/v1/analyze-preview")) {
+            for (String body : List.of("{}", "{\"confluencePageId\":\"\"}", "{\"documentId\":\"  \"}")) {
+                mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content(body))
+                        .andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.success").value(false))
+                        .andExpect(jsonPath("$.error").value("documentId is required"));
+            }
+        }
+        verify(confluenceService, never()).getDocumentContent(any());
+        verifyNoInteractions(generator, jiraService);
     }
 
     @Test
@@ -360,7 +367,8 @@ class BacklogControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("title is required"));
 
-        verifyNoInteractions(confluenceService);
+        // Seul le format de l'espace est demande a la source : aucune recherche n'est lancee
+        verify(confluenceService, never()).searchDocuments(any(), any());
     }
 
     @Test
@@ -671,5 +679,122 @@ class BacklogControllerTest {
 
         verify(describeTracker).acceptsProjectId("PROJ");
         verifyNoInteractions(assessor, jiraService);
+    }
+
+    // ---- v1.2 : identifiant neutre documentId (confluencePageId garde comme alias) et recherche neutre ----
+
+    @Test
+    @DisplayName("documentId is read by analyze-preview and analyze-and-create, like the confluencePageId alias")
+    void documentIdIsTheNeutralField() throws Exception {
+        String content = "# CDC\nModule Inventaire";
+        when(confluenceService.getDocumentContent("42")).thenReturn(content);
+        when(generator.generate(content)).thenReturn(testEpics);
+
+        mockMvc.perform(post("/api/v1/analyze-preview").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"documentId\":\"42\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+        mockMvc.perform(post("/api/v1/analyze-preview").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confluencePageId\":\"42\"}"))
+                .andExpect(status().isOk());
+        // Les deux champs, identiques : accepte
+        mockMvc.perform(post("/api/v1/analyze-preview").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"documentId\":\"42\",\"confluencePageId\":\"42\"}"))
+                .andExpect(status().isOk());
+        // Alias vide a cote d'un documentId renseigne : ignore
+        mockMvc.perform(post("/api/v1/analyze-preview").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"documentId\":\"42\",\"confluencePageId\":\"\"}"))
+                .andExpect(status().isOk());
+
+        when(jiraService.createEpic(any(), any())).thenReturn("TEST-1");
+        when(jiraService.createStory(any(), any(), any())).thenReturn("TEST-2");
+        when(jiraService.createSubtask(any(), any(), any())).thenReturn("TEST-3");
+        mockMvc.perform(post("/api/v1/analyze-and-create").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"documentId\":\"42\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(confluenceService, times(5)).getDocumentContent("42");
+    }
+
+    @Test
+    @DisplayName("documentId and confluencePageId with different values: 400, without reading the source")
+    void conflictingDocumentIdsAreRejected() throws Exception {
+        for (String endpoint : List.of("/api/v1/analyze-preview", "/api/v1/analyze-and-create")) {
+            mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"documentId\":\"42\",\"confluencePageId\":\"43\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").value("documentId and confluencePageId differ"));
+        }
+        verify(confluenceService, never()).getDocumentContent(any());
+        verifyNoInteractions(generator, jiraService);
+    }
+
+    @Test
+    @DisplayName("A document id refused by the active source is a 400 'Invalid documentId', without reading the source")
+    void invalidDocumentIdIsRejected() throws Exception {
+        for (String endpoint : List.of("/api/v1/analyze-preview", "/api/v1/analyze-and-create")) {
+            for (String body : List.of("{\"documentId\":\"abc\"}", "{\"confluencePageId\":\"../42\"}")) {
+                mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content(body))
+                        .andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.error").value("Invalid documentId"));
+            }
+        }
+        verify(confluenceService, never()).getDocumentContent(any());
+        verifyNoInteractions(generator, jiraService);
+    }
+
+    @Test
+    @DisplayName("GET /documents/search: title in an optional space; without space, every space (null to the source)")
+    void neutralSearch() throws Exception {
+        DocumentSummary page = new DocumentSummary("111", "Cahier des charges", "https://your-site.atlassian.net/wiki/x");
+        when(confluenceService.searchDocuments("SPACE", "cahier")).thenReturn(List.of(page));
+        when(confluenceService.searchDocuments(null, "cahier")).thenReturn(List.of(page, page));
+
+        mockMvc.perform(get("/api/v1/documents/search").param("space", "SPACE").param("title", "cahier"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.results.length()").value(1))
+                .andExpect(jsonPath("$.results[0].id").value("111"))
+                .andExpect(jsonPath("$.results[0].title").value("Cahier des charges"))
+                .andExpect(header().doesNotExist("Deprecation"));
+        mockMvc.perform(get("/api/v1/documents/search").param("title", "cahier"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.results.length()").value(2));
+        mockMvc.perform(get("/api/v1/documents/search").param("space", "").param("title", "cahier"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.results.length()").value(2));
+    }
+
+    @Test
+    @DisplayName("GET /documents/search: 400 on a space refused by the source or a missing title, without searching")
+    void neutralSearchRejectsInvalidInput() throws Exception {
+        mockMvc.perform(get("/api/v1/documents/search").param("space", "SPACE OR x").param("title", "t"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Invalid space"));
+        mockMvc.perform(get("/api/v1/documents/search").param("space", "SPACE"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("title is required"));
+        mockMvc.perform(get("/api/v1/documents/search").param("title", " "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("title is required"));
+        verify(confluenceService, never()).searchDocuments(any(), any());
+    }
+
+    @Test
+    @DisplayName("GET /confluence/search stays a working alias, now marked deprecated (Deprecation + Link successor)")
+    void legacySearchIsDeprecatedAlias() throws Exception {
+        when(confluenceService.searchDocuments("SPACE", "cahier")).thenReturn(List.of());
+
+        for (String[] params : List.of(new String[] {"SPACE", "cahier"}, new String[] {"SPACE OR x", "t"})) {
+            mockMvc.perform(get("/api/v1/confluence/search").param("spaceKey", params[0]).param("title", params[1]))
+                    .andExpect(header().string("Deprecation", "@1794528000"))
+                    .andExpect(header().string("Link", "</api/v1/documents/search>; rel=\"successor-version\""));
+        }
+        // spaceKey reste obligatoire sur l'alias (comportement d'origine), contrairement a space sur le nouvel endpoint
+        mockMvc.perform(get("/api/v1/confluence/search").param("title", "cahier"))
+                .andExpect(status().isBadRequest());
+        verify(confluenceService).searchDocuments("SPACE", "cahier");
     }
 }

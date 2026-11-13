@@ -166,6 +166,13 @@ class ConfigurationDefaultsTest {
     }
 
     @Test
+    @DisplayName("Confluence is the default document source in the code, the example config and .env.example")
+    void sourceDefaultIsAligned() throws IOException {
+        assertEquals(SourceConfiguration.DEFAULT_PROVIDER, exampleDefault("source.provider"));
+        assertEquals(SourceConfiguration.DEFAULT_PROVIDER, envExample("SOURCE_PROVIDER"));
+    }
+
+    @Test
     @DisplayName("No separate verdict provider by default")
     void verdictIsOptional() throws IOException {
         assertEquals("", exampleDefault("refinr.llm.verdict.provider"));

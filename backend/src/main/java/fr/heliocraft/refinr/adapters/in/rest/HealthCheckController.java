@@ -15,7 +15,8 @@ import java.util.Map;
 
 /**
  * Etat des dependances externes, verifie par les ports sortants (cf. {@link CheckHealth}) :
- * {@code {"status": "UP"|"DEGRADED", "services": {"confluence": {...}, "jira": {...}, "ai": {...}, "aiVerdict": {...}}}}.
+ * {@code {"status": "UP"|"DEGRADED", "services": {"confluence": {...}, "jira": {...}, "ai": {...}, "aiVerdict": {...}}}}
+ * (cles de la source et du gestionnaire de tickets actifs, ex. {@code confluence} et {@code jira}).
  * Aucune cle ni URL : fournisseur, modele et cause courte uniquement.
  */
 @RestController
@@ -46,7 +47,7 @@ public class HealthCheckController {
 
     /**
      * Sonde de vivacite (conteneur, orchestrateur) : l'application repond, sans appeler aucune dependance externe
-     * (contrairement a {@link #health()}, qui interroge Confluence, Jira et les fournisseurs de modele).
+     * (contrairement a {@link #health()}, qui interroge la source documentaire, le gestionnaire de tickets et les fournisseurs de modele).
      */
     @GetMapping("/live")
     public ResponseEntity<Map<String, String>> live() {

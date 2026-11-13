@@ -4,11 +4,13 @@
 package fr.heliocraft.refinr.config;
 
 import fr.heliocraft.refinr.adapters.in.rest.HealthCheckController;
+import fr.heliocraft.refinr.adapters.in.rest.SourceController;
 import fr.heliocraft.refinr.adapters.in.rest.TrackerController;
 import fr.heliocraft.refinr.adapters.in.rest.BacklogController;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.CheckHealth;
 import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
+import fr.heliocraft.refinr.application.port.in.DescribeSource;
 import fr.heliocraft.refinr.application.port.in.DescribeTracker;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
@@ -45,9 +47,11 @@ class HttpSecurityConfigurationTest {
     private static final String SEARCH = "/api/v1/confluence/search?spaceKey=SPACE&title=Spec";
     private static final String HEALTH = "/api/v1/health";
     private static final String TRACKER = "/api/v1/tracker";
+    private static final String SOURCE = "/api/v1/source";
+    private static final String DOCUMENTS_SEARCH = "/api/v1/documents/search?title=Spec";
     private static final String ALLOWED = "http://localhost:3000";
 
-    @WebMvcTest({BacklogController.class, HealthCheckController.class, TrackerController.class})
+    @WebMvcTest({BacklogController.class, HealthCheckController.class, TrackerController.class, SourceController.class})
     @Import({HttpSecurityConfiguration.class, LoggingFilter.class})
     abstract static class WebLayer {
         @Autowired MockMvc mockMvc;
@@ -57,6 +61,7 @@ class HttpSecurityConfigurationTest {
         @MockitoBean ReassessStory reassessStory;
         @MockitoBean SearchDocuments searchDocuments;
         @MockitoBean DescribeTracker describeTracker;
+        @MockitoBean DescribeSource describeSource;
         @MockitoBean CheckHealth checkHealth;
 
         @BeforeEach
@@ -64,6 +69,9 @@ class HttpSecurityConfigurationTest {
             when(searchDocuments.search("SPACE", "Spec")).thenReturn(List.of());
             when(checkHealth.check()).thenReturn(new CheckHealth.HealthReport(true, List.of()));
             when(describeTracker.displayName()).thenReturn("OpenProject");
+            when(describeSource.displayName()).thenReturn("Confluence");
+            when(describeSource.acceptsSpace("SPACE")).thenReturn(true);
+            when(searchDocuments.search(null, "Spec")).thenReturn(List.of());
         }
     }
 
@@ -147,6 +155,23 @@ class HttpSecurityConfigurationTest {
             mockMvc.perform(get(TRACKER).header("X-API-Key", "test-api-key-123"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.name").value("OpenProject"));
+        }
+
+        @Test
+        @DisplayName("GET /api/v1/source and GET /api/v1/documents/search are protected like the other endpoints")
+        void sourceEndpointsRequireTheKey() throws Exception {
+            for (String uri : List.of(SOURCE, DOCUMENTS_SEARCH)) {
+                mockMvc.perform(get(uri))
+                        .andExpect(status().isUnauthorized())
+                        .andExpect(jsonPath("$.error").value("Missing or invalid API key"));
+                mockMvc.perform(get(uri).header("X-API-Key", "test-api-key-12")).andExpect(status().isUnauthorized());
+            }
+            mockMvc.perform(get(SOURCE).header("X-API-Key", "test-api-key-123"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.name").value("Confluence"));
+            mockMvc.perform(get(DOCUMENTS_SEARCH).header("X-API-Key", "test-api-key-123"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true));
         }
 
         @Test

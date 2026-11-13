@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.resilience.annotation.Retryable;
@@ -25,18 +26,23 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
+/**
+ * Source Confluence Cloud (API REST v1, HTML de stockage), active seulement avec {@code source.provider=confluence}
+ * (defaut) : aucune propriete {@code confluence.*} n'est lue si une autre source est choisie.
+ */
 @Service
 @Order(1)
+@ConditionalOnProperty(name = "source.provider", havingValue = "confluence", matchIfMissing = true)
 public class ConfluenceDocumentSource implements DocumentSourcePort, HealthCheckable {
 
     private static final Logger log = LoggerFactory.getLogger(ConfluenceDocumentSource.class);
 
-    // Cle d'espace Confluence : alphanumerique, ou espace personnel "~" + identifiant de compte (ex. ~557058:uuid)
-    private static final Pattern SPACE_KEY = Pattern.compile("^~?[A-Za-z0-9][A-Za-z0-9:_-]{0,254}$");
+    // Nombre maximal de resultats d'une recherche, avec ou sans espace (valeur par defaut de l'API Confluence)
+    static final int SEARCH_LIMIT = 25;
 
     private final WebClient webClient;
+    private final String baseUrl;
 
     @Autowired
     public ConfluenceDocumentSource(
@@ -47,6 +53,7 @@ public class ConfluenceDocumentSource implements DocumentSourcePort, HealthCheck
         String auth = username + ":" + token;
         String encodedAuth = Base64.getEncoder()
                 .encodeToString(auth.getBytes(StandardCharsets.UTF_8));
+        this.baseUrl = baseUrl;
 
         this.webClient = WebClient.builder()
                 .baseUrl(baseUrl)
@@ -57,7 +64,39 @@ public class ConfluenceDocumentSource implements DocumentSourcePort, HealthCheck
 
     // Constructor for testing with custom WebClient
     ConfluenceDocumentSource(WebClient webClient, String username, String token) {
+        this(webClient, "");
+    }
+
+    // Constructor for testing with custom WebClient and the site URL used for web links
+    ConfluenceDocumentSource(WebClient webClient, String baseUrl) {
         this.webClient = webClient;
+        this.baseUrl = baseUrl;
+    }
+
+    @Override
+    public String displayName() {
+        return "Confluence";
+    }
+
+    /** Cle d'espace Confluence, ou espace personnel {@code ~accountId}. */
+    @Override
+    public boolean acceptsSpace(String space) {
+        return ConfluenceIds.isSpaceKey(space);
+    }
+
+    /** Identifiant de page Confluence : numerique. */
+    @Override
+    public boolean acceptsDocumentId(String documentId) {
+        return ConfluenceIds.isPageId(documentId);
+    }
+
+    /** Lien web stable d'une page par son id ({@code viewpage.action} redirige vers l'adresse courante de la page). */
+    @Override
+    public String documentUrl(String documentId) {
+        if (baseUrl == null || baseUrl.isBlank() || !acceptsDocumentId(documentId)) {
+            return null;
+        }
+        return baseUrl.replaceAll("/+$", "") + "/wiki/pages/viewpage.action?pageId=" + documentId;
     }
 
     @Retryable(
@@ -94,7 +133,7 @@ public class ConfluenceDocumentSource implements DocumentSourcePort, HealthCheck
     public List<DocumentSummary> searchDocuments(String spaceKey, String title) {
         // Garde defensive (le cas d'usage valide deja l'entree) : jamais de CQL construit sur une entree invalide
         String cql = searchCql(spaceKey, title);
-        log.info("Searching pages in space {} with title: {}", spaceKey, title);
+        log.info("Searching pages in space {} with title: {}", spaceKey == null || spaceKey.isBlank() ? "(all)" : spaceKey, title);
 
         try {
 
@@ -102,6 +141,7 @@ public class ConfluenceDocumentSource implements DocumentSourcePort, HealthCheck
                     .uri(uriBuilder -> uriBuilder
                             .path("/wiki/rest/api/content/search")
                             .queryParam("cql", cql)
+                            .queryParam("limit", SEARCH_LIMIT)
                             .build())
                     .retrieve()
                     .bodyToMono(Map.class)
@@ -119,15 +159,18 @@ public class ConfluenceDocumentSource implements DocumentSourcePort, HealthCheck
     /**
      * Requete CQL de recherche : cle d'espace verifiee (liste blanche) puis citee, titre echappe dans sa chaine CQL
      * ({@code \\} et {@code "}) pour qu'aucune entree ne puisse sortir de la chaine et ajouter des clauses.
+     * Sans espace (null ou vide), meme clause de titre, sur tous les espaces lisibles par le compte.
      */
     static String searchCql(String spaceKey, String title) {
-        if (spaceKey == null || !SPACE_KEY.matcher(spaceKey).matches()) {
+        boolean anySpace = spaceKey == null || spaceKey.isBlank();
+        if (!anySpace && !ConfluenceIds.isSpaceKey(spaceKey)) {
             throw new IllegalArgumentException("Invalid spaceKey");
         }
         if (title == null || title.isBlank()) {
             throw new IllegalArgumentException("title is required");
         }
-        return "space=\"" + spaceKey + "\" AND title~\"" + escapeCqlString(title.strip()) + "\"";
+        String titleClause = "title~\"" + escapeCqlString(title.strip()) + "\"";
+        return anySpace ? titleClause : "space=\"" + spaceKey + "\" AND " + titleClause;
     }
 
     private static String escapeCqlString(String value) {

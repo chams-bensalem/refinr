@@ -102,10 +102,13 @@ class HexagonalArchitectureTest {
                     + " l'accompagnent");
 
     @ArchTest
-    static final ArchRule no_tracker_identifier_in_domain_and_application = classes()
+    static final ArchRule no_tool_identifier_in_domain_and_application = classes()
             .that().resideInAnyPackage(DOMAIN, APPLICATION)
             .should(haveNoIdentifierContaining("jira")).andShould(haveNoIdentifierContaining("openproject"))
-            .because("le centre reste agnostique du gestionnaire de tickets (Jira, OpenProject en v1.1)");
+            .andShould(haveNoIdentifierContaining("confluence")).andShould(haveNoIdentifierContaining("bookstack"))
+            .andShould(haveNoIdentifierContaining("xwiki"))
+            .because("le centre reste agnostique du gestionnaire de tickets (Jira, OpenProject) et de la source"
+                    + " documentaire (Confluence, BookStack, XWiki en v1.2)");
 
     /**
      * Nom de package, de classe, de champ ou de methode (insensible a la casse : jira, Jira, JIRA). Les noms de
