@@ -192,7 +192,8 @@ refinr/
 |---|---|---|
 | **JDK** | 25 | Backend |
 | **Maven** | 3.9+ | Build backend |
-| **Node.js** + npm | 18+ | Frontend |
+| **Node.js** + npm | 22.12+ (référence : `.nvmrc`) | Frontend |
+| **Docker** + Compose v2 | récent | Optionnel : lancer toute la stack sans JDK ni Node (`docker compose up`) |
 | **Ollama** | récent | Analyse IA locale (fournisseur par défaut, via son API compatible OpenAI `/v1`) |
 | Autre fournisseur IA | optionnel | Clé Anthropic, Google AI Studio ou d'une API compatible OpenAI (OpenAI, DeepSeek, Mistral, Groq, OpenRouter, LiteLLM, vLLM…) |
 
@@ -330,6 +331,8 @@ refinr.llm.verdict.max-output-tokens=4096
 | `refinr.llm.verdict.cache.ttl` | `24h` | Durée de vie du cache des verdicts réussis (`0s` = pas de cache) |
 | `refinr.llm.verdict.cache.max-entries` | `1000` | Taille maximale du cache des verdicts (LRU) |
 | `refinr.health.cache-ttl` | `45s` | Durée de mise en cache du health check (`0s` = pas de cache) |
+| `refinr.cors.allowed-origins` | `http://localhost:3000` | Origines autorisées à appeler l'API depuis un navigateur (CORS), séparées par des virgules ; vide = même origine uniquement ; `*` refusé au démarrage (`CORS_ALLOWED_ORIGINS`) |
+| `refinr.security.api-key` | *(vide)* | Clé d'API optionnelle : si renseignée, toute requête `/api/**` doit envoyer l'en-tête `X-API-Key` (sauf `/api/v1/health` et `/api/v1/health/live`), sinon `401` ; vide = désactivée (`REFINR_API_KEY`) |
 
 #### Variables d'environnement (recommandé)
 
@@ -356,7 +359,9 @@ Les variables d'environnement **du système** ne sont pas contrôlées (une `GEM
 
 ### Frontend
 
-Aucune variable n'est nécessaire : le client appelle `/api/v1`.
+Aucune variable n'est nécessaire : le client appelle `/api/v1`. L'URL de l'API est lue **au chargement de la page**
+dans `/config.js` (`window.__REFINR_CONFIG__.apiBaseUrl`, défaut `/api/v1`) : l'image Docker la génère depuis
+`REFINR_API_BASE_URL`, sans rebuild.
 
 En développement, Vite **proxifie `/api` vers `http://localhost:8080`** (voir `vite.config.ts`) : aucune configuration CORS supplémentaire n'est nécessaire.
 
@@ -400,7 +405,38 @@ cd frontend
 npm run dev
 ```
 
-Build de production :
+### Avec Docker Compose
+
+Toute la stack (backend + frontend) sans JDK ni Node, configurée par le même `.env` :
+
+```bash
+cp .env.example .env              # renseignez Confluence, Jira et le fournisseur IA
+docker compose up -d --build      # UI http://localhost:3000 · API http://localhost:8080
+curl localhost:8080/api/v1/health
+```
+
+| Service | Image | Port (hôte) | Détails |
+|---|---|---|---|
+| `backend` | `refinr-backend` — JRE 25 Alpine, utilisateur non-root `10001` | `127.0.0.1:8080` | Configuration par variables d'environnement uniquement (`.env`), sonde `GET /api/v1/health/live` |
+| `frontend` | `refinr-frontend` — nginx non-root (`101`), fichiers statiques | `127.0.0.1:3000` | Proxy `/api` → `REFINR_BACKEND_URL` (`http://backend:8080`) ; ajoute `X-API-Key` côté serveur si `REFINR_API_KEY` est défini |
+| `ollama` *(profil `ollama`)* | `ollama/ollama` | — (réseau interne) | `docker compose --profile ollama up -d` ; télécharge `LLM_ANALYSIS_MODEL` au premier démarrage |
+
+- Dans un conteneur, `localhost` désigne le conteneur lui-même : un Ollama lancé sur votre machine est joignable à
+  `LLM_ANALYSIS_BASE_URL=http://host.docker.internal:11434/v1`, celui du profil `ollama` à `http://ollama:11434/v1`.
+- Les ports ne sont publiés que sur `127.0.0.1` ; conteneurs en système de fichiers en lecture seule, sans capacité Linux,
+  `no-new-privileges`. Images multi-architecture (`linux/amd64`, `linux/arm64`).
+
+#### Sécurité
+
+- **`X-API-Key` protège l'accès direct à l'API** (`:8080`, scripts, outils appelants), **pas l'interface web** :
+  le proxy nginx du frontend ajoute lui-même la clé à chaque appel `/api`, donc quiconque atteint le frontend
+  utilise l'API avec cette clé.
+- **N'exposez pas le frontend sur Internet sans authentification placée devant** (reverse proxy avec SSO / OAuth2,
+  VPN, réseau privé). Par défaut, les ports ne sont publiés que sur `127.0.0.1`.
+- `GET /api/v1/health` (détaillé : état de Confluence, Jira, fournisseur et modèle IA, sans clé ni URL) n'exige pas
+  de clé, comme la sonde `/api/v1/health/live`.
+
+Build de production sans Docker :
 
 ```bash
 (cd backend && mvn clean package && java -jar target/refinr-1.0.0.jar)
@@ -496,6 +532,11 @@ Base URL : `http://localhost:8080/api/v1`
 | `GET` | `/mvp/confluence/search` | `?spaceKey=SPACE&title=…` | Recherche de pages Confluence (CQL) : `{ success, results: [{ id, title, url }] }` |
 | `GET` | `/mvp/health` | — | Ping simple du service |
 | `GET` | `/health` | — | Santé détaillée Confluence / Jira / IA (analyse, et verdict s'il est distinct), en cache 45 s |
+| `GET` | `/health/live` | — | Sonde de vivacité `{ "status": "UP" }`, sans appel aux services externes (conteneurs, orchestrateurs) |
+
+**Clé d'API** : si `refinr.security.api-key` (`REFINR_API_KEY`) est définie, chaque appel doit envoyer
+`X-API-Key: <clé>` (`/health` et `/health/live` exceptés) ; sinon `401` `{ "success": false, "error": "Missing or invalid API key", "correlationId": "…" }`.
+**CORS** : seules les origines de `refinr.cors.allowed-origins` sont acceptées (plus de `*`).
 
 **Réponse de création (`analyze-and-create` et `create-jira`) :**
 
@@ -574,8 +615,17 @@ Ces deux labels sont **réservés** : s'ils apparaissent dans la sortie de l'IA 
 ## 🧪 Tests
 
 ```bash
-mvn test
+cd backend && mvn test
 ```
+
+Compilation et tests s'exécutent toujours sur un **JDK 25** (`maven-toolchains-plugin`, goal `select-jdk-toolchain`),
+même si Maven lui-même tourne sur un autre JDK : le JDK 25 est découvert automatiquement (`JAVA_HOME`, variables
+`JAVA25_HOME`…, `~/.m2/toolchains.xml`, dossiers d'installation usuels). Sans JDK 25 installé, le build échoue
+explicitement.
+
+La CI GitHub Actions (`.github/workflows/ci.yml`) exécute à chaque PR : tests backend, lint + build frontend,
+scan gitleaks de tout l'historique, build des deux images (`amd64` + `arm64`) et `docker compose up` + health check.
+Dependabot propose chaque semaine les mises à jour Maven, npm, Docker et GitHub Actions.
 
 | Suite | Couverture |
 |---|---|
@@ -589,6 +639,7 @@ mvn test
 | `CreateBacklogServiceTest`, `CreateEditedBacklogServiceTest`, `ReassessStoryServiceTest`, `domain.service.*Test` | Cas d'usage et règles métier, sans framework |
 | `ApplicationWiringTest` | Démarrage du contexte Spring, câblage des cas d'usage, comportement de retry (tel que décrit plus haut) |
 | `ConfigurationDefaultsTest` | Valeurs par défaut identiques dans le code, la configuration d'exemple, `.env.example` et ce README |
+| `HttpSecurityConfigurationTest` | CORS (origine autorisée renvoyée, autre origine refusée, `*` refusé), clé d'API (absente, fausse, valide, health et préflight exemptés, `401` lisible avec CORS, clé jamais renvoyée) |
 | `HexagonalArchitectureTest` | Règles d'architecture (ArchUnit) : domaine/application sans framework, sens des dépendances |
 | `FullFlowIntegrationTest` | Parcours complet Confluence → IA → Jira et pannes de chaque service |
 
@@ -624,8 +675,10 @@ Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour 
 - [ ] Les descriptions sont envoyées dans un unique paragraphe ADF : le balisage (`h3.`, `*gras*`) n'est pas rendu.
 - [ ] La création n'est pas transactionnelle : une erreur en cours de route laisse les tickets déjà créés.
 - [ ] Brancher la prévisualisation et la réévaluation dans l'interface web.
-- [ ] Sécuriser l'API (authentification, CORS restreint — actuellement `*`).
-- [ ] Conteneurisation (Dockerfile / docker-compose avec Ollama) et pipeline CI GitHub Actions.
+- [x] CORS restreint et clé d'API optionnelle (`X-API-Key`).
+- [x] Conteneurisation (images multi-arch, Docker Compose avec profil Ollama) et CI GitHub Actions.
+- [ ] **v1.2** : vraie authentification des utilisateurs de l'interface et de l'API (aujourd'hui : clé d'API partagée,
+  ajoutée par le proxy), et `/api/v1/health` détaillé protégé (seule la sonde `/health/live` restera publique).
 
 ---
 
