@@ -3,7 +3,7 @@
 
 import axios, { isAxiosError } from 'axios';
 import { apiBaseUrl } from '../config';
-import type { AnalyzeRequest, ApiErrorBody, CreationResponse, HealthStatus } from '../types';
+import type { AnalyzeRequest, ApiErrorBody, CreationResponse, Epic, HealthStatus, PreviewResponse } from '../types';
 
 const api = axios.create({
     baseURL: apiBaseUrl(),
@@ -36,15 +36,39 @@ function toApiError(error: unknown): ApiError {
     return new ApiError(error instanceof Error ? error.message : 'Unexpected error');
 }
 
-/** 200 : tout est cree ; 207 : creation partielle (created / failed) ; autre statut : ApiError. */
-export const analyzeAndCreate = async (request: AnalyzeRequest): Promise<CreationResponse> => {
+/** Apercu du backlog genere depuis la page Confluence, sans rien creer (verdict ai-ready inclus). */
+export const previewBacklog = async (request: AnalyzeRequest): Promise<PreviewResponse> => {
     try {
-        const response = await api.post<CreationResponse>('/analyze-and-create', request, {
-            validateStatus: (status) => status === 200 || status === 207,
-        });
+        const response = await api.post<PreviewResponse>('/analyze-preview', request);
         return response.data;
     } catch (error) {
         throw toApiError(error);
+    }
+};
+
+function isCreationResponse(body: unknown): body is CreationResponse {
+    return typeof body === 'object' && body !== null && Array.isArray((body as CreationResponse).failed)
+        && Array.isArray((body as CreationResponse).created);
+}
+
+/**
+ * Cree dans Jira le backlog affiche (le serveur recalcule le verdict ai-ready sur ce contenu).
+ * 200 : tout est cree ; 207 : creation partielle ; 502 avec created / failed : rien n'a pu etre cree, raisons incluses.
+ * Toute autre reponse : ApiError.
+ */
+export const createBacklog = async (epics: Epic[], projectKey?: string): Promise<CreationResponse> => {
+    try {
+        const response = await api.post<CreationResponse | ApiErrorBody>('/create-jira', epics, {
+            params: projectKey ? { projectKey } : undefined,
+            validateStatus: (status) => status === 200 || status === 207 || status === 502,
+        });
+        if (isCreationResponse(response.data)) {
+            return response.data;
+        }
+        const body = response.data as ApiErrorBody;
+        throw new ApiError(typeof body?.error === 'string' ? body.error : `Request failed (HTTP ${response.status})`, body);
+    } catch (error) {
+        throw error instanceof ApiError ? error : toApiError(error);
     }
 };
 

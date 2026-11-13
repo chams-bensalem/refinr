@@ -38,7 +38,7 @@ export default function Header() {
                             to="/analyze"
                             className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
                         >
-                            Doc to Jira
+                            Analyze a spec
                         </Link>
                     </nav>
 

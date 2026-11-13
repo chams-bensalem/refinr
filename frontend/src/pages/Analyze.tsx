@@ -4,124 +4,159 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { analyzeAndCreate, ApiError } from '../api/client';
-import { Play, CheckCircle, Loader2, AlertCircle, FileText, Sparkles } from 'lucide-react';
+import { ApiError, createBacklog, previewBacklog } from '../api/client';
+import BacklogPreview from '../components/BacklogPreview';
+import type { Epic } from '../types';
+import { AlertCircle, CheckCircle, Eye, FileText, Loader2, RotateCcw, Send, Sparkles } from 'lucide-react';
+
+function ErrorBox({ title, error, onDismiss }: { title: string; error: Error; onDismiss: () => void }) {
+    return (
+        <div className="bg-red-50 border-b border-red-100 p-6">
+            <div className="flex items-start">
+                <AlertCircle className="h-6 w-6 text-red-600 flex-shrink-0" />
+                <div className="ml-3 flex-1">
+                    <h3 className="text-sm font-medium text-red-800">{title}</h3>
+                    <div className="mt-2 text-sm text-red-700">
+                        <p>{error.message || 'Unexpected error. Check the backend logs.'}</p>
+                        {error instanceof ApiError && error.correlationId && (
+                            <p className="mt-1 text-xs text-red-500">Reference: {error.correlationId}</p>
+                        )}
+                    </div>
+                    <button onClick={onDismiss} className="mt-4 text-sm font-medium text-red-600 hover:text-red-500">
+                        Dismiss
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function countBacklog(epics: Epic[]) {
+    const stories = epics.flatMap((epic) => epic.stories ?? []);
+    return {
+        epics: epics.length,
+        stories: stories.length,
+        subtasks: stories.reduce((total, story) => total + (story.tasks ?? []).length, 0),
+        aiReady: stories.filter((story) => story.aiReady === true).length,
+    };
+}
 
 export default function Analyze() {
     const [pageId, setPageId] = useState('');
     const navigate = useNavigate();
 
-    const mutation = useMutation({
-        mutationFn: analyzeAndCreate,
-        onSuccess: (data) => {
-            navigate('/results', { state: data });
-        },
+    const preview = useMutation({ mutationFn: previewBacklog });
+    const creation = useMutation({
+        mutationFn: (epics: Epic[]) => createBacklog(epics),
+        onSuccess: (data) => navigate('/results', { state: data }),
     });
+
+    const epics = preview.data?.epics ?? [];
+    const counts = countBacklog(epics);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (pageId.trim()) {
-            mutation.mutate({ confluencePageId: pageId.trim() });
+            creation.reset();
+            preview.mutate({ confluencePageId: pageId.trim() });
         }
+    };
+
+    const startOver = () => {
+        creation.reset();
+        preview.reset();
     };
 
     return (
         <div className="max-w-4xl mx-auto">
-            {/* Hero Section */}
             <div className="text-center mb-8">
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl mb-4 shadow-lg">
                     <Sparkles className="h-8 w-8 text-white" />
                 </div>
-                <h1 className="text-4xl font-bold text-gray-900 mb-3">
-                    Analyze Your CDC
-                </h1>
+                <h1 className="text-4xl font-bold text-gray-900 mb-3">Analyze a spec</h1>
                 <p className="text-xl text-gray-600">
-                    Transform requirements into actionable Jira tickets with AI
+                    Preview the backlog drafted from a Confluence requirements document, then create it in Jira
                 </p>
             </div>
 
-            {/* Main Card */}
             <div className="bg-white shadow-2xl rounded-2xl overflow-hidden border border-gray-100">
-                {mutation.isError && (
-                    <div className="bg-red-50 border-b border-red-100 p-6">
-                        <div className="flex items-start">
-                            <div className="flex-shrink-0">
-                                <AlertCircle className="h-6 w-6 text-red-600" />
-                            </div>
-                            <div className="ml-3 flex-1">
-                                <h3 className="text-sm font-medium text-red-800">Analysis Failed</h3>
-                                <div className="mt-2 text-sm text-red-700">
-                                    <p>{mutation.error.message || 'Failed to analyze document. Please check your Confluence permissions and try again.'}</p>
-                                    {mutation.error instanceof ApiError && mutation.error.correlationId && (
-                                        <p className="mt-1 text-xs text-red-500">Reference: {mutation.error.correlationId}</p>
-                                    )}
-                                </div>
-                                <div className="mt-4">
-                                    <button
-                                        onClick={() => mutation.reset()}
-                                        className="text-sm font-medium text-red-600 hover:text-red-500"
-                                    >
-                                        Try again →
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                {preview.isError && <ErrorBox title="Preview failed" error={preview.error} onDismiss={() => preview.reset()} />}
+                {creation.isError && <ErrorBox title="Creation failed" error={creation.error} onDismiss={() => creation.reset()} />}
 
-                {mutation.isPending ? (
-                    <div className="p-12">
-                        <div className="flex flex-col items-center">
-                            <Loader2 className="h-16 w-16 animate-spin text-primary-600 mb-6" />
-                            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                                Analyzing Your Document
-                            </h3>
-                            <p className="text-gray-600 mb-8 text-center max-w-md">
-                                Our AI is reading your CDC, identifying requirements, and creating a structured roadmap...
-                            </p>
-
-                            {/* Progress Steps */}
-                            <div className="w-full max-w-md space-y-4">
-                                <div className="flex items-center space-x-3 text-sm">
-                                    <div className="flex-shrink-0 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                                        <CheckCircle className="h-4 w-4 text-white" />
-                                    </div>
-                                    <span className="text-gray-700">Fetching Confluence content</span>
-                                </div>
-                                <div className="flex items-center space-x-3 text-sm">
-                                    <div className="flex-shrink-0 w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center animate-pulse">
-                                        <div className="w-2 h-2 bg-white rounded-full" />
-                                    </div>
-                                    <span className="text-gray-700 font-medium">Analyzing with AI</span>
-                                </div>
-                                <div className="flex items-center space-x-3 text-sm">
-                                    <div className="flex-shrink-0 w-6 h-6 bg-gray-300 rounded-full" />
-                                    <span className="text-gray-500">Creating Jira tickets</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                ) : mutation.isSuccess ? (
-                    <div className="p-12 text-center">
-                        <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-6">
-                            <CheckCircle className="h-10 w-10 text-green-600" />
-                        </div>
-                        <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                            Analysis Complete!
-                        </h3>
-                        <p className="text-gray-600 mb-8 max-w-md mx-auto">
-                            Your Jira tickets have been created successfully. Ready to review your roadmap?
+                {preview.isPending ? (
+                    <div className="p-12 flex flex-col items-center">
+                        <Loader2 className="h-16 w-16 animate-spin text-primary-600 mb-6" />
+                        <h3 className="text-xl font-semibold text-gray-900 mb-2">Analyzing your spec</h3>
+                        <p className="text-gray-600 mb-8 text-center max-w-md">
+                            The language model is reading the requirements document and drafting Epics, Stories and Sub-tasks.
+                            Nothing is created in Jira yet.
                         </p>
-                        <button
-                            onClick={() => navigate('/results', { state: mutation.data })}
-                            className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 transition-all"
-                        >
-                            View Results
-                        </button>
+                        <div className="w-full max-w-md space-y-4 text-sm">
+                            <div className="flex items-center space-x-3">
+                                <div className="flex-shrink-0 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                    <CheckCircle className="h-4 w-4 text-white" />
+                                </div>
+                                <span className="text-gray-700">Fetching the Confluence page</span>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                                <div className="flex-shrink-0 w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center animate-pulse">
+                                    <div className="w-2 h-2 bg-white rounded-full" />
+                                </div>
+                                <span className="text-gray-700 font-medium">Analyzing with AI and judging each story</span>
+                            </div>
+                        </div>
+                    </div>
+                ) : preview.isSuccess ? (
+                    <div className="p-8">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2 mb-6">
+                            <h2 className="text-2xl font-bold text-gray-900">Backlog preview</h2>
+                            <p className="text-sm text-gray-600">
+                                {counts.epics} epic(s) · {counts.stories} stories · {counts.subtasks} sub-tasks ·{' '}
+                                <span className="font-semibold text-green-700">{counts.aiReady} ai-ready</span>
+                            </p>
+                        </div>
+
+                        {epics.length === 0 ? (
+                            <p className="text-gray-600">The analysis produced no epic. Check the page content and try again.</p>
+                        ) : (
+                            <BacklogPreview epics={epics} />
+                        )}
+
+                        <p className="mt-6 text-sm text-gray-500">
+                            Nothing has been created yet. The ai-ready verdict is computed again by the server on this content
+                            when the issues are created.
+                        </p>
+
+                        <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                            <button
+                                onClick={() => creation.mutate(epics)}
+                                disabled={epics.length === 0 || creation.isPending}
+                                className="flex-1 flex items-center justify-center px-6 py-4 text-lg font-semibold rounded-xl text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all shadow-lg"
+                            >
+                                {creation.isPending ? (
+                                    <>
+                                        <Loader2 className="h-6 w-6 mr-2 animate-spin" />
+                                        Creating issues in Jira…
+                                    </>
+                                ) : (
+                                    <>
+                                        <Send className="h-6 w-6 mr-2" />
+                                        Create in Jira
+                                    </>
+                                )}
+                            </button>
+                            <button
+                                onClick={startOver}
+                                disabled={creation.isPending}
+                                className="flex items-center justify-center px-6 py-4 text-lg font-semibold rounded-xl text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:cursor-not-allowed transition-all"
+                            >
+                                <RotateCcw className="h-5 w-5 mr-2" />
+                                Start over
+                            </button>
+                        </div>
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="p-8">
-                        {/* Input Section */}
                         <div className="mb-8">
                             <label htmlFor="pageId" className="block text-sm font-semibold text-gray-900 mb-3">
                                 Confluence Page ID
@@ -146,49 +181,34 @@ export default function Analyze() {
                             </p>
                         </div>
 
-                        {/* Info Box */}
                         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-100 rounded-xl p-6 mb-8">
                             <h4 className="text-sm font-bold text-blue-900 mb-3 flex items-center">
                                 <Sparkles className="h-4 w-4 mr-2" />
                                 What happens next?
                             </h4>
-                            <div className="grid grid-cols-2 gap-3 text-sm text-blue-800">
-                                <div className="flex items-start">
-                                    <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5 mr-2 flex-shrink-0" />
-                                    <span>Fetch CDC from Confluence</span>
-                                </div>
-                                <div className="flex items-start">
-                                    <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5 mr-2 flex-shrink-0" />
-                                    <span>AI analysis of the document</span>
-                                </div>
-                                <div className="flex items-start">
-                                    <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5 mr-2 flex-shrink-0" />
-                                    <span>Generate Epics & Stories</span>
-                                </div>
-                                <div className="flex items-start">
-                                    <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5 mr-2 flex-shrink-0" />
-                                    <span>Create Jira hierarchy</span>
-                                </div>
-                            </div>
+                            <ol className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-blue-800 list-decimal list-inside">
+                                <li>Fetch the spec from Confluence</li>
+                                <li>Draft Epics, Stories and Sub-tasks with AI</li>
+                                <li>Review the preview and each ai-ready verdict</li>
+                                <li>Create the backlog in Jira when you confirm</li>
+                            </ol>
                         </div>
 
-                        {/* Submit Button */}
                         <button
                             type="submit"
-                            disabled={!pageId.trim() || mutation.isPending}
-                            className="w-full flex items-center justify-center px-6 py-4 border border-transparent text-lg font-semibold rounded-xl text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
+                            disabled={!pageId.trim()}
+                            className="w-full flex items-center justify-center px-6 py-4 text-lg font-semibold rounded-xl text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
                         >
-                            <Play className="h-6 w-6 mr-2" />
-                            Start Analysis
+                            <Eye className="h-6 w-6 mr-2" />
+                            Preview
                         </button>
                     </form>
                 )}
             </div>
 
-            {/* Tips */}
             <div className="mt-8 text-center">
                 <p className="text-sm text-gray-500">
-                    💡 Tip: Make sure your Confluence page is accessible and contains a well-structured CDC
+                    💡 Tip: make sure your Confluence page is accessible and contains a well-structured requirements document
                 </p>
             </div>
         </div>
