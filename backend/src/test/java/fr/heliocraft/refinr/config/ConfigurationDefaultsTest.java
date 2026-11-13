@@ -59,6 +59,19 @@ class ConfigurationDefaultsTest {
         }
     }
 
+    @Test
+    @DisplayName("Temperature and max-tokens-param defaults are aligned between the code, the example config and the README")
+    void temperatureAndLimitParamAreAligned() throws IOException {
+        assertEquals(String.valueOf(LlmConfiguration.DEFAULT_ANALYSIS_TEMPERATURE), exampleDefault("refinr.llm.analysis.temperature"));
+        assertEquals(String.valueOf(LlmConfiguration.DEFAULT_VERDICT_TEMPERATURE), exampleDefault("refinr.llm.verdict.temperature"));
+        assertEquals(exampleDefault("refinr.llm.analysis.temperature"), readmeTableDefault("refinr.llm.analysis.temperature"));
+        assertTrue(readmeTableRow("refinr.llm.analysis.temperature").contains("`" + LlmConfiguration.DEFAULT_VERDICT_TEMPERATURE + "`"));
+        for (String key : new String[] {"refinr.llm.analysis.max-tokens-param", "refinr.llm.verdict.max-tokens-param"}) {
+            assertEquals("max_tokens", exampleDefault(key), key);
+        }
+        assertEquals("max_tokens", readmeTableDefault("refinr.llm.analysis.max-tokens-param"));
+    }
+
     private static String formatNumber(double value) {
         return value == Math.rint(value) ? String.valueOf((long) value) : String.valueOf(value);
     }

@@ -3,6 +3,9 @@ package fr.heliocraft.refinr.config;
 import fr.heliocraft.refinr.adapters.out.llm.JsonMode;
 import fr.heliocraft.refinr.adapters.out.llm.LlmProvider;
 import fr.heliocraft.refinr.adapters.out.llm.LlmSettings;
+import fr.heliocraft.refinr.adapters.out.llm.MaxTokensParam;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.env.MapPropertySource;
@@ -17,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class LlmConfigurationTest {
 
     private static LlmProperties.Role role(String provider, String baseUrl, String model, String apiKey) {
-        return new LlmProperties.Role(provider, baseUrl, model, apiKey, null, null, null, null, null, null, null, null, null, null);
+        return new LlmProperties.Role(provider, baseUrl, model, apiKey, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     @Test
@@ -84,7 +87,7 @@ class LlmConfigurationTest {
     @DisplayName("Retry settings are configurable per role and validated at startup")
     void retryIsConfigurable() {
         LlmProperties.Role custom = new LlmProperties.Role("google", null, "gemini-2.5-flash", "k", null, null, null, null,
-                null, 4, Duration.ofSeconds(1), 3.0, 0.0, Duration.ofSeconds(10));
+                null, null, 4, Duration.ofSeconds(1), 3.0, 0.0, Duration.ofSeconds(10));
         var retry = LlmConfiguration.verdictSettings(custom).retry();
         assertEquals(4, retry.maxRetries());
         assertEquals(Duration.ofSeconds(1), retry.baseDelay());
@@ -93,9 +96,60 @@ class LlmConfigurationTest {
         assertEquals(Duration.ofSeconds(10), retry.maxDelay());
 
         LlmProperties.Role badJitter = new LlmProperties.Role("google", null, "gemini-2.5-flash", "k", null, null, null, null,
-                null, null, null, null, 1.5, null);
+                null, null, null, null, null, 1.5, null);
         IllegalStateException error = assertThrows(IllegalStateException.class, () -> LlmConfiguration.verdictSettings(badJitter));
         assertTrue(error.getMessage().contains("retry-jitter must be between 0 and 1"), error.getMessage());
+    }
+
+    private static LlmProperties.Role openAi(String temperature, String maxTokensParam) {
+        return new LlmProperties.Role("openai-compatible", "https://api.openai.com/v1", "your-openai-model", "k", null, null,
+                temperature, null, maxTokensParam, null, null, null, null, null, null);
+    }
+
+    @Test
+    @DisplayName("temperature: absent = role default (0.2 / 0.1, unchanged), empty = not sent, otherwise the number")
+    void temperatureIsConfigurable() {
+        assertEquals(0.2, LlmConfiguration.analysisSettings(openAi(null, null)).temperature());
+        assertEquals(0.1, LlmConfiguration.verdictSettings(openAi(null, null)).temperature());
+        assertNull(LlmConfiguration.analysisSettings(openAi("", null)).temperature());
+        assertNull(LlmConfiguration.verdictSettings(openAi("  ", null)).temperature());
+        assertEquals(1.0, LlmConfiguration.analysisSettings(openAi("1", null)).temperature());
+
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+                () -> LlmConfiguration.analysisSettings(openAi("warm", null)));
+        assertEquals("Invalid refinr.llm.analysis configuration: temperature must be a number >= 0, or empty to not send it",
+                error.getMessage());
+        assertThrows(IllegalStateException.class, () -> LlmConfiguration.analysisSettings(openAi("-0.5", null)));
+    }
+
+    @Test
+    @DisplayName("max-tokens-param: max_tokens by default, max_completion_tokens or none on request, anything else refused")
+    void maxTokensParamIsConfigurable() {
+        assertEquals(MaxTokensParam.MAX_TOKENS, LlmConfiguration.analysisSettings(openAi(null, null)).maxTokensParam());
+        assertEquals(MaxTokensParam.MAX_TOKENS, LlmConfiguration.analysisSettings(openAi(null, "")).maxTokensParam());
+        assertEquals(MaxTokensParam.MAX_COMPLETION_TOKENS,
+                LlmConfiguration.analysisSettings(openAi(null, "max_completion_tokens")).maxTokensParam());
+        assertEquals(MaxTokensParam.NONE, LlmConfiguration.verdictSettings(openAi(null, "none")).maxTokensParam());
+
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+                () -> LlmConfiguration.analysisSettings(openAi(null, "max_output_tokens")));
+        assertTrue(error.getMessage().contains("expected max_tokens, max_completion_tokens or none"), error.getMessage());
+    }
+
+    @Test
+    @DisplayName("Spring binding: an empty LLM_ANALYSIS_TEMPERATURE reaches the code as empty (not sent), an absent one as null (default)")
+    void emptyTemperatureBindsAsEmpty() {
+        LlmProperties empty = new Binder(new MapConfigurationPropertySource(Map.of(
+                "refinr.llm.analysis.temperature", "", "refinr.llm.analysis.max-tokens-param", "max_completion_tokens")))
+                .bind("refinr.llm", LlmProperties.class).get();
+        assertEquals("", empty.analysis().temperature());
+        assertEquals("max_completion_tokens", empty.analysis().maxTokensParam());
+        assertNull(LlmConfiguration.analysisSettings(empty.analysis()).temperature());
+
+        LlmProperties absent = new Binder(new MapConfigurationPropertySource(Map.of("refinr.llm.analysis.model", "m")))
+                .bind("refinr.llm", LlmProperties.class).get();
+        assertNull(absent.analysis().temperature());
+        assertEquals(0.2, LlmConfiguration.analysisSettings(absent.analysis()).temperature());
     }
 
     @Test
@@ -122,7 +176,7 @@ class LlmConfigurationTest {
     @DisplayName("anthropic and google need a positive max-output-tokens")
     void positiveOutputLimit() {
         LlmProperties.Role zero = new LlmProperties.Role("anthropic", null, "claude-opus-5-5", "k", null, 0, null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
 
         IllegalStateException error = assertThrows(IllegalStateException.class, () -> LlmConfiguration.verdictSettings(zero));
         assertTrue(error.getMessage().contains("max-output-tokens must be > 0"), error.getMessage());

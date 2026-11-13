@@ -9,6 +9,7 @@ import fr.heliocraft.refinr.adapters.out.llm.LlmHealthCheck;
 import fr.heliocraft.refinr.adapters.out.llm.LlmProvider;
 import fr.heliocraft.refinr.adapters.out.llm.LlmReadinessAssessor;
 import fr.heliocraft.refinr.adapters.out.llm.LlmSettings;
+import fr.heliocraft.refinr.adapters.out.llm.MaxTokensParam;
 import fr.heliocraft.refinr.adapters.out.llm.RetryPolicy;
 import fr.heliocraft.refinr.adapters.out.llm.StructuredOutput;
 import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
@@ -138,8 +139,9 @@ public class LlmConfiguration {
                     role.apiKey(),
                     role.timeout() != null ? role.timeout() : timeout,
                     role.maxOutputTokens() != null ? role.maxOutputTokens() : maxOutputTokens,
-                    role.temperature() != null ? role.temperature() : temperature,
+                    temperature(role.temperature(), temperature),
                     JsonMode.fromId(role.jsonMode()),
+                    MaxTokensParam.fromId(role.maxTokensParam()),
                     extraBody(role.extraBody()),
                     new RetryPolicy(
                             role.maxRetries() != null ? role.maxRetries() : DEFAULT_MAX_RETRIES,
@@ -149,6 +151,25 @@ public class LlmConfiguration {
                             role.retryMaxDelay() != null ? role.retryMaxDelay() : DEFAULT_RETRY_MAX_DELAY));
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException("Invalid refinr.llm." + name + " configuration: " + e.getMessage(), e);
+        }
+    }
+
+    /** Absente : defaut du role ; vide : non envoyee (defaut du fournisseur) ; sinon un nombre >= 0. */
+    static Double temperature(String configured, double roleDefault) {
+        if (configured == null) {
+            return roleDefault;
+        }
+        if (configured.isBlank()) {
+            return null;
+        }
+        try {
+            double value = Double.parseDouble(configured.trim());
+            if (value < 0 || Double.isNaN(value) || Double.isInfinite(value)) {
+                throw new NumberFormatException();
+            }
+            return value;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("temperature must be a number >= 0, or empty to not send it");
         }
     }
 

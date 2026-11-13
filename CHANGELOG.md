@@ -40,6 +40,10 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 - Verdict par lots (`refinr.llm.verdict.batch-size`, 10 stories par appel) et cache des verdicts réussis par contenu de
   story (`refinr.llm.verdict.cache.*`, 24 h) : `create-jira` après un aperçu ne rejuge que les stories modifiées.
 - Health check par port sortant (Confluence, Jira, chaque fournisseur IA), via des lectures gratuites.
+- `refinr.llm.*.temperature` (`LLM_*_TEMPERATURE`) : vide = température non envoyée (défaut du fournisseur) ; défauts
+  inchangés (`0.2` analyse, `0.1` verdict). `refinr.llm.*.max-tokens-param` (`LLM_*_MAX_TOKENS_PARAM`, `openai-compatible`) :
+  `max_tokens` (défaut), `max_completion_tokens` ou `none`. Ensemble, ils permettent les modèles OpenAI à raisonnement
+  (exemple dans `.env.example`). OpenAI, comme `anthropic`, n'est pas encore testé en conditions réelles.
 - `refinr.llm.*.extra-body.*` (`openai-compatible`) : propriétés ajoutées au corps de la requête ;
   `LLM_ANALYSIS_REASONING_EFFORT=none` désactive la réflexion des modèles Ollama (équivalent de l'ancien `think: false`).
 
