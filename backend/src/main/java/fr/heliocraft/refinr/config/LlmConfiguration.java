@@ -9,6 +9,7 @@ import fr.heliocraft.refinr.adapters.out.llm.LlmHealthCheck;
 import fr.heliocraft.refinr.adapters.out.llm.LlmProvider;
 import fr.heliocraft.refinr.adapters.out.llm.LlmReadinessAssessor;
 import fr.heliocraft.refinr.adapters.out.llm.LlmSettings;
+import fr.heliocraft.refinr.adapters.out.llm.RetryPolicy;
 import fr.heliocraft.refinr.adapters.out.llm.StructuredOutput;
 import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
 import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
@@ -49,7 +50,9 @@ public class LlmConfiguration {
     static final double DEFAULT_ANALYSIS_TEMPERATURE = 0.2;
     static final double DEFAULT_VERDICT_TEMPERATURE = 0.1;
     static final int DEFAULT_MAX_RETRIES = 2;
-    static final Duration DEFAULT_RETRY_BASE_DELAY = Duration.ofSeconds(1);
+    static final Duration DEFAULT_RETRY_BASE_DELAY = Duration.ofSeconds(2);
+    static final double DEFAULT_RETRY_MULTIPLIER = 4;
+    static final double DEFAULT_RETRY_JITTER = 0.2;
     static final Duration DEFAULT_RETRY_MAX_DELAY = Duration.ofSeconds(30);
     static final int DEFAULT_MAX_REPAIR_ATTEMPTS = 2;
 
@@ -104,12 +107,14 @@ public class LlmConfiguration {
     }
 
     static LlmSettings analysisSettings(LlmProperties.Role role) {
-        boolean defaultProvider = !role.isConfigured();
-        String provider = defaultProvider ? DEFAULT_PROVIDER : role.provider();
         String baseUrl = blankToNull(role.baseUrl());
         String model = blankToNull(role.model());
-        if (DEFAULT_PROVIDER.equalsIgnoreCase(provider.trim())) {
-            // Sans precision : Ollama local et son modele par defaut
+        String provider = role.provider();
+        if (!role.isConfigured()) {
+            // Aucun fournisseur : Ollama local (API compatible OpenAI), et son modele par defaut sur son URL par defaut.
+            // Un fournisseur choisi explicitement ne recoit jamais ces valeurs : google / anthropic gardent leur URL
+            // officielle quand base-url est vide, openai-compatible exige un base-url explicite.
+            provider = DEFAULT_PROVIDER;
             baseUrl = baseUrl == null ? DEFAULT_BASE_URL : baseUrl;
             model = model == null && baseUrl.equals(DEFAULT_BASE_URL) ? DEFAULT_MODEL : model;
         }
@@ -136,9 +141,12 @@ public class LlmConfiguration {
                     role.temperature() != null ? role.temperature() : temperature,
                     JsonMode.fromId(role.jsonMode()),
                     extraBody(role.extraBody()),
-                    role.maxRetries() != null ? role.maxRetries() : DEFAULT_MAX_RETRIES,
-                    role.retryBaseDelay() != null ? role.retryBaseDelay() : DEFAULT_RETRY_BASE_DELAY,
-                    role.retryMaxDelay() != null ? role.retryMaxDelay() : DEFAULT_RETRY_MAX_DELAY);
+                    new RetryPolicy(
+                            role.maxRetries() != null ? role.maxRetries() : DEFAULT_MAX_RETRIES,
+                            role.retryBaseDelay() != null ? role.retryBaseDelay() : DEFAULT_RETRY_BASE_DELAY,
+                            role.retryMultiplier() != null ? role.retryMultiplier() : DEFAULT_RETRY_MULTIPLIER,
+                            role.retryJitter() != null ? role.retryJitter() : DEFAULT_RETRY_JITTER,
+                            role.retryMaxDelay() != null ? role.retryMaxDelay() : DEFAULT_RETRY_MAX_DELAY));
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException("Invalid refinr.llm." + name + " configuration: " + e.getMessage(), e);
         }

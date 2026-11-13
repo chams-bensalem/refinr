@@ -10,7 +10,8 @@ import java.util.Map;
  * @param maxOutputTokens limite de tokens de sortie ; 0 = ne pas l'envoyer (openai-compatible uniquement)
  * @param temperature     null = valeur par defaut du fournisseur (jamais envoyee a Anthropic)
  * @param extraBody       proprietes ajoutees telles quelles au corps de la requete (openai-compatible), ex. {@code think: false}
- * @param maxRetries      nouveaux essais sur 429, 5xx, 529 et connexion refusee (jamais apres un delai depasse)
+ * @param baseUrl         vide = URL officielle (anthropic, google) ; obligatoire pour openai-compatible
+ * @param retry           nouveaux essais sur 429, 5xx, 529 et connexion refusee (jamais apres un delai depasse)
  */
 public record LlmSettings(
         String role,
@@ -23,9 +24,7 @@ public record LlmSettings(
         Double temperature,
         JsonMode jsonMode,
         Map<String, Object> extraBody,
-        int maxRetries,
-        Duration retryBaseDelay,
-        Duration retryMaxDelay) {
+        RetryPolicy retry) {
 
     public LlmSettings {
         if (provider == null) {
@@ -50,6 +49,7 @@ public record LlmSettings(
         apiKey = apiKey == null ? "" : apiKey;
         jsonMode = jsonMode == null ? JsonMode.JSON_SCHEMA : jsonMode;
         extraBody = extraBody == null ? Map.of() : Map.copyOf(extraBody);
+        retry = retry == null ? RetryPolicy.none() : retry;
     }
 
     /** Description sans secret : fournisseur et modele. */

@@ -34,9 +34,11 @@ public record LlmProperties(Role analysis, Role verdict, Integer maxRepairAttemp
             Map<String, String> extraBody,
             Integer maxRetries,
             Duration retryBaseDelay,
+            Double retryMultiplier,
+            Double retryJitter,
             Duration retryMaxDelay) {
 
-        static final Role EMPTY = new Role(null, null, null, null, null, null, null, null, null, null, null, null);
+        static final Role EMPTY = new Role(null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 
         boolean isConfigured() {
             return provider != null && !provider.isBlank();

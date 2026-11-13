@@ -19,6 +19,6 @@ final class LlmTestSettings {
             case OPENAI_COMPATIBLE -> "qwen3:8b";
         };
         return new LlmSettings("analysis", provider, baseUrl, model, "fake-api-key", timeout, maxOutputTokens, 0.2,
-                JsonMode.JSON_SCHEMA, Map.of(), 2, Duration.ZERO, Duration.ofMillis(50));
+                JsonMode.JSON_SCHEMA, Map.of(), new RetryPolicy(2, Duration.ZERO, 1, 0, Duration.ofMillis(50)));
     }
 }

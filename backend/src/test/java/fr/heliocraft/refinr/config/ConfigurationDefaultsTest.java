@@ -25,9 +25,42 @@ class ConfigurationDefaultsTest {
     @Test
     @DisplayName("The default analysis provider (local Ollama, OpenAI-compatible API) is aligned everywhere")
     void analysisDefaultsAreAligned() throws IOException {
-        assertAligned("refinr.llm.analysis.provider", "LLM_ANALYSIS_PROVIDER", LlmConfiguration.DEFAULT_PROVIDER);
-        assertAligned("refinr.llm.analysis.base-url", "LLM_ANALYSIS_BASE_URL", LlmConfiguration.DEFAULT_BASE_URL);
-        assertAligned("refinr.llm.analysis.model", "LLM_ANALYSIS_MODEL", LlmConfiguration.DEFAULT_MODEL);
+        // .env.example configure explicitement l'Ollama local, avec les memes valeurs que le defaut du code
+        assertEquals(LlmConfiguration.DEFAULT_PROVIDER, envExample("LLM_ANALYSIS_PROVIDER"));
+        assertEquals(LlmConfiguration.DEFAULT_BASE_URL, envExample("LLM_ANALYSIS_BASE_URL"));
+        assertEquals(LlmConfiguration.DEFAULT_MODEL, envExample("LLM_ANALYSIS_MODEL"));
+        // README : fournisseur par defaut, et preset Ollama decrit sur la meme ligne
+        assertEquals(LlmConfiguration.DEFAULT_PROVIDER, readmeTableDefault("refinr.llm.analysis.provider"));
+        String providerRow = readmeTableRow("refinr.llm.analysis.provider");
+        assertTrue(providerRow.contains(LlmConfiguration.DEFAULT_BASE_URL) && providerRow.contains(LlmConfiguration.DEFAULT_MODEL), providerRow);
+    }
+
+    @Test
+    @DisplayName("The example config gives no Ollama default to an explicit provider: provider, base-url and model are empty")
+    void explicitProviderGetsNoOllamaDefault() throws IOException {
+        // Sinon LLM_ANALYSIS_PROVIDER=google seul enverrait les appels Gemini vers l'URL Ollama (HTTP 404)
+        for (String key : new String[] {"refinr.llm.analysis.provider", "refinr.llm.analysis.base-url", "refinr.llm.analysis.model"}) {
+            assertEquals("", exampleDefault(key), key);
+        }
+    }
+
+    @Test
+    @DisplayName("Retry defaults are aligned between the code, the example config and the README")
+    void retryDefaultsAreAligned() throws IOException {
+        String[][] expected = {
+                {"refinr.llm.analysis.max-retries", String.valueOf(LlmConfiguration.DEFAULT_MAX_RETRIES)},
+                {"refinr.llm.analysis.retry-base-delay", LlmConfiguration.DEFAULT_RETRY_BASE_DELAY.toSeconds() + "s"},
+                {"refinr.llm.analysis.retry-multiplier", formatNumber(LlmConfiguration.DEFAULT_RETRY_MULTIPLIER)},
+                {"refinr.llm.analysis.retry-jitter", formatNumber(LlmConfiguration.DEFAULT_RETRY_JITTER)},
+                {"refinr.llm.analysis.retry-max-delay", LlmConfiguration.DEFAULT_RETRY_MAX_DELAY.toSeconds() + "s"}};
+        for (String[] entry : expected) {
+            assertEquals(entry[1], exampleDefault(entry[0]), entry[0]);
+            assertEquals(entry[1], readmeTableDefault(entry[0]), entry[0]);
+        }
+    }
+
+    private static String formatNumber(double value) {
+        return value == Math.rint(value) ? String.valueOf((long) value) : String.valueOf(value);
     }
 
     @Test
@@ -97,10 +130,13 @@ class ConfigurationDefaultsTest {
         }
     }
 
-    private static void assertAligned(String key, String variable, String codeDefault) throws IOException {
-        assertEquals(codeDefault, exampleDefault(key), "default of " + key + " in " + EXAMPLE);
-        assertEquals(codeDefault, envExample(variable), variable + " in " + ENV_EXAMPLE);
-        assertEquals(codeDefault, readmeTableDefault(key), key + " in the README property table");
+    static String readmeTableRow(String key) throws IOException {
+        for (String line : Files.readAllLines(README)) {
+            if (line.startsWith("| `" + key + "` |")) {
+                return line;
+            }
+        }
+        throw new AssertionError(key + " missing from the README property table");
     }
 
     /** Defaut d'une propriete de application-example.properties ecrite {@code cle=${VAR:defaut}} ou {@code cle=valeur}. */
