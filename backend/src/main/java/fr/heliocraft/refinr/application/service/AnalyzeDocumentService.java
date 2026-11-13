@@ -35,6 +35,7 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
 
     @Override
     public BacklogCreationResult analyzeAndCreate(String documentId, String project) {
+        DocumentAnalysis.requireValidId(documentSource, documentId);
         log.info("Step 1: Reading source document...");
         String content = documentSource.getDocumentContent(documentId);
         DocumentAnalysis.requireUsefulText(content);

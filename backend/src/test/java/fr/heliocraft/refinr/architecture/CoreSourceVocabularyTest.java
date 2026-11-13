@@ -20,18 +20,19 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Complement source de la regle ArchUnit {@code no_tracker_identifier_in_domain_and_application} : ArchUnit ne voit
+ * Complement source de la regle ArchUnit {@code no_tool_identifier_in_domain_and_application} : ArchUnit ne voit
  * ni les noms de parametres ni les variables locales. Ce test lit les sources de domain/ et application/ et refuse
- * tout identifiant contenant "jira" ou "openproject" (insensible a la casse), commentaires et litteraux exclus.
+ * tout identifiant contenant le nom d'un gestionnaire de tickets ("jira", "openproject") ou d'une source documentaire
+ * ("confluence", "bookstack", "xwiki"), insensible a la casse, commentaires et litteraux exclus.
  */
 class CoreSourceVocabularyTest {
 
-    private static final List<String> FORBIDDEN = List.of("jira", "openproject");
+    private static final List<String> FORBIDDEN = List.of("jira", "openproject", "confluence", "bookstack", "xwiki");
     private static final Path SOURCES = Path.of(System.getProperty("basedir", "."), "src/main/java/fr/heliocraft/refinr");
     private static final Pattern IDENTIFIER = Pattern.compile("[\\p{L}_$][\\p{L}\\p{N}_$]*");
 
     @Test
-    @DisplayName("No identifier of domain/ or application/ sources contains 'jira' or 'openproject'")
+    @DisplayName("No identifier of domain/ or application/ sources names a tracker or a document source")
     void coreSourcesDoNotSpeakJira() throws IOException {
         List<Path> files = new ArrayList<>();
         for (String layer : List.of("domain", "application")) {
@@ -85,6 +86,21 @@ class CoreSourceVocabularyTest {
                 }
                 """;
         assertEquals(List.of("3:openProjectId"), forbiddenIdentifiers(stripCommentsAndLiterals(sample)));
+    }
+
+    @Test
+    @DisplayName("The scanner also catches document source identifiers (Confluence, BookStack, XWiki)")
+    void scannerSeesDocumentSourceIdentifiers() {
+        String sample = """
+                class Sample { // Confluence page, BookStack book, XWiki space
+                    String name = "confluence bookstack xwiki";
+                    void read(String confluencePageId, String bookStackId) {
+                        String xwikiReference = name;
+                    }
+                }
+                """;
+        assertEquals(List.of("3:confluencePageId", "3:bookStackId", "4:xwikiReference"),
+                forbiddenIdentifiers(stripCommentsAndLiterals(sample)));
     }
 
     /** "ligne:identifiant" pour chaque identifiant interdit du code (lignes numerotees a partir de 1). */

@@ -7,9 +7,12 @@ import fr.heliocraft.refinr.domain.model.DocumentSummary;
 
 import java.util.List;
 
-/** Recherche de documents source par espace et titre. */
+/** Recherche de documents source par titre, dans un espace optionnel. */
 public interface SearchDocuments {
 
-    /** @throws InvalidRequestException si la cle d'espace est invalide ou le titre vide */
-    List<DocumentSummary> search(String spaceKey, String title);
+    /**
+     * {@code space} null ou vide : tous les espaces lisibles par le compte de la source.
+     * @throws InvalidRequestException si l'espace n'a pas le format de la source active, ou si le titre est vide
+     */
+    List<DocumentSummary> search(String space, String title);
 }

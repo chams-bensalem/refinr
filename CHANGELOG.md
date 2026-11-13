@@ -5,6 +5,28 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ## [Unreleased]
 
+### Added
+- `source.provider` (`SOURCE_PROVIDER`, défaut `confluence`) : une source documentaire par instance. Valeur inconnue ou
+  propriété absente de la source choisie : arrêt au démarrage avec un message listant les propriétés manquantes
+  (`bookstack` et `xwiki` annoncés, refusés tant que leurs adaptateurs n'existent pas). Les propriétés `confluence.*`
+  ne sont plus requises si la source n'est pas Confluence.
+- API : champ neutre `documentId` pour `analyze-preview` et `analyze-and-create` (`confluencePageId` toujours accepté
+  comme alias ; les deux avec des valeurs différentes → `400`).
+- API : `GET /api/v1/documents/search?title=…&space=…` (`space` optionnel : sans lui, tous les espaces lisibles par le
+  compte, même limite de 25 résultats) et `GET /api/v1/source` → `{ "name": "Confluence" }`.
+
+### Changed
+- Identifiant de document absent ou vide : `400 documentId is required` au lieu d'un `500` ; identifiant au mauvais
+  format pour la source active (Confluence : numérique) : `400 Invalid documentId`, sans appel à la source (#20).
+
+### Deprecated
+- `GET /api/v1/confluence/search` (`spaceKey` obligatoire) : alias de `GET /api/v1/documents/search`, inchangé, avec
+  les en-têtes `Deprecation` et `Link: rel="successor-version"`. `confluencePageId` : préférer `documentId`.
+
+### Migration
+- Recopier dans `application.properties` la ligne `source.provider=${SOURCE_PROVIDER:confluence}` (facultatif :
+  `confluence` est la valeur par défaut).
+
 ## [1.1.0] - 2026-11-13
 
 **OpenProject** comme gestionnaire de tickets, au choix de Jira (un seul par instance). Contrat REST existant inchangé ;

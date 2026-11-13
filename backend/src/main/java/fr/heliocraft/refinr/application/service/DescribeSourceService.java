@@ -1,0 +1,26 @@
+// SPDX-FileCopyrightText: 2026 Chams Bensalem
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package fr.heliocraft.refinr.application.service;
+
+import fr.heliocraft.refinr.application.port.in.DescribeSource;
+import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
+
+public class DescribeSourceService implements DescribeSource {
+
+    private final DocumentSourcePort documentSource;
+
+    public DescribeSourceService(DocumentSourcePort documentSource) {
+        this.documentSource = documentSource;
+    }
+
+    @Override
+    public String displayName() {
+        return documentSource.displayName();
+    }
+
+    @Override
+    public boolean acceptsSpace(String space) {
+        return space != null && !space.isBlank() && documentSource.acceptsSpace(space);
+    }
+}
