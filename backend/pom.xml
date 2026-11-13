@@ -20,6 +20,8 @@
 
     <properties>
         <java.version>25</java.version>
+        <!-- JDK used to compile and test, whatever JDK runs Maven (see maven-toolchains-plugin) -->
+        <toolchain.jdk.version>[25,26)</toolchain.jdk.version>
         <!-- empty default so @{argLine} resolves when no other plugin sets it -->
         <argLine></argLine>
         <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
@@ -109,6 +111,23 @@
 
     <build>
         <plugins>
+            <!-- Compile and test on a JDK 25 even when Maven itself runs on another JDK: the JDK is discovered
+                 (JAVA_HOME, JAVA*_HOME variables, ~/.m2/toolchains.xml, usual install folders), no toolchains.xml required -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-toolchains-plugin</artifactId>
+                <version>3.2.0</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>select-jdk-toolchain</goal>
+                        </goals>
+                        <configuration>
+                            <version>${toolchain.jdk.version}</version>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
