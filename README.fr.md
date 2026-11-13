@@ -447,6 +447,8 @@ refinr.llm.verdict.max-output-tokens=4096
 | `refinr.security.allowed-hosts` | `localhost,127.0.0.1,[::1]` | Hôtes acceptés dans l'en-tête `Host` (protection contre le DNS rebinding), séparés par des virgules, port ignoré ; sinon `403`, y compris sur les health checks ; `*` et liste vide refusés au démarrage (`REFINR_ALLOWED_HOSTS`, même variable pour le frontend) |
 | `refinr.cors.allowed-origins` | `http://localhost:3000` | Origines autorisées à appeler l'API depuis un navigateur (CORS), séparées par des virgules ; vide = même origine uniquement ; `*` refusé au démarrage (`CORS_ALLOWED_ORIGINS`) |
 | `refinr.security.api-key` | *(vide)* | Clé d'API optionnelle : si renseignée, toute requête `/api/**` doit envoyer l'en-tête `X-API-Key` (sauf `/api/v1/health` et `/api/v1/health/live`), sinon `401` ; vide = désactivée (`REFINR_API_KEY`) |
+| `refinr.http.max-body-bytes` | `5242880` | Taille maximale du corps d'une requête, en octets (5 Mio, comme le `client_max_body_size 5m` du proxy du frontend), appliquée aussi aux corps `chunked` ; au-delà `413` (`HTTP_MAX_BODY_BYTES`) |
+| `refinr.document.max-content-chars` | `200000` | Taille maximale d'un document fourni en texte (`content`), en caractères Unicode, titre compris ; au-delà `413`, avant tout appel à l'IA (`DOCUMENT_MAX_CONTENT_CHARS`) |
 
 #### Variables d'environnement (recommandé)
 
@@ -714,8 +716,10 @@ curl -G "http://localhost:8080/api/v1/documents/search" --data-urlencode "title=
 
 1. Ouvrez <http://localhost:3000> et vérifiez que les indicateurs de santé de l'en-tête sont **verts**.
 2. Ouvrez **Analyze a spec**.
-3. Collez l'**identifiant de la page** (le libellé et l'aide s'adaptent à la source active) et cliquez sur
-   **Preview** : rien n'est encore créé ; l'aperçu propose un lien vers la page analysée.
+3. Choisissez **Confluence page** (ou **BookStack page** / **XWiki page**, selon la source active) et collez l'**identifiant de la page** (le libellé et l'aide s'adaptent à la source
+   active), ou **Pasted text** et collez le cahier des charges lui-même (Markdown ou texte brut, titre optionnel ; un
+   compteur indique la taille et la limite). Cliquez sur **Preview** : rien n'est encore créé ; pour une page,
+   l'aperçu propose un lien vers la page analysée.
 4. Relisez l'aperçu Epics > Stories > Sous-tâches et, pour chaque story, le badge `ai-ready` / `validation-necessaire`
    et sa raison.
 5. Cliquez sur **Create in Jira** (ou OpenProject ; le verdict est recalculé par le serveur sur ce contenu), puis consultez le
@@ -745,6 +749,16 @@ curl -s -X POST http://localhost:8080/api/v1/analyze-and-create \
   -d '{"documentId": "123456789", "projectKey": "DEMO"}'
 ```
 
+### Via l'API, avec un document fourni en texte
+
+Quelle que soit la source configurée (rien n'y est lu) : envoyez `content` (Markdown ou texte brut) et un `title`
+optionnel à la place de `documentId`, sur `analyze-preview` ou `analyze-and-create` :
+
+```bash
+jq -n --rawfile content cdc.md '{title: "Gestion des stocks", content: $content}' |
+  curl -s -X POST http://localhost:8080/api/v1/analyze-preview -H "Content-Type: application/json" -d @-
+```
+
 ### Débloquer une story `validation-necessaire`
 
 ```bash
@@ -772,12 +786,12 @@ Base URL : `http://localhost:8080/api/v1`
 
 | Méthode | Endpoint | Corps / paramètres | Description |
 |---|---|---|---|
-| `POST` | `/analyze-and-create` | `{ "documentId": "…", "projectKey": "PROJ" }` *(documentId : ID de page ou référence XWiki dans la source active ; projectKey optionnel : projet du gestionnaire de tickets actif — clé Jira `^[A-Z][A-Z0-9]{1,9}$`, ou identifiant OpenProject `^[a-z0-9_-]{1,100}$` / id numérique)* | Lit, analyse et crée toute la hiérarchie dans le gestionnaire actif |
-| `POST` | `/analyze-preview` | `{ "documentId": "…" }` | Analyse sans créer de tickets ; `documentUrl` (lien vers la page) ajouté s'il est connu |
+| `POST` | `/analyze-and-create` | `{ "documentId": "…", "projectKey": "PROJ" }` ou `{ "content": "…", "title": "…", "projectKey": "PROJ" }` *(documentId : ID de page ou référence XWiki dans la source active ; content : le document lui-même, Markdown ou texte brut, title optionnel ; projectKey optionnel : projet du gestionnaire de tickets actif — clé Jira `^[A-Z][A-Z0-9]{1,9}$`, ou identifiant OpenProject `^[a-z0-9_-]{1,100}$` / id numérique)* | Lit (ou prend le texte), analyse et crée toute la hiérarchie dans le gestionnaire actif |
+| `POST` | `/analyze-preview` | `{ "documentId": "…" }` ou `{ "content": "…", "title": "…" }` | Analyse sans créer de tickets ; `documentUrl` (lien vers la page) ajouté s'il est connu, jamais pour un texte |
 | `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optionnel, même format)* | Crée une structure déjà générée, dans `projectKey` ou le projet par défaut ; verdict `ai-ready` recalculé par le serveur (`aiReady` / `aiReadyReason` du client ignorés) |
 | `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Réévalue une story `validation-necessaire` (`409` si elle ne l'est pas) |
 | `GET` | `/documents/search` | `?title=…&space=…` *(space optionnel : clé d'espace Confluence, id ou slug de livre BookStack, référence d'espace XWiki)* | Recherche par titre dans la source active, 25 résultats au plus : `{ success, results: [{ id, title, url }] }` |
-| `GET` | `/source` | — | Source documentaire active : `{ "name": "Confluence" }`, `"BookStack"` ou `"XWiki"` (utilisé par l'interface web) |
+| `GET` | `/source` | — | Source documentaire active et limite du texte : `{ "name": "Confluence", "maxContentChars": 200000 }` (`"BookStack"` ou `"XWiki"` ; utilisé par l'interface web) |
 | `GET` | `/tracker` | — | Gestionnaire de tickets actif : `{ "name": "Jira" }` ou `{ "name": "OpenProject" }` (utilisé par l'interface web) |
 | `GET` | `/health` | — | Santé détaillée de la source active (`confluence`, `bookstack` ou `xwiki`) / gestionnaire de tickets actif (`jira` ou `openproject`) / IA (analyse, et verdict s'il est distinct), en cache 45 s |
 | `GET` | `/health/live` | — | Sonde de vivacité `{ "status": "UP" }`, sans appel aux services externes (conteneurs, orchestrateurs) |
@@ -788,6 +802,13 @@ Base URL : `http://localhost:8080/api/v1`
 `404` si la page est introuvable ou invisible pour le compte Refinr ; `502` si la source est indisponible
 (identifiants ou droits refusés, erreur, délai) — avec un message sûr qui cite la page et le statut HTTP, jamais une
 URL ni un corps brut.
+**Document fourni en texte** (`content`, `title` optionnel) : exclusif de `documentId` / `confluencePageId`
+(`content` avec un identifiant non vide → `400`) ; `content` vide ou blanc → le `400` document vide ; `title` sans
+`content` → `400` ; texte plus long que `refinr.document.max-content-chars` (200 000 caractères Unicode par défaut,
+ligne `# titre` comprise) → `413` avec la limite dans le message. Le titre est placé en tête du texte envoyé à l'IA,
+sous forme d'une ligne `# titre`. Les logs indiquent la taille du texte, jamais son contenu.
+**Taille du corps** : un corps de requête au-delà de `refinr.http.max-body-bytes` (5 Mio, `Content-Length` ou
+`chunked`) → `413`.
 **Alias dépréciés** (toujours acceptés) : `confluencePageId` à la place de `documentId` (les deux avec des valeurs
 différentes → `400`) ; `GET /confluence/search?spaceKey=…&title=…`, qui répond avec les en-têtes `Deprecation` et
 `Link: </api/v1/documents/search>; rel="successor-version"`.
@@ -802,6 +823,7 @@ différentes → `400`) ; `GET /confluence/search?spaceKey=…&title=…`, qui r
 | `200` | Tous les tickets ont été créés | `true` |
 | `207` | Création partielle : certains tickets créés, d'autres non | `false` |
 | `400` | `projectKey` invalide, ou document vide / sans texte à analyser (`analyze-and-create` ; `analyze-preview` aussi, sans appel à l'IA) | `false` |
+| `413` | Texte plus long que `refinr.document.max-content-chars`, ou corps au-delà de `refinr.http.max-body-bytes` (rien n'est créé, aucun appel à l'IA) | `false` |
 | `502` | Aucun ticket n'a pu être créé, sortie IA inexploitable (invalide après relances, ou tronquée), ou fournisseur IA indisponible | `false` |
 
 Un échec n'interrompt pas la création : l'élément est listé dans `failed` (avec une raison : statut HTTP et
@@ -951,7 +973,7 @@ Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour 
   (réponse partielle `created` / `failed`, à relancer pour les seuls éléments en échec).
 - Une seule source documentaire par instance (Confluence Cloud, BookStack ou XWiki) et un seul gestionnaire de tickets
   (Jira Cloud, types `Epic`, `Story` et `Subtask` requis, ou OpenProject, préparation décrite dans
-  [OpenProject](#openproject)) ; pas encore d'envoi de fichier ni de texte collé.
+  [OpenProject](#openproject)) ; un cahier des charges peut aussi être collé en texte (pas encore d'envoi de fichier).
 - L'aperçu de l'interface web est en lecture seule et la réévaluation n'y figure pas encore (modification de l'aperçu et réévaluation disponibles par l'API).
 - Pas d'authentification des utilisateurs : clé d'API partagée, ajoutée par le proxy (cf. [Sécurité](#sécurité)).
 - Cache des verdicts en mémoire, local à chaque instance.
@@ -963,7 +985,9 @@ Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour 
 - [x] **v1.1** : **OpenProject** comme gestionnaire de tickets (`tracker.provider=openproject`, nouvel adaptateur de `IssueTrackerPort`).
 - [x] **v1.2** : **BookStack** et **XWiki** comme sources documentaires (`source.provider`, nouveaux adaptateurs de
   `DocumentSourcePort`), `documentId` et `/documents/search` neutres.
-- [ ] Envoi de fichier (Markdown, Word, PDF) et texte collé comme source.
+- [ ] **v1.3** : document fourni en **texte** (`content`, texte collé dans l'interface web) et **plugin Obsidian**
+  (en cours : texte collé disponible).
+- [ ] Envoi de fichier (Markdown, Word, PDF).
 - [ ] Console d'administration (sources et gestionnaires configurés depuis l'interface, plusieurs sources par instance).
 - [ ] **Linear** et **GitHub Issues** comme gestionnaires de tickets.
 - [ ] **Serveur MCP** pour piloter Refinr depuis un agent de code.

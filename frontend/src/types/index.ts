@@ -3,12 +3,23 @@
 
 // Contrat JSON de l'API backend (/api/v1). Champs optionnels : absents ou null selon l'etape (apercu / creation).
 
-export interface AnalyzeRequest {
+/** Document lu dans la source active par son identifiant. */
+export interface DocumentAnalyzeRequest {
     /** Identifiant du document dans la source active (id Confluence ou BookStack, reference XWiki). */
     documentId: string;
     /** Projet cible du gestionnaire de tickets actif (cle Jira ou identifiant OpenProject) ; absent : projet par defaut. */
     projectKey?: string;
 }
+
+/** Document fourni en texte (Markdown ou texte brut), exclusif de documentId. */
+export interface TextAnalyzeRequest {
+    content: string;
+    /** Titre optionnel, donne au modele en tete du texte. */
+    title?: string;
+    projectKey?: string;
+}
+
+export type AnalyzeRequest = DocumentAnalyzeRequest | TextAnalyzeRequest;
 
 export interface Task {
     title: string;
@@ -111,6 +122,8 @@ export interface HealthStatus {
 /** Source documentaire active de l'instance (GET /source). */
 export interface SourceInfo {
     name: string;
+    /** Taille maximale d'un document fourni en texte (caracteres Unicode, titre compris) ; absente sur un backend 1.2. */
+    maxContentChars?: number;
 }
 
 /** Gestionnaire de tickets actif de l'instance (GET /tracker). */

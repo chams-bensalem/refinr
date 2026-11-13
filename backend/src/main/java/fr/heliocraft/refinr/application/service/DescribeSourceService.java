@@ -9,9 +9,11 @@ import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
 public class DescribeSourceService implements DescribeSource {
 
     private final DocumentSourcePort documentSource;
+    private final int maxContentChars;
 
-    public DescribeSourceService(DocumentSourcePort documentSource) {
+    public DescribeSourceService(DocumentSourcePort documentSource, int maxContentChars) {
         this.documentSource = documentSource;
+        this.maxContentChars = DocumentAnalysis.requirePositiveLimit(maxContentChars);
     }
 
     @Override
@@ -28,5 +30,10 @@ public class DescribeSourceService implements DescribeSource {
     public String documentUrl(String documentId) {
         return documentId != null && documentSource.acceptsDocumentId(documentId)
                 ? documentSource.documentUrl(documentId) : null;
+    }
+
+    @Override
+    public int maxContentChars() {
+        return maxContentChars;
     }
 }

@@ -16,27 +16,37 @@ const api = axios.create({
 export class ApiError extends Error {
     readonly correlationId?: string;
     readonly body?: ApiErrorBody;
+    /** Code HTTP de la reponse, absent si le backend n'a pas repondu. */
+    readonly status?: number;
 
-    constructor(message: string, body?: ApiErrorBody) {
+    constructor(message: string, body?: ApiErrorBody, status?: number) {
         super(message);
         this.name = 'ApiError';
         this.correlationId = body?.correlationId;
         this.body = body;
+        this.status = status;
     }
 }
 
+/** 413 sans corps JSON : refuse par le proxy (nginx) avant d'atteindre le backend. */
+const TOO_LARGE = 'The document is too large for the server (HTTP 413). Shorten the text or split the spec into several analyses.';
+
 function toApiError(error: unknown): ApiError {
     if (isAxiosError<ApiErrorBody>(error)) {
+        const status = error.response?.status;
         const body = error.response?.data;
         if (body && typeof body === 'object' && typeof body.error === 'string') {
-            return new ApiError(body.error, body);
+            return new ApiError(body.error, body, status);
         }
-        return new ApiError(error.response ? `Request failed (HTTP ${error.response.status})` : 'Backend unreachable');
+        if (status === 413) {
+            return new ApiError(TOO_LARGE, undefined, status);
+        }
+        return new ApiError(status ? `Request failed (HTTP ${status})` : 'Backend unreachable', undefined, status);
     }
     return new ApiError(error instanceof Error ? error.message : 'Unexpected error');
 }
 
-/** Apercu du backlog genere depuis le document de la source active, sans rien creer (verdict ai-ready inclus). */
+/** Apercu du backlog genere depuis un document de la source active ou un texte fourni, sans rien creer (verdict ai-ready inclus). */
 export const previewBacklog = async (request: AnalyzeRequest): Promise<PreviewResponse> => {
     try {
         const response = await api.post<PreviewResponse>('/analyze-preview', request);
@@ -72,7 +82,7 @@ export const createBacklog = async (epics: Epic[], projectKey?: string): Promise
     }
 };
 
-/** Nom de la source documentaire active (Confluence, BookStack ou XWiki), pour les libelles. */
+/** Source documentaire active (Confluence, BookStack ou XWiki) et taille maximale d'un texte fourni, pour l'interface. */
 export const getSource = async (): Promise<SourceInfo> => {
     try {
         const response = await api.get<SourceInfo>('/source');

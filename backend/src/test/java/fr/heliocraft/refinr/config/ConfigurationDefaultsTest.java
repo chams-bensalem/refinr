@@ -231,6 +231,7 @@ class ConfigurationDefaultsTest {
         String expected = String.valueOf(UseCaseConfig.DEFAULT_MAX_CONTENT_CHARS);
         assertEquals(expected, exampleDefault("refinr.document.max-content-chars"));
         assertEquals(expected, envExample("DOCUMENT_MAX_CONTENT_CHARS"));
+        assertEquals(expected, readmeTableDefault("refinr.document.max-content-chars"));
         // Valeur nulle ou negative : echec au demarrage, avec le nom de la propriete
         for (int invalid : new int[] {0, -1}) {
             IllegalStateException e = assertThrows(IllegalStateException.class, () -> new UseCaseConfig("", invalid));
@@ -244,6 +245,7 @@ class ConfigurationDefaultsTest {
         String expected = String.valueOf(HttpSecurityConfiguration.DEFAULT_MAX_BODY_BYTES);
         assertEquals(expected, exampleDefault("refinr.http.max-body-bytes"));
         assertEquals(expected, envExample("HTTP_MAX_BODY_BYTES"));
+        assertEquals(expected, readmeTableDefault("refinr.http.max-body-bytes"));
         // client_max_body_size 5m du proxy du frontend = 5 Mio
         assertTrue(Files.readString(Path.of("../frontend/docker/default.conf.template")).contains("client_max_body_size 5m;"));
         assertEquals(5L * 1024 * 1024, HttpSecurityConfiguration.DEFAULT_MAX_BODY_BYTES);

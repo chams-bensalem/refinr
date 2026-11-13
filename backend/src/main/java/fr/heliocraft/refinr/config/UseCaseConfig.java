@@ -90,7 +90,7 @@ public class UseCaseConfig {
 
     @Bean
     public DescribeSource describeSource(DocumentSourcePort documentSource) {
-        return new DescribeSourceService(documentSource);
+        return new DescribeSourceService(documentSource, maxContentChars);
     }
 
     @Bean

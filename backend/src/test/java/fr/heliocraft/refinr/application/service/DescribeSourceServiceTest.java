@@ -13,7 +13,7 @@ import static org.mockito.Mockito.*;
 class DescribeSourceServiceTest {
 
     private final DocumentSourcePort source = mock(DocumentSourcePort.class);
-    private final DescribeSourceService service = new DescribeSourceService(source);
+    private final DescribeSourceService service = new DescribeSourceService(source, 200_000);
 
     @Test
     @DisplayName("The name and the space format come from the active document source")
@@ -24,6 +24,7 @@ class DescribeSourceServiceTest {
         assertEquals("Some source", service.displayName());
         assertTrue(service.acceptsSpace("ok"));
         assertFalse(service.acceptsSpace("ko"));
+        assertEquals(200_000, service.maxContentChars());
     }
 
     @Test
