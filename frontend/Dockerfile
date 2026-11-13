@@ -16,8 +16,10 @@ FROM nginxinc/nginx-unprivileged:stable-alpine
 ENV NGINX_ENVSUBST_FILTER=REFINR_ \
     REFINR_BACKEND_URL=http://backend:8080 \
     REFINR_API_BASE_URL=/api/v1 \
-    REFINR_API_KEY=
+    REFINR_API_KEY= \
+    REFINR_ALLOWED_HOSTS="localhost,127.0.0.1,[::1]"
 COPY docker/default.conf.template /etc/nginx/templates/default.conf.template
+COPY --chmod=0755 docker/05-refinr-server-names.envsh /docker-entrypoint.d/05-refinr-server-names.envsh
 COPY --from=build /app/dist /usr/share/nginx/html
 USER 101
 EXPOSE 8080

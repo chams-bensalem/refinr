@@ -1,0 +1,28 @@
+#!/bin/sh
+# Sourced by the nginx entrypoint before the templates are rendered.
+# REFINR_ALLOWED_HOSTS (comma-separated, ports ignored) -> REFINR_SERVER_NAMES (space-separated nginx server_name list).
+# Fails the container start on an empty list, '*' or a character that could alter the nginx configuration.
+hosts=$(printf '%s' "${REFINR_ALLOWED_HOSTS:-}" | tr ',' ' ')
+names=""
+set -f   # no pathname expansion: '*' must stay a literal (and be refused)
+for host in $hosts; do
+  # host name / IPv4 (optional port), or bracketed IPv6 (optional port), or bare IPv6
+  if ! printf '%s' "$host" | grep -Eq '^([A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.?(:[0-9]+)?|\[[0-9A-Fa-f:.]+\](:[0-9]+)?|[0-9A-Fa-f]*:[0-9A-Fa-f:.]*)$'; then
+    echo "refinr: invalid entry in REFINR_ALLOWED_HOSTS: '$host' (expected exact host names or IPs, e.g. localhost,127.0.0.1,[::1])" >&2
+    exit 1
+  fi
+  case "$host" in
+    \[*\]:*) host="${host%%]:*}]" ;;          # [::1]:3000 -> [::1]
+    \[*) ;;                                    # [::1]
+    *:*:*) host="[$host]" ;;                   # ::1 -> [::1]
+    *:*) host="${host%%:*}" ;;                 # localhost:3000 -> localhost
+  esac
+  names="$names $host"
+done
+set +f
+if [ -z "$names" ]; then
+  echo "refinr: REFINR_ALLOWED_HOSTS is empty: every request would be rejected (default: localhost,127.0.0.1,[::1])" >&2
+  exit 1
+fi
+export REFINR_SERVER_NAMES="${names# }"
+echo "refinr: allowed Host headers: $REFINR_SERVER_NAMES"
