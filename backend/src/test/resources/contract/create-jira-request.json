@@ -15,7 +15,6 @@
           "AC1",
           "AC2"
         ],
-        "storyPoints": 3,
         "priority": "Medium",
         "labels": [
           "api"

@@ -19,6 +19,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   sans `LLM_ANALYSIS_BASE_URL` envoyait les appels vers l'URL Ollama (`HTTP 404`).
 
 ### Changed — contrat REST
+- **BREAKING** : le champ `storyPoints` des stories est retiré (réponses `analyze-preview` / `analyze-and-create`,
+  corps de `create-jira`, sortie attendue du modèle) : doublon jamais renseigné d'`estimatedStoryPoints`, seul champ
+  désormais lu et envoyé à Jira. Un `storyPoints` envoyé par un ancien client est ignoré.
 - `analyze-preview`, `analyze-and-create`, `reassess-story` : `502` (message générique) quand la sortie de l'IA est
   inexploitable — non conforme au schéma JSON même après relances, ou tronquée par la limite de tokens — et quand le
   fournisseur IA est indisponible après les nouveaux essais (injoignable, clé refusée, quota, délai) ; auparavant `500`.

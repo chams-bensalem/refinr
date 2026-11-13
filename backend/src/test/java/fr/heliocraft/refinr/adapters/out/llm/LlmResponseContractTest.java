@@ -63,7 +63,6 @@ class LlmResponseContractTest {
         assertEquals("Track Stock", story.getTitle());
         assertEquals("Story description", story.getDescription());
         assertEquals(List.of("AC1", "AC2"), story.getAcceptanceCriteria());
-        assertEquals(3, story.getStoryPoints());
         assertEquals(5, story.getEstimatedStoryPoints());
         assertEquals("Medium", story.getPriority());
         assertEquals(List.of("api"), story.getLabels());

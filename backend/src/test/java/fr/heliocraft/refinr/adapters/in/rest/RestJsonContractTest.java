@@ -114,6 +114,23 @@ class RestJsonContractTest {
         assertEquals("T", captor.getValue().get(0).getStories().get(0).getTasks().get(0).getTitle());
     }
 
+    @Test
+    @DisplayName("create-jira ignores the removed storyPoints field sent by an older client: only estimatedStoryPoints counts")
+    @SuppressWarnings("unchecked")
+    void createJiraIgnoresRemovedStoryPoints() throws Exception {
+        stubCreationResult();
+        mockMvc.perform(post("/api/v1/mvp/create-jira")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("[{\"name\":\"E\",\"stories\":[{\"title\":\"S\",\"storyPoints\":13,\"estimatedStoryPoints\":5}]},"
+                    + "{\"name\":\"F\",\"stories\":[{\"title\":\"U\",\"storyPoints\":8}]}]"))
+            .andExpect(status().isOk());
+
+        ArgumentCaptor<List<Epic>> captor = ArgumentCaptor.forClass(List.class);
+        verify(createBacklog).create(captor.capture(), isNull());
+        assertEquals(5, captor.getValue().get(0).getStories().get(0).getEstimatedStoryPoints());
+        assertNull(captor.getValue().get(1).getStories().get(0).getEstimatedStoryPoints());
+    }
+
     /** create renvoie desormais le resultat de la creation (crees / echoues) : ici, tout est cree. */
     private void stubCreationResult() {
         when(createBacklog.create(any(), any())).thenAnswer(invocation ->
@@ -135,7 +152,6 @@ class RestJsonContractTest {
         assertEquals("Track Stock", story.getTitle());
         assertEquals("Story description", story.getDescription());
         assertEquals(List.of("AC1", "AC2"), story.getAcceptanceCriteria());
-        assertEquals(3, story.getStoryPoints());
         assertEquals(5, story.getEstimatedStoryPoints());
         assertEquals("Medium", story.getPriority());
         assertEquals(List.of("api"), story.getLabels());
@@ -174,7 +190,6 @@ class RestJsonContractTest {
         story.setTitle("Track Stock");
         story.setDescription("Story description");
         story.setAcceptanceCriteria(List.of("AC1", "AC2"));
-        story.setStoryPoints(3);
         story.setEstimatedStoryPoints(5);
         story.setPriority("Medium");
         story.setLabels(List.of("api"));

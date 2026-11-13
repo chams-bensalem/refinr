@@ -20,7 +20,6 @@ public class StoryDto {
     private String title;
     private String description;
     private List<String> acceptanceCriteria = new ArrayList<>();
-    private Integer storyPoints;
 
     @JsonProperty("estimatedStoryPoints")
     private Integer estimatedStoryPoints;
@@ -90,14 +89,6 @@ public class StoryDto {
 
     public void setAcceptanceCriteria(List<String> acceptanceCriteria) {
         this.acceptanceCriteria = acceptanceCriteria;
-    }
-
-    public Integer getStoryPoints() {
-        return storyPoints;
-    }
-
-    public void setStoryPoints(Integer storyPoints) {
-        this.storyPoints = storyPoints;
     }
 
     public Integer getEstimatedStoryPoints() {

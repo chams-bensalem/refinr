@@ -14,7 +14,6 @@ public class Story {
     private String title;
     private String description;
     private List<String> acceptanceCriteria = new ArrayList<>();
-    private Integer storyPoints;
     private Integer estimatedStoryPoints;
     private String priority;
     private List<String> labels = new ArrayList<>();
@@ -75,14 +74,6 @@ public class Story {
 
     public void setAcceptanceCriteria(List<String> acceptanceCriteria) {
         this.acceptanceCriteria = acceptanceCriteria;
-    }
-
-    public Integer getStoryPoints() {
-        return storyPoints;
-    }
-
-    public void setStoryPoints(Integer storyPoints) {
-        this.storyPoints = storyPoints;
     }
 
     public Integer getEstimatedStoryPoints() {

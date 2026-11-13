@@ -127,8 +127,7 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
             fields.put("parent", Map.of("key", epicKey));
         }
 
-        Integer storyPoints = story.getEstimatedStoryPoints() != null
-                ? story.getEstimatedStoryPoints() : story.getStoryPoints();
+        Integer storyPoints = story.getEstimatedStoryPoints();
         if (!storyPointsField.isEmpty() && storyPoints != null) {
             fields.put(storyPointsField, storyPoints);
         }

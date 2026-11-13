@@ -23,7 +23,6 @@ export interface Story {
     iWant?: string | null;
     soThat?: string | null;
     acceptanceCriteria?: string[] | null;
-    storyPoints?: number | null;
     estimatedStoryPoints?: number | null;
     priority?: string | null;
     labels?: string[] | null;
