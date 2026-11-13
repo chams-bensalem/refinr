@@ -50,4 +50,23 @@ class XWikiHtmlTest {
         // Une classe qui contient seulement le mot en prefixe n'est pas un bloc d'erreur
         assertEquals(0, XWikiHtml.withoutRenderingErrors("<div class=\"xwikirenderingerrorx\">x</div>").removed());
     }
+
+    @Test
+    @DisplayName("Crafted content (huge unclosed tags, many '<div' without '>') is processed in linear time")
+    void noCatastrophicBacktracking() {
+        String unclosed = "<div class=\"" + "a ".repeat(200_000);
+        String manyOpenings = "<div ".repeat(100_000) + "<div class=\"xwikirenderingerror\">x</div><p>ok</p>";
+        String hugeAttributes = "<div data-x=\"" + "b".repeat(300_000) + "\" class=\"xwikirenderingerror\">x</div>";
+
+        long start = System.nanoTime();
+        assertEquals(0, XWikiHtml.withoutRenderingErrors(unclosed).removed());
+        XWikiHtml.Cleaned many = XWikiHtml.withoutRenderingErrors(manyOpenings);
+        // Balise aux attributs au-dela de la borne : non reconnue, laissee telle quelle (pas de blocage)
+        assertEquals(0, XWikiHtml.withoutRenderingErrors(hugeAttributes).removed());
+        long millis = (System.nanoTime() - start) / 1_000_000;
+
+        assertEquals(1, many.removed());
+        assertTrue(many.html().endsWith("<p>ok</p>"), many.html().substring(Math.max(0, many.html().length() - 40)));
+        assertTrue(millis < 2_000, "took " + millis + " ms");
+    }
 }
