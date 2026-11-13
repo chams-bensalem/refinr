@@ -72,7 +72,7 @@ export interface CreationResponse {
     epics: Epic[];
 }
 
-/** Corps d'erreur des endpoints /mvp/* (jamais le message brut d'une exception). */
+/** Corps d'erreur des endpoints du backlog (/api/v1/*) : jamais le message brut d'une exception. */
 export interface ApiErrorBody {
     success: false;
     error: string;

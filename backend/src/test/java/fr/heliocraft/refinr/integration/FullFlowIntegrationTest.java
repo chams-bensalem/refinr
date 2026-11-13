@@ -139,7 +139,7 @@ class FullFlowIntegrationTest {
         geminiBacklog("{\"epics\":[" + epic("Epic: Inventory", story("Track stock levels", "Create the stock table")) + "]}");
         jiraCreates(3);
 
-        mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
+        mockMvc.perform(post("/api/v1/analyze-and-create")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"confluencePageId\":\"123456\"}"))
                 .andExpect(status().isOk())
@@ -164,7 +164,7 @@ class FullFlowIntegrationTest {
     void shouldHandleConfluenceAPIFailure() throws Exception {
         confluence.enqueue(json(404, "{\"message\":\"Page not found\"}"));
 
-        mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
+        mockMvc.perform(post("/api/v1/analyze-and-create")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"confluencePageId\":\"999999\"}"))
                 .andExpect(status().is5xxServerError())
@@ -184,7 +184,7 @@ class FullFlowIntegrationTest {
             gemini.enqueue(json(500, "{\"error\":\"Internal error\"}"));
         }
 
-        mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
+        mockMvc.perform(post("/api/v1/analyze-and-create")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"confluencePageId\":\"123\"}"))
                 .andExpect(status().isBadGateway())
@@ -202,7 +202,7 @@ class FullFlowIntegrationTest {
         geminiBacklog("{\"epics\":[" + epic("Epic 1", story("Story 1", "Task 1")) + "]}");
         jira.enqueue(json(400, "{\"errorMessages\":[\"Bad request\"]}"));
 
-        mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
+        mockMvc.perform(post("/api/v1/analyze-and-create")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"confluencePageId\":\"123\"}"))
                 .andExpect(status().isBadGateway())
@@ -225,7 +225,7 @@ class FullFlowIntegrationTest {
                 + epic("Epic 2", story("Story 3", "T4")) + "]}");
         jiraCreates(9); // 2 Epics + 3 Stories + 4 Subtasks
 
-        mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
+        mockMvc.perform(post("/api/v1/analyze-and-create")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"confluencePageId\":\"123\"}"))
                 .andExpect(status().isOk())

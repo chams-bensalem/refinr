@@ -135,7 +135,7 @@ sequenceDiagram
     participant J as Jira Cloud
 
     U->>F: Enters the Confluence page ID
-    F->>B: POST /api/v1/mvp/analyze-and-create
+    F->>B: POST /api/v1/analyze-and-create
     B->>C: GET /wiki/rest/api/content/{id}?expand=body.storage
     C-->>B: Page HTML
     B->>A: "Scrum Master" prompt + document
@@ -393,7 +393,7 @@ Production build: `(cd backend && mvn clean package && java -jar target/refinr-1
 (`https://your-site.atlassian.net/wiki/spaces/SPACE/pages/123456789/My+spec`), or search for it:
 
 ```bash
-curl "http://localhost:8080/api/v1/mvp/confluence/search?spaceKey=SPACE&title=spec"
+curl "http://localhost:8080/api/v1/confluence/search?spaceKey=SPACE&title=spec"
 # { "success": true, "results": [ { "id": "123456789", "title": "My spec", "url": "https://your-site.atlassian.net/wiki/..." } ] }
 ```
 
@@ -404,22 +404,22 @@ paste the page ID, follow the steps (Confluence → AI analysis → Jira) and re
 
 ```bash
 # 1. Preview the structure without creating anything
-curl -s -X POST http://localhost:8080/api/v1/mvp/analyze-preview \
+curl -s -X POST http://localhost:8080/api/v1/analyze-preview \
   -H "Content-Type: application/json" -d '{"confluencePageId": "123456789"}' > preview.json
 
 # 2. (optional) edit the epics in preview.json — the ai-ready verdict is recomputed at creation
 
 # 3. Create them in Jira (projectKey optional)
-jq '.epics' preview.json | curl -s -X POST "http://localhost:8080/api/v1/mvp/create-jira?projectKey=PROJ" \
+jq '.epics' preview.json | curl -s -X POST "http://localhost:8080/api/v1/create-jira?projectKey=PROJ" \
   -H "Content-Type: application/json" -d @-
 ```
 
-Or in one step: `POST /api/v1/mvp/analyze-and-create` with `{"confluencePageId": "123456789", "projectKey": "DEMO"}`.
+Or in one step: `POST /api/v1/analyze-and-create` with `{"confluencePageId": "123456789", "projectKey": "DEMO"}`.
 
 **Unblock a `validation-necessaire` story**:
 
 ```bash
-curl -s -X POST http://localhost:8080/api/v1/mvp/reassess-story -H "Content-Type: application/json" \
+curl -s -X POST http://localhost:8080/api/v1/reassess-story -H "Content-Type: application/json" \
   -d '{"issueKey": "PROJ-42", "precision": "Login uses GitLab OAuth2; the mock-up is approved."}'
 # { "success": true, "issueKey": "PROJ-42", "aiReady": true, "aiReadyReason": "Scope and criteria are now complete." }
 ```
@@ -438,12 +438,11 @@ Base URL: `http://localhost:8080/api/v1`
 
 | Method | Endpoint | Body / parameters | Description |
 |---|---|---|---|
-| `POST` | `/mvp/analyze-and-create` | `{ "confluencePageId": "…", "projectKey": "PROJ" }` *(projectKey optional, `^[A-Z][A-Z0-9]{1,9}$`)* | Reads, analyzes and creates the whole hierarchy in Jira |
-| `POST` | `/mvp/analyze-preview` | `{ "confluencePageId": "…" }` | Analyzes without creating issues |
-| `POST` | `/mvp/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optional, same format)* | Creates a generated structure; the server recomputes the verdict (client `aiReady` / `aiReadyReason` ignored) |
-| `POST` | `/mvp/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Reassesses a `validation-necessaire` story (`409` if it is not one) |
-| `GET` | `/mvp/confluence/search` | `?spaceKey=SPACE&title=…` | Confluence page search (CQL): `{ success, results: [{ id, title, url }] }` |
-| `GET` | `/mvp/health` | — | Simple ping |
+| `POST` | `/analyze-and-create` | `{ "confluencePageId": "…", "projectKey": "PROJ" }` *(projectKey optional, `^[A-Z][A-Z0-9]{1,9}$`)* | Reads, analyzes and creates the whole hierarchy in Jira |
+| `POST` | `/analyze-preview` | `{ "confluencePageId": "…" }` | Analyzes without creating issues |
+| `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optional, same format)* | Creates a generated structure; the server recomputes the verdict (client `aiReady` / `aiReadyReason` ignored) |
+| `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Reassesses a `validation-necessaire` story (`409` if it is not one) |
+| `GET` | `/confluence/search` | `?spaceKey=SPACE&title=…` | Confluence page search (CQL): `{ success, results: [{ id, title, url }] }` |
 | `GET` | `/health` | — | Detailed health of Confluence / Jira / LLM (analysis, and verdict when separate), cached 45 s |
 | `GET` | `/health/live` | — | Liveness probe `{ "status": "UP" }`, no external call |
 

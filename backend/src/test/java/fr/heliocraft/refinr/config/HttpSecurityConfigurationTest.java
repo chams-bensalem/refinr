@@ -4,7 +4,7 @@
 package fr.heliocraft.refinr.config;
 
 import fr.heliocraft.refinr.adapters.in.rest.HealthCheckController;
-import fr.heliocraft.refinr.adapters.in.rest.MvpController;
+import fr.heliocraft.refinr.adapters.in.rest.BacklogController;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.CheckHealth;
 import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
@@ -40,11 +40,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** CORS configurable (plus de {@code *}) et cle d'API optionnelle, appliques par les filtres servlet. */
 class HttpSecurityConfigurationTest {
 
-    private static final String SEARCH = "/api/v1/mvp/confluence/search?spaceKey=SPACE&title=Spec";
+    private static final String SEARCH = "/api/v1/confluence/search?spaceKey=SPACE&title=Spec";
     private static final String HEALTH = "/api/v1/health";
     private static final String ALLOWED = "http://localhost:3000";
 
-    @WebMvcTest({MvpController.class, HealthCheckController.class})
+    @WebMvcTest({BacklogController.class, HealthCheckController.class})
     @Import({HttpSecurityConfiguration.class, LoggingFilter.class})
     abstract static class WebLayer {
         @Autowired MockMvc mockMvc;
@@ -87,7 +87,7 @@ class HttpSecurityConfigurationTest {
         @Test
         @DisplayName("Preflight of an allowed origin accepts the X-API-Key header")
         void preflightAllowsApiKeyHeader() throws Exception {
-            mockMvc.perform(options("/api/v1/mvp/analyze-preview")
+            mockMvc.perform(options("/api/v1/analyze-preview")
                             .header("Origin", ALLOWED)
                             .header("Access-Control-Request-Method", "POST")
                             .header("Access-Control-Request-Headers", "content-type,x-api-key"))
@@ -143,11 +143,11 @@ class HttpSecurityConfigurationTest {
         @Test
         @DisplayName("Encoded or ';'-decorated paths that Spring routes to /api/** still require the key")
         void obfuscatedPathsRequireKey() throws Exception {
-            for (String uri : List.of("/%61pi/v1/mvp/confluence/search?spaceKey=SPACE&title=Spec",
-                    "/api;x=1/v1/mvp/confluence/search?spaceKey=SPACE&title=Spec",
-                    "/api/v1/mvp;x/confluence/search?spaceKey=SPACE&title=Spec",
-                    "/api/v1/health/../mvp/confluence/search?spaceKey=SPACE&title=Spec",
-                    "/api/v1/health;/../mvp/confluence/search?spaceKey=SPACE&title=Spec")) {
+            for (String uri : List.of("/%61pi/v1/confluence/search?spaceKey=SPACE&title=Spec",
+                    "/api;x=1/v1/confluence/search?spaceKey=SPACE&title=Spec",
+                    "/api/v1/confluence;x/search?spaceKey=SPACE&title=Spec",
+                    "/api/v1/health/../confluence/search?spaceKey=SPACE&title=Spec",
+                    "/api/v1/health;/../confluence/search?spaceKey=SPACE&title=Spec")) {
                 mockMvc.perform(get(java.net.URI.create(uri)))
                         .andExpect(status().isUnauthorized());
             }
@@ -168,7 +168,7 @@ class HttpSecurityConfigurationTest {
         void healthAndPreflightAreExempt() throws Exception {
             mockMvc.perform(get(HEALTH)).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("UP"));
             mockMvc.perform(get(HEALTH + "/live")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("UP"));
-            mockMvc.perform(options("/api/v1/mvp/analyze-preview")
+            mockMvc.perform(options("/api/v1/analyze-preview")
                             .header("Origin", ALLOWED)
                             .header("Access-Control-Request-Method", "POST")
                             .header("Access-Control-Request-Headers", "content-type,x-api-key"))

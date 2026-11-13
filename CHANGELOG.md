@@ -7,8 +7,19 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ## [1.0.0] - 2026-11-13
 
-Première version publique. Projet issu d'un MVP interne, réécrit en monorepo (backend Java 25 / Spring Boot 4,
-frontend React) ; les entrées ci-dessous décrivent les écarts avec ce MVP.
+Première version publique. Projet issu d'un prototype interne, réécrit en monorepo (backend Java 25 / Spring Boot 4,
+frontend React) ; les entrées ci-dessous décrivent les écarts avec ce prototype.
+
+### Changed — routes de l'API (incompatible)
+- **BREAKING** : les endpoints du backlog n'ont plus de segment intermédiaire hérité du prototype : ils sont servis
+  directement sous `/api/v1`, avec les mêmes noms — `POST /api/v1/analyze-and-create`, `/api/v1/analyze-preview`,
+  `/api/v1/create-jira`, `/api/v1/reassess-story` et `GET /api/v1/confluence/search`. Les anciens chemins répondent
+  `404` ; l'interface web, le proxy nginx (qui transmet tout `/api/`) et les health checks ne changent pas.
+- Contrôleur REST renommé `BacklogController` (rôle : analyse, aperçu, création, réévaluation, recherche).
+
+### Removed — API
+- **BREAKING** : le ping du contrôleur du backlog (réponse `{"status":"UP","message":"… is running"}`), doublon de
+  `GET /api/v1/health/live` ; utilisez cette sonde (vivacité, sans appel externe) ou `GET /api/v1/health` (détaillé).
 
 ### Added — licence et documentation
 - Licence **AGPL-3.0-only** (`LICENSE`, texte officiel de la FSF) ; en-tête `SPDX-License-Identifier: AGPL-3.0-only`
@@ -105,11 +116,11 @@ frontend React) ; les entrées ci-dessous décrivent les écarts avec ce MVP.
   (`type`, `title`, `reason`) ; un échec n'interrompt plus la création des éléments suivants. Statut `200` si tout
   est créé, `207` si la création est partielle, `502` si rien n'a pu être créé (auparavant : `500` au premier échec,
   sans indiquer ce qui avait déjà été créé). `create-jira` renvoie aussi les `epics` avec leurs clés.
-- `GET /api/v1/mvp/confluence/search` renvoie `{"success": true, "results": [{"id", "title", "url"}]}`
+- `GET /api/v1/confluence/search` renvoie `{"success": true, "results": [{"id", "title", "url"}]}`
   au lieu de la réponse brute de Confluence (plus de `body.storage`, `_links`, `start`, `limit`…).
 
 ### Added
-- `POST /api/v1/mvp/create-jira?projectKey=PROJ` : projet cible optionnel, validé comme pour `analyze-and-create`
+- `POST /api/v1/create-jira?projectKey=PROJ` : projet cible optionnel, validé comme pour `analyze-and-create`
   (`^[A-Z][A-Z0-9]{1,9}$`, `400` sinon) ; sans paramètre, le projet par défaut (`jira.project-key`).
 
 - Descriptions Jira : conversion Markdown → ADF (titres, gras, italique, listes à puces et numérotées, code en ligne,
@@ -131,7 +142,7 @@ frontend React) ; les entrées ci-dessous décrivent les écarts avec ce MVP.
   apparaître dans les logs et les messages d'erreur.
 
 - Les erreurs renvoyées au client ne contiennent plus le message brut des exceptions (URL internes, corps de réponse
-  des services) : message générique + `correlationId` pour les endpoints `/mvp/*`, cause courte (`HTTP 401`,
+  des services) : message générique + `correlationId` pour les endpoints du backlog, cause courte (`HTTP 401`,
   `unreachable`…) pour `/health`.
 
 ### Fixed
@@ -147,7 +158,7 @@ frontend React) ; les entrées ci-dessous décrivent les écarts avec ce MVP.
   de Spring Boot 4, contrat JSON inchangé (vérifié par les tests de contrat).
 - Frontend : mention « Powered by Gemini AI » et chiffres marketing inventés (90 % de temps gagné, 2 min, 100 %
   de précision), bouton « View Demo » sans action.
-- Endpoint de debug `POST /api/v1/mvp/test-issue-types`.
+- Endpoint de debug `test-issue-types` (`POST`).
 
 [Unreleased]: https://github.com/chams-bensalem/refinr/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/chams-bensalem/refinr/releases/tag/v1.0.0
