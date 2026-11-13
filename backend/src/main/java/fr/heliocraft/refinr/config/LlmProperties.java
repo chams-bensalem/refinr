@@ -21,7 +21,11 @@ public record LlmProperties(Role analysis, Role verdict, Integer maxRepairAttemp
         verdict = verdict == null ? Role.EMPTY : verdict;
     }
 
-    /** Parametres d'un role ; {@code extraBody} : proprietes JSON ajoutees au corps (openai-compatible). */
+    /**
+     * Parametres d'un role ; {@code extraBody} : proprietes JSON ajoutees au corps (openai-compatible).
+     * {@code temperature} : absente = defaut du role, vide = non envoyee (defaut du fournisseur), sinon un nombre.
+     * {@code maxTokensParam} (openai-compatible) : max_tokens (defaut) | max_completion_tokens | none.
+     */
     public record Role(
             String provider,
             String baseUrl,
@@ -29,8 +33,9 @@ public record LlmProperties(Role analysis, Role verdict, Integer maxRepairAttemp
             String apiKey,
             Duration timeout,
             Integer maxOutputTokens,
-            Double temperature,
+            String temperature,
             String jsonMode,
+            String maxTokensParam,
             Map<String, String> extraBody,
             Integer maxRetries,
             Duration retryBaseDelay,
@@ -38,7 +43,7 @@ public record LlmProperties(Role analysis, Role verdict, Integer maxRepairAttemp
             Double retryJitter,
             Duration retryMaxDelay) {
 
-        static final Role EMPTY = new Role(null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        static final Role EMPTY = new Role(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 
         boolean isConfigured() {
             return provider != null && !provider.isBlank();

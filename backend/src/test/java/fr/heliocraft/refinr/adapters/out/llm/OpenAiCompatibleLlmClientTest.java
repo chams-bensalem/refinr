@@ -67,9 +67,53 @@ class OpenAiCompatibleLlmClientTest extends AbstractLlmClientTest {
     }
 
     private LlmClient client(JsonMode mode, String apiKey, Map<String, Object> extraBody, int maxOutputTokens) {
+        return client(mode, apiKey, extraBody, maxOutputTokens, null, MaxTokensParam.MAX_TOKENS);
+    }
+
+    private LlmClient client(JsonMode mode, String apiKey, Map<String, Object> extraBody, int maxOutputTokens,
+                             Double temperature, MaxTokensParam maxTokensParam) {
         return LlmClients.create(new LlmSettings("verdict", LlmProvider.OPENAI_COMPATIBLE, server.url("/v1").toString(),
-                "deepseek-chat", apiKey, Duration.ofSeconds(2), maxOutputTokens, null, mode, extraBody,
-                RetryPolicy.none()));
+                "deepseek-chat", apiKey, Duration.ofSeconds(2), maxOutputTokens, temperature, mode, maxTokensParam,
+                extraBody, RetryPolicy.none()));
+    }
+
+    @Test
+    @DisplayName("Default request: temperature and max_tokens sent (unchanged defaults)")
+    void defaultTemperatureAndMaxTokens() throws Exception {
+        server.enqueue(success("{}"));
+
+        client(JsonMode.JSON_SCHEMA, "k", Map.of(), 4096, 0.1, MaxTokensParam.MAX_TOKENS).complete(request());
+
+        JsonNode body = json.readTree(server.takeRequest().getBody().readUtf8());
+        assertEquals(0.1, body.path("temperature").asDouble());
+        assertEquals(4096, body.path("max_tokens").asInt());
+        assertFalse(body.has("max_completion_tokens"));
+    }
+
+    @Test
+    @DisplayName("OpenAI reasoning models: no temperature, limit sent as max_completion_tokens")
+    void reasoningModelRequest() throws Exception {
+        server.enqueue(success("{}"));
+
+        client(JsonMode.JSON_SCHEMA, "k", Map.of(), 32768, null, MaxTokensParam.MAX_COMPLETION_TOKENS).complete(request());
+
+        JsonNode body = json.readTree(server.takeRequest().getBody().readUtf8());
+        assertFalse(body.has("temperature"));
+        assertFalse(body.has("max_tokens"));
+        assertEquals(32768, body.path("max_completion_tokens").asInt());
+    }
+
+    @Test
+    @DisplayName("max-tokens-param none: no output limit sent at all")
+    void noLimitParam() throws Exception {
+        server.enqueue(success("{}"));
+
+        client(JsonMode.JSON_SCHEMA, "k", Map.of(), 32768, 0.2, MaxTokensParam.NONE).complete(request());
+
+        JsonNode body = json.readTree(server.takeRequest().getBody().readUtf8());
+        assertFalse(body.has("max_tokens"));
+        assertFalse(body.has("max_completion_tokens"));
+        assertEquals(0.2, body.path("temperature").asDouble());
     }
 
     @Test

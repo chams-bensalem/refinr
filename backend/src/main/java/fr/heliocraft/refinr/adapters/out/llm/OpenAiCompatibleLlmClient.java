@@ -58,9 +58,11 @@ public class OpenAiCompatibleLlmClient extends LlmClient {
         if (settings.temperature() != null) {
             body.put("temperature", settings.temperature());
         }
-        // 0 : limite non envoyee (ex. modeles OpenAI qui exigent max_completion_tokens, a passer dans extra-body)
-        if (settings.maxOutputTokens() > 0) {
-            body.put("max_tokens", settings.maxOutputTokens());
+        // max-tokens-param : max_tokens (defaut) | max_completion_tokens (modeles OpenAI a raisonnement) | none ;
+        // max-output-tokens 0 : limite non envoyee non plus
+        String limitField = settings.maxTokensParam().field();
+        if (limitField != null && settings.maxOutputTokens() > 0) {
+            body.put(limitField, settings.maxOutputTokens());
         }
         switch (settings.jsonMode()) {
             case JSON_SCHEMA -> {
