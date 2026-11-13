@@ -7,158 +7,56 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ## [1.0.0] - 2026-11-13
 
-Première version publique. Projet issu d'un prototype interne, réécrit en monorepo (backend Java 25 / Spring Boot 4,
-frontend React) ; les entrées ci-dessous décrivent les écarts avec ce prototype.
-
-### Changed — routes de l'API (incompatible)
-- **BREAKING** : les endpoints du backlog n'ont plus de segment intermédiaire hérité du prototype : ils sont servis
-  directement sous `/api/v1`, avec les mêmes noms — `POST /api/v1/analyze-and-create`, `/api/v1/analyze-preview`,
-  `/api/v1/create-jira`, `/api/v1/reassess-story` et `GET /api/v1/confluence/search`. Les anciens chemins répondent
-  `404` ; l'interface web, le proxy nginx (qui transmet tout `/api/`) et les health checks ne changent pas.
-- Contrôleur REST renommé `BacklogController` (rôle : analyse, aperçu, création, réévaluation, recherche).
-
-### Removed — API
-- **BREAKING** : le ping du contrôleur du backlog (réponse `{"status":"UP","message":"… is running"}`), doublon de
-  `GET /api/v1/health/live` ; utilisez cette sonde (vivacité, sans appel externe) ou `GET /api/v1/health` (détaillé).
-
-### Added — licence et documentation
-- Licence **AGPL-3.0-only** (`LICENSE`, texte officiel de la FSF) ; en-tête `SPDX-License-Identifier: AGPL-3.0-only`
-  (et `SPDX-FileCopyrightText`) dans chaque fichier source, contrôlé par `scripts/check-spdx.sh` (hook pre-commit
-  et job CI `license-headers`). Licence déclarée dans `pom.xml` (remplace l'Apache-2.0 hérité du parent Spring Boot)
-  et `package.json`.
-- Contributor License Agreement (`CLA.md`), signé sur chaque pull request par CLA Assistant.
-- `README.md` en anglais (pitch, verdict agent-ready, démarrage rapide Docker, statut réel des fournisseurs IA,
-  architecture, feuille de route) ; la documentation française devient `README.fr.md`.
-- `CONTRIBUTING.md`, `SECURITY.md` (signalement privé de vulnérabilités GitHub), `CODE_OF_CONDUCT.md`
-  (Contributor Covenant 2.1).
-
-### Changed
-- Version du frontend alignée sur celle du backend : `1.0.0`.
-
-### Added — packaging et sécurité
-- Images Docker `refinr-backend` (JRE 25, non-root) et `refinr-frontend` (nginx non-root), multi-arch `amd64`/`arm64`,
-  et `docker-compose.yml` (backend + frontend, profil optionnel `ollama`, configuration par `.env`).
-- `GET /api/v1/health/live` : sonde de vivacité `{"status":"UP"}`, sans appel aux services externes.
-- Clé d'API optionnelle `refinr.security.api-key` (`REFINR_API_KEY`) : si elle est définie, les appels `/api/**`
-  sans en-tête `X-API-Key` valide reçoivent `401` (`/api/v1/health` et `/api/v1/health/live` exceptés). Désactivée par défaut.
-- URL de l'API du frontend configurable à l'exécution (`/config.js`, `REFINR_API_BASE_URL` dans l'image).
-- CI GitHub Actions (tests, lint, build, scan de secrets, build des images, smoke test Compose) et Dependabot.
-
-- Protection contre le DNS rebinding : `refinr.security.allowed-hosts` (`REFINR_ALLOWED_HOSTS`, défaut
-  `localhost,127.0.0.1,[::1]`, port ignoré). Backend : `403` pour tout autre en-tête `Host`, toujours actif (même sans
-  clé d'API, health checks compris). Frontend (nginx) : même liste, connexion fermée (`444`) pour tout autre `Host`.
-  **Déploiement réseau** : ajouter à la liste le nom DNS ou l'IP utilisés pour joindre Refinr (cf. README, « Sécurité »).
-
-### Changed — CORS
-- **BREAKING** : un accès par un nom d'hôte non listé dans `REFINR_ALLOWED_HOSTS` (nom DNS, IP du réseau local)
-  est refusé (`403` backend, `444` frontend) tant que ce nom n'est pas ajouté à la liste.
-- **BREAKING** : CORS n'accepte plus toutes les origines (`*`) : seules celles de `refinr.cors.allowed-origins`
-  (`CORS_ALLOWED_ORIGINS`, défaut `http://localhost:3000`) ; une autre origine reçoit `403`. `*` est refusé au
-  démarrage. Sans effet pour l'interface web (même origine via le proxy Vite ou nginx).
-
-### Changed — configuration IA (incompatible)
-- Fournisseurs IA configurés par `refinr.llm.analysis.*` et `refinr.llm.verdict.*` (`provider` : `anthropic`,
-  `google` ou `openai-compatible`, `base-url`, `model`, `api-key`, `timeout`, `max-output-tokens`…), variables
-  `LLM_ANALYSIS_*` / `LLM_VERDICT_*`. Les anciennes clés (`ai.provider`, `ollama.*`, `gemini.*`, `ai.verdict.*`,
-  `groq.*`, `anthropic.api-key` et `AI_PROVIDER`, `OLLAMA_*`, `GEMINI_*`, `AI_VERDICT_*` dans `.env`) sont **refusées
-  au démarrage**, avec la correspondance à appliquer (cf. README, « Migration depuis l'ancienne configuration IA »).
-  Ollama passe par son API compatible OpenAI : `base-url` avec `/v1`.
-- `base-url` et `model` : sans fournisseur (`LLM_ANALYSIS_PROVIDER` vide), l'analyse utilise l'Ollama local
-  (`http://localhost:11434/v1`, `qwen3:8b`). Un fournisseur choisi explicitement n'hérite plus de ces valeurs :
-  `anthropic` et `google` utilisent leur URL officielle quand `base-url` est vide, `openai-compatible` exige un
-  `base-url` explicite (sinon échec clair au démarrage), et `model` est obligatoire. Auparavant, `LLM_ANALYSIS_PROVIDER=google`
-  sans `LLM_ANALYSIS_BASE_URL` envoyait les appels vers l'URL Ollama (`HTTP 404`).
-
-### Changed — contrat REST
-- **BREAKING** : le champ `storyPoints` des stories est retiré (réponses `analyze-preview` / `analyze-and-create`,
-  corps de `create-jira`, sortie attendue du modèle) : doublon jamais renseigné d'`estimatedStoryPoints`, seul champ
-  désormais lu et envoyé à Jira. Un `storyPoints` envoyé par un ancien client est ignoré.
-- `analyze-preview`, `analyze-and-create`, `reassess-story` : `502` (message générique) quand la sortie de l'IA est
-  inexploitable — non conforme au schéma JSON même après relances, ou tronquée par la limite de tokens — et quand le
-  fournisseur IA est indisponible après les nouveaux essais (injoignable, clé refusée, quota, délai) ; auparavant `500`.
-- `analyze-preview`, `analyze-and-create` : `400` explicite (« The document is empty or contains no text to analyze »)
-  quand le document est vide ou sans texte utile (balises vides, images seules), sans appel à l'IA.
-- `GET /api/v1/health` : `services.ai` (fournisseur d'analyse) indique `provider` = `anthropic`, `google` ou
-  `openai-compatible` ; `services.aiVerdict` apparaît quand un fournisseur de verdict distinct est configuré.
-  Réponse mise en cache 45 s (`refinr.health.cache-ttl`).
+**Initial public release.** Les choix techniques sont consignés dans [DECISIONS.md](DECISIONS.md).
 
 ### Added
-- Clients `anthropic` (API Messages, sans streaming ; non testé en conditions réelles), `google` (Gemini) et `openai-compatible` (OpenAI, DeepSeek,
-  Mistral, Groq, OpenRouter, Ollama, LiteLLM, vLLM…), avec le mode JSON natif de chaque fournisseur.
-- Sorties IA validées par JSON Schema (`backend/src/main/resources/llm/schemas`) ; sortie invalide ⇒ relance avec la
-  liste des erreurs (`refinr.llm.max-repair-attempts`, 2), puis `502`. Sortie tronquée (`max_tokens`, `MAX_TOKENS`,
-  `length`) ⇒ erreur explicite, sans relance.
-- Verdict par lots (`refinr.llm.verdict.batch-size`, 10 stories par appel) et cache des verdicts réussis par contenu de
-  story (`refinr.llm.verdict.cache.*`, 24 h) : `create-jira` après un aperçu ne rejuge que les stories modifiées.
-- Health check par port sortant (Confluence, Jira, chaque fournisseur IA), via des lectures gratuites.
-- `refinr.llm.*.temperature` (`LLM_*_TEMPERATURE`) : vide = température non envoyée (défaut du fournisseur) ; défauts
-  inchangés (`0.2` analyse, `0.1` verdict). `refinr.llm.*.max-tokens-param` (`LLM_*_MAX_TOKENS_PARAM`, `openai-compatible`) :
-  `max_tokens` (défaut), `max_completion_tokens` ou `none`. Ensemble, ils permettent les modèles OpenAI à raisonnement
-  (exemple dans `.env.example`). OpenAI, comme `anthropic`, n'est pas encore testé en conditions réelles.
-- `refinr.llm.*.extra-body.*` (`openai-compatible`) : propriétés ajoutées au corps de la requête ;
-  `LLM_ANALYSIS_REASONING_EFFORT=none` désactive la réflexion des modèles Ollama (équivalent de l'ancien `think: false`).
 
-### Changed
-- Appels IA : nouveaux essais sur `429`, `5xx` (dont `503` et `529`) et fournisseur injoignable, avec backoff
-  exponentiel et jitter : 2 s puis 8 s, ± 20 % (`refinr.llm.*.max-retries`, `retry-base-delay`, `retry-multiplier`,
-  `retry-jitter`, `retry-max-delay`). `Retry-After` (secondes ou date HTTP) prioritaire, plafonné à 30 s ; jamais après
-  un délai dépassé. Le verdict (`create-jira`, `reassess-story`) est désormais
-  retenté comme l'analyse.
-- Le modèle ne peut plus fournir de clés de ticket (`jiraKey`, `epicKey`…) dans sa sortie : refusées par le schéma.
-- Les corps d'erreur des fournisseurs IA ne sont plus journalisés (certains recopient une partie de la clé refusée).
+**Analyse IA d'une spec Confluence**
+- Lecture d'une page Confluence Cloud par son ID et recherche de pages par espace + titre
+  (`GET /api/v1/confluence/search`, clé d'espace validée, titre échappé dans le CQL).
+- Découpage Scrum Epic → Story → Sous-tâche par un LLM : stories *As a / I want / So that*, 2 à 5 critères
+  *Given / When / Then*, story points (Fibonacci), heures estimées, priorités et labels techniques normalisés.
+- Fournisseurs IA au choix, configurés séparément pour l'analyse (`refinr.llm.analysis.*`) et le verdict
+  (`refinr.llm.verdict.*`) : `anthropic`, `google` (Gemini) et `openai-compatible` (OpenAI, DeepSeek, Mistral, Groq,
+  OpenRouter, Ollama, LiteLLM, vLLM…). Défaut : Ollama local (`qwen3:8b`). Testés en réel : Ollama et Gemini.
+- Sorties validées par JSON Schema (mode JSON natif du fournisseur), jusqu'à 2 relances avec la liste des erreurs,
+  puis `502` ; sortie tronquée ⇒ erreur explicite ; document vide ⇒ `400` sans appel à l'IA.
+- Nouveaux essais des appels IA sur `429`, `5xx` et fournisseur injoignable (backoff exponentiel avec jitter,
+  `Retry-After` prioritaire et plafonné), jamais après un délai dépassé ; lecture Confluence retentée sur `429` / `500`.
 
-### Changed — contrat REST
-- `create-jira` : le serveur **recalcule** le verdict `ai-ready` de chaque story sur son contenu final (le contenu a pu
-  être modifié depuis l'aperçu) ; les champs `aiReady` et `aiReadyReason` envoyés par le client sont **ignorés**.
-  Verdict indisponible ⇒ `validation-necessaire`. Coût : un appel au fournisseur de verdict par story.
-  La réponse renvoie les `epics` avec le verdict recalculé.
-- `analyze-and-create` et `create-jira` : réponse de création avec `created` (`type`, `title`, `key`) et `failed`
-  (`type`, `title`, `reason`) ; un échec n'interrompt plus la création des éléments suivants. Statut `200` si tout
-  est créé, `207` si la création est partielle, `502` si rien n'a pu être créé (auparavant : `500` au premier échec,
-  sans indiquer ce qui avait déjà été créé). `create-jira` renvoie aussi les `epics` avec leurs clés.
-- `GET /api/v1/confluence/search` renvoie `{"success": true, "results": [{"id", "title", "url"}]}`
-  au lieu de la réponse brute de Confluence (plus de `body.storage`, `_links`, `start`, `limit`…).
+**Verdict « prêt pour un agent de code »**
+- Label `ai-ready` ou `validation-necessaire` (avec la raison) sur chaque story ; un doute vaut
+  `validation-necessaire`. Labels réservés : retirés s'ils viennent de la sortie de l'IA.
+- Verdict recalculé par le serveur sur le contenu final à la création (`aiReady` / `aiReadyReason` du client ignorés),
+  par lots de 10 stories, avec un cache par contenu (seules les stories modifiées sont rejugées).
+- Réévaluation d'une story `validation-necessaire` avec une précision de l'utilisateur (`POST /api/v1/reassess-story`),
+  description Jira d'origine conservée et complétée.
 
-### Added
-- `POST /api/v1/create-jira?projectKey=PROJ` : projet cible optionnel, validé comme pour `analyze-and-create`
-  (`^[A-Z][A-Z0-9]{1,9}$`, `400` sinon) ; sans paramètre, le projet par défaut (`jira.project-key`).
+**Création Jira**
+- `POST /api/v1/analyze-preview` (aperçu sans création), `POST /api/v1/create-jira` (structure éventuellement modifiée)
+  et `POST /api/v1/analyze-and-create` (en une étape) ; projet cible optionnel `projectKey`.
+- Descriptions converties de Markdown en ADF (titres, gras, italique, listes, code) ; story points dans le champ
+  `jira.story-points-field` ; projets team-managed (`jira.priority-enabled=false`).
+- Réponse partielle `created` / `failed` (`200`, `207`, `502`) : la création n'est jamais retentée (POST non idempotent)
+  et continue après un échec.
 
-- Descriptions Jira : conversion Markdown → ADF (titres, gras, italique, listes à puces et numérotées, code en ligne,
-  blocs de code) au lieu d'un unique paragraphe de texte brut contenant du balisage wiki (`h3.`, `*…*`).
+**Interface web**
+- Pages Dashboard, Analyze (suivi des étapes) et Results (compteurs, tickets créés, éléments non créés et leur raison),
+  état des services dans l'en-tête ; URL de l'API lue à l'exécution (`/config.js`).
 
-- Story points envoyés à Jira dans le champ `jira.story-points-field` (`JIRA_STORY_POINTS_FIELD`, ex. `customfield_10016`) ;
-  désactivé si vide (défaut).
+**Exploitation et sécurité**
+- `GET /api/v1/health` (état de Confluence, Jira et de chaque fournisseur IA, en cache 45 s, sans clé ni URL) et
+  sonde `GET /api/v1/health/live`.
+- Erreurs sans message brut d'exception (message générique + `correlationId`), logs JSON structurés.
+- Clé d'API optionnelle (`X-API-Key`), CORS limité à une liste d'origines, liste d'hôtes autorisés contre le DNS
+  rebinding (backend `403`, nginx `444`) ; clé Gemini transmise en en-tête, jamais dans l'URL.
+- Images Docker multi-arch (`amd64` / `arm64`) non-root, `docker-compose.yml` (profil optionnel `ollama`, configuration
+  par `.env`, ports sur `127.0.0.1`, conteneurs en lecture seule).
+- CI GitHub Actions (tests sur JDK 25, lint + build, en-têtes SPDX, gitleaks, images, smoke test Compose) et Dependabot.
 
-### Changed
-- `ai.provider` vaut `ollama` par défaut partout (code, configuration d'exemple, README) ; le code utilisait `gemini`.
-- Modèle Gemini configurable (`gemini.model`, défaut `gemini-2.5-flash`), utilisé par l'analyse et le health check ;
-  `ai.verdict.model` vaut aussi `gemini-2.5-flash` par défaut (au lieu de `gemini-3.6-flash`).
-
-### Security
-- Recherche Confluence : la clé d'espace est validée (liste blanche, `400` sinon) et le titre est échappé dans la
-  chaîne CQL ; un titre contenant `"` ne peut plus ajouter de clauses à la requête.
-
-- La clé Gemini est envoyée dans l'en-tête `x-goog-api-key` et non plus dans l'URL (`?key=`), qui pouvait
-  apparaître dans les logs et les messages d'erreur.
-
-- Les erreurs renvoyées au client ne contiennent plus le message brut des exceptions (URL internes, corps de réponse
-  des services) : message générique + `correlationId` pour les endpoints du backlog, cause courte (`HTTP 401`,
-  `unreachable`…) pour `/health`.
-
-### Fixed
-- Frontend : page Results alignée sur la vraie réponse de l'API (plus de `undefined` / `NaN`, éléments non créés
-  affichés avec leur raison, lien inexistant vers le board retiré) ; redirection par `<Navigate>` au lieu d'un
-  `navigate()` pendant le rendu ; client API typé sur le contrat réel (message d'erreur et `correlationId` affichés).
-- Frontend : `npm run lint` fonctionne (dépendances ESLint déclarées, option `--ext` retirée).
-- README : description exacte des nouveaux essais. La création Jira n'a jamais été retentée (le README l'annonçait),
-  seuls `429` et `500` le sont pour la lecture Confluence et l'analyse IA (pas tous les `5xx`).
-
-### Removed
-- Réglage provisoire `spring.jackson.use-jackson2-defaults=true` : la sérialisation REST utilise les défauts Jackson 3
-  de Spring Boot 4, contrat JSON inchangé (vérifié par les tests de contrat).
-- Frontend : mention « Powered by Gemini AI » et chiffres marketing inventés (90 % de temps gagné, 2 min, 100 %
-  de précision), bouton « View Demo » sans action.
-- Endpoint de debug `test-issue-types` (`POST`).
+**Projet**
+- Licence AGPL-3.0-only (en-tête SPDX dans chaque fichier source), CLA, README en anglais et en français,
+  `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`.
 
 [Unreleased]: https://github.com/chams-bensalem/refinr/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/chams-bensalem/refinr/releases/tag/v1.0.0
