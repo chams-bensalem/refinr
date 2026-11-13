@@ -481,6 +481,8 @@ How the backlog maps to OpenProject:
 | `refinr.security.allowed-hosts` | `localhost,127.0.0.1,[::1]` | Host names accepted in the `Host` header (DNS rebinding protection), comma-separated, port ignored; otherwise `403`, health checks included; `*` and an empty list are refused at startup (`REFINR_ALLOWED_HOSTS`, shared with the frontend) |
 | `refinr.cors.allowed-origins` | `http://localhost:3000` | Browser origins allowed to call the API (CORS), comma-separated; empty = same origin only; `*` refused at startup (`CORS_ALLOWED_ORIGINS`) |
 | `refinr.security.api-key` | *(empty)* | Optional API key: when set, every `/api/**` request must send `X-API-Key` (except `/api/v1/health` and `/api/v1/health/live`), otherwise `401`; empty = disabled (`REFINR_API_KEY`) |
+| `refinr.http.max-body-bytes` | `5242880` | Maximum request body size in bytes (5 MiB, same as the frontend proxy's `client_max_body_size 5m`), also enforced on chunked bodies; above it `413` (`HTTP_MAX_BODY_BYTES`) |
+| `refinr.document.max-content-chars` | `200000` | Maximum size of a document provided as text (`content`), in Unicode characters, title included; above it `413`, before any LLM call (`DOCUMENT_MAX_CONTENT_CHARS`) |
 
 `.env.example` lists every environment variable. The frontend needs none: it reads the API base URL at page load
 from `/config.js` (`REFINR_API_BASE_URL` in the Docker image, default `/api/v1`, same origin).
@@ -546,7 +548,8 @@ curl -G "http://localhost:8080/api/v1/documents/search" --data-urlencode "title=
 ```
 
 **Web UI**: open <http://localhost:3000>, check the health indicators in the header are green, open **Analyze a spec**,
-paste the page ID and click **Preview**. Review the Epics > Stories > Sub-tasks and the `ai-ready` /
+choose **Confluence page** (or **BookStack page** / **XWiki page**, after the active source) and paste the page ID, or choose **Pasted text** and paste the spec itself (Markdown or plain
+text, optional title; a counter shows the size against the limit), then click **Preview**. Review the Epics > Stories > Sub-tasks and the `ai-ready` /
 `validation-necessaire` badge (with its reason) of each story, then click **Create in Jira** (or OpenProject) — nothing is created
 before that — and read the summary on **Results**.
 
@@ -565,6 +568,14 @@ jq '.epics' preview.json | curl -s -X POST "http://localhost:8080/api/v1/create-
 ```
 
 Or in one step: `POST /api/v1/analyze-and-create` with `{"documentId": "123456789", "projectKey": "DEMO"}`.
+
+**API — document provided as text** (any configured source; nothing is read from it): send `content` (Markdown or
+plain text) and an optional `title` instead of `documentId`, on `analyze-preview` or `analyze-and-create`:
+
+```bash
+jq -n --rawfile content spec.md '{title: "Inventory management", content: $content}' |
+  curl -s -X POST http://localhost:8080/api/v1/analyze-preview -H "Content-Type: application/json" -d @-
+```
 
 **Unblock a `validation-necessaire` story**:
 
@@ -589,12 +600,12 @@ Base URL: `http://localhost:8080/api/v1`
 
 | Method | Endpoint | Body / parameters | Description |
 |---|---|---|---|
-| `POST` | `/analyze-and-create` | `{ "documentId": "…", "projectKey": "PROJ" }` *(documentId: page ID or XWiki reference of the active source; projectKey optional: project of the active tracker — Jira key `^[A-Z][A-Z0-9]{1,9}$`, or OpenProject identifier `^[a-z0-9_-]{1,100}$` / numeric id)* | Reads, analyzes and creates the whole hierarchy in the active tracker |
-| `POST` | `/analyze-preview` | `{ "documentId": "…" }` | Analyzes without creating issues; `documentUrl` (link to the page) added when known |
+| `POST` | `/analyze-and-create` | `{ "documentId": "…", "projectKey": "PROJ" }` or `{ "content": "…", "title": "…", "projectKey": "PROJ" }` *(documentId: page ID or XWiki reference of the active source; content: the document itself, Markdown or plain text, title optional; projectKey optional: project of the active tracker — Jira key `^[A-Z][A-Z0-9]{1,9}$`, or OpenProject identifier `^[a-z0-9_-]{1,100}$` / numeric id)* | Reads (or takes the text), analyzes and creates the whole hierarchy in the active tracker |
+| `POST` | `/analyze-preview` | `{ "documentId": "…" }` or `{ "content": "…", "title": "…" }` | Analyzes without creating issues; `documentUrl` (link to the page) added when known, never for a text |
 | `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optional, same format)* | Creates a generated structure; the server recomputes the verdict (client `aiReady` / `aiReadyReason` ignored) |
 | `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Reassesses a `validation-necessaire` story (`409` if it is not one) |
 | `GET` | `/documents/search` | `?title=…&space=…` *(space optional: Confluence space key, BookStack book ID or slug, XWiki space reference)* | Title search in the active source, 25 results at most: `{ success, results: [{ id, title, url }] }` |
-| `GET` | `/source` | — | Active document source: `{ "name": "Confluence" }`, `"BookStack"` or `"XWiki"` (used by the web UI) |
+| `GET` | `/source` | — | Active document source and text limit: `{ "name": "Confluence", "maxContentChars": 200000 }` (`"BookStack"` or `"XWiki"`; used by the web UI) |
 | `GET` | `/tracker` | — | Active issue tracker: `{ "name": "Jira" }` or `{ "name": "OpenProject" }` (used by the web UI) |
 | `GET` | `/health` | — | Detailed health of the active source (`confluence`, `bookstack` or `xwiki`) / the active tracker (`jira` or `openproject`) / LLM (analysis, and verdict when separate), cached 45 s |
 | `GET` | `/health/live` | — | Liveness probe `{ "status": "UP" }`, no external call |
@@ -606,6 +617,12 @@ Base URL: `http://localhost:8080/api/v1`
 - **Document errors** (`analyze-*`): `400` missing or malformed `documentId`, or empty document; `404` page not found
   or not visible to the Refinr account; `502` source unavailable (credentials or rights refused, error, timeout) —
   with a safe message naming the page and the HTTP status, never a URL or a raw body.
+- **Document provided as text** (`content`, `title` optional): exclusive of `documentId` / `confluencePageId`
+  (`content` with a non-blank id → `400`); empty or blank `content` → the `400` empty document; `title` without
+  `content` → `400`; text longer than `refinr.document.max-content-chars` (200 000 Unicode characters by default,
+  the `# title` line included) → `413` with the limit in the message. The title heads the text sent to the LLM as a
+  `# title` line. Logs show the size of the text, never its content.
+- **Body size**: a request body over `refinr.http.max-body-bytes` (5 MiB, `Content-Length` or chunked) → `413`.
 - **Deprecated aliases** (still accepted): `confluencePageId` instead of `documentId` (both with different values →
   `400`); `GET /confluence/search?spaceKey=…&title=…`, answered with the `Deprecation` and
   `Link: </api/v1/documents/search>; rel="successor-version"` headers.
@@ -617,6 +634,7 @@ Base URL: `http://localhost:8080/api/v1`
 | `200` | All issues created | `true` |
 | `207` | Partial: some issues created, others not | `false` |
 | `400` | Invalid `projectKey`, or empty document / no text to analyze | `false` |
+| `413` | Text longer than `refinr.document.max-content-chars`, or body over `refinr.http.max-body-bytes` (nothing created, no LLM call) | `false` |
 | `502` | No issue could be created, unusable LLM output (invalid after repairs, or truncated), or LLM provider unavailable | `false` |
 
 ```json
@@ -734,8 +752,8 @@ Docker and GitHub Actions updates weekly.
 - Creation is not transactional: a failure midway leaves the issues already created (partial response
   `created` / `failed`; re-send only what failed).
 - One document source per instance (Confluence Cloud, BookStack or XWiki) and one tracker per instance (Jira Cloud,
-  `Epic`, `Story` and `Subtask` issue types required, or OpenProject, setup in [OpenProject](#openproject)); no file
-  upload or pasted text yet.
+  `Epic`, `Story` and `Subtask` issue types required, or OpenProject, setup in [OpenProject](#openproject)); a spec can
+  also be pasted as text (no file upload yet).
 - The web UI preview is read-only, and reassessment is not in the UI yet (editing the preview and reassessment are available through the API).
 - No user authentication: a shared API key added by the proxy (see [Security](#security)).
 - Verdict cache in memory, local to each instance.
@@ -747,7 +765,9 @@ Docker and GitHub Actions updates weekly.
 - [x] **v1.1** — **OpenProject** as an issue tracker (`tracker.provider=openproject`, a new `IssueTrackerPort` adapter).
 - [x] **v1.2** — **BookStack** and **XWiki** as document sources (`source.provider`, new `DocumentSourcePort`
   adapters), neutral `documentId` and `/documents/search`.
-- [ ] File upload (Markdown, Word, PDF) and pasted text as a source.
+- [ ] **v1.3** — document provided as **text** (`content`, pasted text in the web UI) and an **Obsidian plugin**
+  (in progress: pasted text available).
+- [ ] File upload (Markdown, Word, PDF).
 - [ ] Administration console (sources and trackers configured from the UI, several sources per instance).
 - [ ] **Linear** and **GitHub Issues** as issue trackers.
 - [ ] **MCP server** to drive Refinr from a coding agent.

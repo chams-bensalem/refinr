@@ -14,4 +14,7 @@ public interface DescribeSource {
 
     /** Adresse web du document dans la source active, ou null (identifiant invalide ou adresse inconnue). Sans appel. */
     String documentUrl(String documentId);
+
+    /** Taille maximale (caracteres Unicode, titre compris) d'un document fourni en texte, pour l'interface. */
+    int maxContentChars();
 }

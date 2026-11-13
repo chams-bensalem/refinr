@@ -5,6 +5,29 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ## [Unreleased]
 
+### Added
+- Document fourni **en texte** : `analyze-preview` et `analyze-and-create` acceptent `content` (Markdown ou texte
+  brut) et un `title` optionnel, à la place de `documentId` / `confluencePageId`, quelle que soit la source configurée
+  (rien n'y est lu). Le texte suit ensuite le même chemin (contrôle du texte utile, analyse, verdict, création) ;
+  le titre est placé en tête du texte envoyé à l'IA (`# titre`). Pas de `documentUrl` dans ce mode ; les logs
+  n'indiquent que la taille du texte.
+- `refinr.document.max-content-chars` (`DOCUMENT_MAX_CONTENT_CHARS`, défaut `200000` caractères Unicode, titre
+  compris) : au-delà, `413` avant tout appel à l'IA. `GET /api/v1/source` renvoie aussi cette limite
+  (`maxContentChars`, ajout rétrocompatible).
+- Plafond du corps des requêtes côté backend, même sans le proxy du frontend : `refinr.http.max-body-bytes`
+  (`HTTP_MAX_BODY_BYTES`, défaut `5242880` = 5 Mio, comme `client_max_body_size 5m`), appliqué au `Content-Length`
+  comme aux corps `chunked` (lus au plus jusqu'à la limite) → `413`.
+- Interface web : choix **Confluence page** (ou BookStack / XWiki selon la source) / **Pasted text** dans *Analyze a spec* (zone de texte, titre optionnel,
+  compteur de caractères avec la limite, message clair sur un `413`) ; aperçu et création inchangés ensuite.
+
+### Changed
+- `title` envoyé sans `content` sur `analyze-preview` / `analyze-and-create` → `400`
+  (`title is only accepted with content`) ; auparavant, ce champ inconnu était ignoré.
+
+### Migration
+- Facultatif : recopier les lignes `refinr.document.max-content-chars` et `refinr.http.max-body-bytes` de
+  `application-example.properties` dans `application.properties` (les valeurs par défaut s'appliquent sinon).
+
 ## [1.2.0] - 2026-11-13
 
 **BookStack** et **XWiki** comme sources documentaires, au choix de Confluence (une seule par instance). Contrat REST

@@ -7,14 +7,36 @@ import { getSource } from '../api/client';
 /** Generic label shown until the backend answers (or if it cannot be reached). */
 export const GENERIC_SOURCE = 'your wiki';
 
-/** Name of the active document source (Confluence, BookStack or XWiki), read once from the backend. */
-export function useSourceName(): string {
-    const { data } = useQuery({
+/** Backend default of refinr.document.max-content-chars, used until the backend answers (or if it is older than 1.3). */
+export const DEFAULT_MAX_CONTENT_CHARS = 200_000;
+
+function useSourceInfo() {
+    return useQuery({
         queryKey: ['source'],
         queryFn: getSource,
         staleTime: Infinity,
-    });
-    return data?.name ?? GENERIC_SOURCE;
+    }).data;
+}
+
+/** Name of the active document source (Confluence, BookStack or XWiki), read once from the backend. */
+export function useSourceName(): string {
+    return useSourceInfo()?.name ?? GENERIC_SOURCE;
+}
+
+/** Maximum size of a document provided as text (Unicode characters, title included), read once from the backend. */
+export function useMaxContentChars(): number {
+    return useSourceInfo()?.maxContentChars ?? DEFAULT_MAX_CONTENT_CHARS;
+}
+
+/**
+ * Size of a provided text as the backend counts it: Unicode characters (code points) of the content, plus the
+ * "# title" line and the blank line that follows it when a title is given.
+ */
+export function providedTextSize(title: string, content: string): number {
+    const heading = title.replace(/\s+/g, ' ').trim();
+    // Code points: a surrogate pair (emoji, rare letters) counts as one character, as on the server
+    const codePoints = (text: string) => text.length - (text.match(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g)?.length ?? 0);
+    return codePoints(content) + (heading ? codePoints(heading) + 4 : 0);
 }
 
 /** Labels and help to enter the identifier of a document in the active source. */

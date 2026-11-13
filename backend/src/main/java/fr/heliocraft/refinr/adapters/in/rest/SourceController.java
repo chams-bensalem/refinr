@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -26,7 +27,11 @@ public class SourceController {
     }
 
     @GetMapping
-    public ResponseEntity<Map<String, String>> source() {
-        return ResponseEntity.ok(Map.of("name", describeSource.displayName()));
+    public ResponseEntity<Map<String, Object>> source() {
+        // maxContentChars : limite du mode texte (content), pour le compteur de l'interface ; ajout retrocompatible
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("name", describeSource.displayName());
+        body.put("maxContentChars", describeSource.maxContentChars());
+        return ResponseEntity.ok(body);
     }
 }

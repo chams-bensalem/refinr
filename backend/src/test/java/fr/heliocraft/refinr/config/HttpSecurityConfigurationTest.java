@@ -74,6 +74,7 @@ class HttpSecurityConfigurationTest {
             when(checkHealth.check()).thenReturn(new CheckHealth.HealthReport(true, List.of()));
             when(describeTracker.displayName()).thenReturn("OpenProject");
             when(describeSource.displayName()).thenReturn("Confluence");
+            when(describeSource.maxContentChars()).thenReturn(200_000);
             when(describeSource.acceptsSpace("SPACE")).thenReturn(true);
             when(searchDocuments.search(null, "Spec")).thenReturn(List.of());
         }
@@ -172,7 +173,8 @@ class HttpSecurityConfigurationTest {
             }
             mockMvc.perform(get(SOURCE).header("X-API-Key", "test-api-key-123"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.name").value("Confluence"));
+                    .andExpect(jsonPath("$.name").value("Confluence"))
+                    .andExpect(jsonPath("$.maxContentChars").value(200_000));
             mockMvc.perform(get(DOCUMENTS_SEARCH).header("X-API-Key", "test-api-key-123"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true));
