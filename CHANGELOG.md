@@ -5,6 +5,11 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-13
+
+**BookStack** et **XWiki** comme sources documentaires, au choix de Confluence (une seule par instance). Contrat REST
+existant conservé (anciens noms acceptés comme alias dépréciés) ; les erreurs de source ont désormais un code utile.
+
 ### Added
 - `source.provider` (`SOURCE_PROVIDER`, défaut `confluence`) : une source documentaire par instance, `confluence`,
   `bookstack` ou `xwiki`. Valeur inconnue ou propriété absente de la source choisie : arrêt au démarrage avec un message
@@ -24,7 +29,11 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 - API : champ neutre `documentId` pour `analyze-preview` et `analyze-and-create` (`confluencePageId` toujours accepté
   comme alias ; les deux avec des valeurs différentes → `400`).
 - API : `GET /api/v1/documents/search?title=…&space=…` (`space` optionnel : sans lui, tous les espaces lisibles par le
-  compte, même limite de 25 résultats) et `GET /api/v1/source` → `{ "name": "Confluence" }`.
+  compte, même limite de 25 résultats) et `GET /api/v1/source` → `{ "name": "Confluence" | "BookStack" | "XWiki" }`.
+- API : `documentUrl` (lien vers la page analysée dans la source active) dans les réponses de `analyze-preview` et
+  `analyze-and-create`, quand la source sait le construire (ajout rétrocompatible).
+- Interface web : libellé, exemple et aide pour trouver l'identifiant d'une page selon la source active (ID Confluence,
+  ID BookStack, référence XWiki), textes selon la source, lien « Open the spec in … » dans l'aperçu.
 
 ### Changed
 - Identifiant de document absent ou vide : `400 documentId is required` au lieu d'un `500` ; identifiant au mauvais
@@ -32,6 +41,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 - Erreurs de la source documentaire (lecture et recherche), Confluence compris : `404` si le document est absent ou non
   visible pour le compte, `502` si la source refuse les identifiants ou les droits, est en erreur ou injoignable — au
   lieu d'un `500` générique. Message sûr et utile (outil, identifiant du document, statut HTTP), sans URL ni corps brut.
+- Interface web : envoie `documentId` (au lieu de `confluencePageId`).
+- Health Confluence : `DOWN` « confluence.base-url not set » sans appel quand `CONFLUENCE_BASE_URL` est vide.
+- Health : la section de la source est celle de la source active (`confluence`, `bookstack` ou `xwiki`).
 
 ### Deprecated
 - `GET /api/v1/confluence/search` (`spaceKey` obligatoire) : alias de `GET /api/v1/documents/search`, inchangé, avec
@@ -40,7 +52,11 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 ### Migration
 - Recopier dans `application.properties` la ligne `source.provider=${SOURCE_PROVIDER:confluence}` (facultatif :
   `confluence` est la valeur par défaut) et, pour BookStack ou XWiki, le bloc `bookstack.*` ou `xwiki.*` de
-  `application-example.properties`.
+  `application-example.properties` ; dans `.env`, `SOURCE_PROVIDER` et les variables `BOOKSTACK_*` / `XWIKI_*`
+  (cf. `.env.example`). Une instance qui reste sur Confluence n'a rien à changer.
+- Clients de l'API : remplacer `confluencePageId` par `documentId` et `GET /confluence/search?spaceKey=` par
+  `GET /documents/search?space=` (les anciens noms restent acceptés). Prévoir les codes `404` / `502` des erreurs de
+  source, qui remplacent le `500`.
 
 ## [1.1.0] - 2026-11-13
 
@@ -149,7 +165,8 @@ Interface web et documentation ; API REST inchangée.
 - Licence AGPL-3.0-only (en-tête SPDX dans chaque fichier source), CLA, README en anglais et en français,
   `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`.
 
-[Unreleased]: https://github.com/chams-bensalem/refinr/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/chams-bensalem/refinr/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/chams-bensalem/refinr/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/chams-bensalem/refinr/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/chams-bensalem/refinr/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/chams-bensalem/refinr/releases/tag/v1.0.0

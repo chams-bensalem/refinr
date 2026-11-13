@@ -3,11 +3,14 @@
 
 import { useNavigate } from 'react-router-dom';
 import { FileText, Zap, TrendingUp, ArrowRight, Sparkles } from 'lucide-react';
+import { GENERIC_SOURCE, useSourceName } from '../hooks/useSource';
 import { GENERIC_TRACKER, useTrackerName } from '../hooks/useTrackerName';
 
 export default function Dashboard() {
     const navigate = useNavigate();
     const tracker = useTrackerName();
+    const source = useSourceName();
+    const sourceLabel = source === GENERIC_SOURCE ? 'wiki' : source;
     // Headline: "Jira backlog" / "OpenProject backlog", or a neutral "backlog" until the backend answers
     const backlog = tracker === GENERIC_TRACKER ? 'backlog' : `${tracker} backlog`;
 
@@ -20,7 +23,7 @@ export default function Dashboard() {
                 <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-32">
                     <div className="text-center">
                         <h1 className="text-6xl font-extrabold text-gray-900 mb-6">
-                            Turn a Confluence spec into an
+                            Turn your {sourceLabel} spec into an
                             <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent whitespace-nowrap"> agent-ready </span>
                             {backlog}
                         </h1>
@@ -57,9 +60,9 @@ export default function Dashboard() {
                             <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mb-6">
                                 <FileText className="h-8 w-8 text-white" />
                             </div>
-                            <h3 className="text-2xl font-bold text-gray-900 mb-3">1. Connect Confluence</h3>
+                            <h3 className="text-2xl font-bold text-gray-900 mb-3">1. Point to your spec</h3>
                             <p className="text-gray-600">
-                                Provide the ID of the Confluence page that holds your spec. Refinr reads it with your Atlassian API token.
+                                Provide the identifier of the page that holds your spec in {sourceLabel}. Refinr reads it with a dedicated read-only account.
                             </p>
                         </div>
                     </div>

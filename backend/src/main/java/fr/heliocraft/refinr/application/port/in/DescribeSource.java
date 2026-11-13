@@ -11,4 +11,7 @@ public interface DescribeSource {
 
     /** Vrai si {@code space} a le format d'un espace de la source active (null ou vide : faux). */
     boolean acceptsSpace(String space);
+
+    /** Adresse web du document dans la source active, ou null (identifiant invalide ou adresse inconnue). Sans appel. */
+    String documentUrl(String documentId);
 }

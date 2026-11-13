@@ -836,4 +836,25 @@ class BacklogControllerTest {
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.error").value("Some source could not search pages (HTTP 404)"));
     }
+
+    @Test
+    @DisplayName("analyze-preview and analyze-and-create add documentUrl when the source knows the link, omit it otherwise")
+    void documentUrlInResponses() throws Exception {
+        String content = "# CDC\nModule Inventaire";
+        when(confluenceService.getDocumentContent(any())).thenReturn(content);
+        when(generator.generate(content)).thenReturn(testEpics);
+        when(confluenceService.documentUrl("42")).thenReturn("https://site.example.com/wiki/pages/viewpage.action?pageId=42");
+        when(jiraService.createEpic(any(), any())).thenReturn("TEST-1");
+        when(jiraService.createStory(any(), any(), any())).thenReturn("TEST-2");
+        when(jiraService.createSubtask(any(), any(), any())).thenReturn("TEST-3");
+
+        for (String endpoint : List.of("/api/v1/analyze-preview", "/api/v1/analyze-and-create")) {
+            mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content("{\"documentId\":\"42\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.documentUrl").value("https://site.example.com/wiki/pages/viewpage.action?pageId=42"));
+            mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content("{\"documentId\":\"43\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.documentUrl").doesNotExist());
+        }
+    }
 }

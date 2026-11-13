@@ -65,7 +65,8 @@ public class ConfluenceDocumentSource implements DocumentSourcePort, HealthCheck
 
     // Constructor for testing with custom WebClient
     ConfluenceDocumentSource(WebClient webClient, String username, String token) {
-        this(webClient, "");
+        // Adresse du site inconnue (null) : pas de liens web, pas de controle « base-url not set » dans le health
+        this(webClient, (String) null);
     }
 
     // Constructor for testing with custom WebClient and the site URL used for web links
@@ -234,6 +235,10 @@ public class ConfluenceDocumentSource implements DocumentSourcePort, HealthCheck
     /** Lecture minimale de l'API REST Confluence (sous /wiki), avec un delai court. */
     @Override
     public List<ComponentHealth> health() {
+        // Propriete presente mais vide (CONFLUENCE_BASE_URL=) : signalee sans appel, comme les autres sources
+        if (baseUrl != null && baseUrl.isBlank()) {
+            return List.of(ComponentHealth.down("confluence", "confluence.base-url not set", Map.of()));
+        }
         try {
             webClient.get()
                     .uri("/wiki/rest/api/content?limit=1")
