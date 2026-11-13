@@ -41,6 +41,11 @@ class CreateBacklogServiceTest {
         }
 
         @Override
+        public String issueUrl(String key) {
+            return null;
+        }
+
+        @Override
         public String createEpic(Epic epic, String project) {
             fail(epic.getName());
             return record("epic " + epic.getName() + " project=" + project);
@@ -189,5 +194,22 @@ class CreateBacklogServiceTest {
 
         assertTrue(result.isComplete());
         assertEquals(2, result.created().size());
+    }
+
+    @Test
+    @DisplayName("Each created issue carries the web address given by the tracker")
+    void createdIssuesCarryTheirUrl() {
+        RecordingTracker tracker = new RecordingTracker() {
+            @Override
+            public String issueUrl(String key) {
+                return "https://tracker.example.com/issues/" + key;
+            }
+        };
+        Epic epic = new Epic();
+        epic.setName("E1");
+
+        BacklogCreationResult result = new CreateBacklogService(tracker).create(List.of(epic), null);
+
+        assertEquals("https://tracker.example.com/issues/" + result.created().get(0).key(), result.created().get(0).url());
     }
 }

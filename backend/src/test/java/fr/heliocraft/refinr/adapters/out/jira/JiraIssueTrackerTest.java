@@ -531,4 +531,12 @@ class JiraIssueTrackerTest {
         assertFalse(jiraService.acceptsProjectId("mon-projet"));
         assertFalse(jiraService.acceptsProjectId(null));
     }
+
+    @Test
+    @DisplayName("Web address of a Jira issue: {site}/browse/{KEY}, without double slash")
+    void issueUrl() {
+        JiraIssueTracker withSlash = new JiraIssueTracker("https://your-site.atlassian.net/", "u", "t", "PROJ");
+        assertEquals("https://your-site.atlassian.net/browse/PROJ-42", withSlash.issueUrl("PROJ-42"));
+        assertNull(withSlash.issueUrl(null));
+    }
 }

@@ -123,3 +123,11 @@ sont ceux de l'instance de test (exemples, à résoudre à l'exécution) ; les m
 - **Priorité** : par nom, insensible à la casse, avec l'alias `Medium` → `Normal` (l'analyse produit High / Medium / Low) ; absente ou inconnue → non envoyée (défaut du projet OpenProject).
 - **Réévaluation** : la précision et le nouveau verdict vont dans un **commentaire** (la description d'origine n'est pas réécrite), puis relecture du work package (le commentaire incrémente `lockVersion`) et `PATCH` du champ liste ; sur `409`, une seule nouvelle tentative (relecture + PATCH). Le verdict courant (option du champ) tient lieu de label pour la règle « en attente de validation » : `ReassessStoryService` est inchangé.
 - **Délais** : 30 s fixes par appel (5 s pour le health, comme Jira), sans propriété dédiée ; un délai dépassé à la création le signale (« it may have been created »). Lectures (`findStory`) relancées sur 429 et 500 comme Confluence ; POST et PATCH jamais relancés automatiquement (hors la nouvelle tentative sur 409).
+
+### Interface et packaging OpenProject (v1.1 phase 3)
+
+- **`GET /api/v1/tracker` (nom seul) et `url` dans chaque élément de `created`** : l'interface lit le nom du gestionnaire actif pour ses libellés et reçoit l'adresse de chaque ticket calculée par l'adaptateur (`IssueTrackerPort.issueUrl`) ; ajouts rétrocompatibles, sans exposer l'URL de l'instance dans un endpoint dédié ni de clé. `openproject.web-url` (optionnelle, défaut `base-url`) sert uniquement à ces liens, quand Refinr joint OpenProject par une adresse interne (ex. `host.docker.internal` en Docker).
+- **Pas d'OpenProject dans le `docker-compose.yml`**, même en profil : image all-in-one lourde (plusieurs Go, ~4 Go de RAM recommandés, première initialisation de plusieurs minutes) et préparation manuelle (types, champ, compte, clé) de toute façon nécessaire ; les variables `OPENPROJECT_*` passent déjà par `env_file: .env`.
+- **Health Google inchangé (lecture du modèle) et cas documenté dans le Dépannage**, plutôt qu'un appel de génération : un `generateContent` à chaque health (cache 45 s, interrogé par l'interface) consommerait du quota et basculerait en DOWN sur chaque `503` de forte demande.
+- **Modèle Gemini des exemples : `gemini-3.6-flash`** (`gemini-2.5-flash` répond 404 sur `generateContent` tout en restant listé).
+

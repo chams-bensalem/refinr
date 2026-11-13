@@ -55,7 +55,7 @@ Ollama inclus en option : `docker compose --profile ollama up -d --build`
 | Fournisseur | `provider` | Statut |
 |---|---|---|
 | Ollama (local, défaut : `qwen3:8b`) | `openai-compatible` | ✅ testé en réel |
-| Google Gemini (`gemini-2.5-flash`) | `google` | ✅ testé en réel |
+| Google Gemini (`gemini-3.6-flash`) | `google` | ✅ testé en réel |
 | Anthropic Claude | `anthropic` | ⚠️ non testé en réel (serveur HTTP simulé uniquement) |
 | OpenAI | `openai-compatible` | ⚠️ non testé en réel (serveur HTTP simulé uniquement) |
 | DeepSeek, Mistral, Groq, OpenRouter, LiteLLM, vLLM | `openai-compatible` | ⚠️ non testé en réel (même client que OpenAI / Ollama) |
@@ -98,7 +98,7 @@ Un retour sur un fournisseur non testé est bienvenu : voir [CONTRIBUTING.md](CO
 Epic  ──►  User Story  ──►  Sous-tâche
 ```
 
-Chaque story reçoit en plus un **verdict de maturité** : `ai-ready` (un agent de code peut l'implémenter sans décision humaine) ou `validation-necessaire` (il manque une information). Ce verdict est conçu pour alimenter un agent de code via JQL `labels = "ai-ready"`.
+Chaque story reçoit en plus un **verdict de maturité** : `ai-ready` (un agent de code peut l'implémenter sans décision humaine) ou `validation-necessaire` (il manque une information). Ce verdict est conçu pour alimenter un agent de code via JQL `labels = "ai-ready"` (dans OpenProject : filtre des lots de travaux sur *Agent readiness* = `ai-ready`, à enregistrer pour l'agent).
 
 Le projet est un monorepo :
 
@@ -129,7 +129,9 @@ Le projet est un monorepo :
 - ♻️ **Verdict recalculé à la création** (`create-jira`) : le contenu a pu être modifié depuis l'aperçu, le serveur rejuge donc chaque story sur son contenu final (par lots de `refinr.llm.verdict.batch-size` stories, 10 par défaut ; les stories inchangées depuis l'aperçu reprennent leur verdict en cache) ; les champs `aiReady` / `aiReadyReason` envoyés par le client sont **ignorés**.
 - 🔁 **Réévaluation** : une story en attente peut être réévaluée avec une précision de l'utilisateur ; la description Jira d'origine est conservée (images, tableaux, liens) et complétée, le label est mis à jour.
 
-### Création Jira
+### Création des tickets (Jira ou OpenProject)
+- 🟦 **OpenProject** (v1.1) à la place de Jira avec `tracker.provider=openproject` : même hiérarchie, verdict dans un
+  champ personnalisé de type liste, story points sur les User stories, réévaluation en commentaire (cf. [OpenProject](#openproject)).
 - 🏗️ Création complète Epic → Story (liée via `parent`) → Subtask.
 - 📝 Descriptions écrites en Markdown et converties en **ADF** (titres, gras, italique, listes, code en ligne et blocs de code) : rendu natif dans Jira, critères d'acceptation en liste.
 - 🎯 Projet cible **configurable par requête** (`projectKey`) ou projet par défaut.
@@ -149,7 +151,7 @@ Le projet est un monorepo :
   | Recherche Confluence | ❌ | |
   | **Création Jira** (Epic, Story, Subtask) | ❌ | POST non idempotent : un échec est listé dans la réponse partielle (`created` / `failed`, statut `207` ou `502`), les autres éléments sont créés ; relancez seulement ce qui a échoué |
   | Lecture / mise à jour Jira (`reassess-story`), health check | ❌ | |
-- 🩺 **Health check par port** : état de Confluence, Jira et de chaque fournisseur IA (clé et modèle vérifiés par une lecture gratuite, présence du modèle Ollama incluse), mis en cache 45 s, sans aucune clé ni URL dans la réponse.
+- 🩺 **Health check par port** : état de Confluence, du gestionnaire de tickets actif (Jira ou OpenProject) et de chaque fournisseur IA (clé et modèle vérifiés par une lecture gratuite, présence du modèle Ollama incluse), mis en cache 45 s, sans aucune clé ni URL dans la réponse.
 - 📊 **Logs JSON structurés** (Logstash) avec `correlationId` par requête.
 
 ### Interface web
@@ -392,6 +394,7 @@ refinr.llm.verdict.max-output-tokens=4096
 | `jira.story-points-field` | *(vide)* | Champ personnalisé des story points (ex. `customfield_10016`, cf. ci-dessous) ; vide = non envoyés |
 | `openproject.base-url` | — | URL d'OpenProject (avec `tracker.provider=openproject`) |
 | `openproject.api-key` | — | Clé API du compte Refinr (*Mon compte → Jetons d'accès → API*) |
+| `openproject.web-url` | *(vide)* | Adresse web utilisée uniquement pour les liens vers les lots de travaux créés ; vide = `openproject.base-url` |
 | `openproject.project` | — | Projet par défaut (identifiant ou id numérique) si `projectKey` n'est pas fourni |
 | `openproject.types.epic` / `.story` / `.subtask` | `Epic` / `User story` / `Task` | Types de work package utilisés pour chaque niveau |
 | `openproject.readiness-field` | `Agent readiness` | Champ personnalisé de type liste qui porte le verdict (options `ai-ready` / `validation-necessaire`) |
@@ -445,6 +448,50 @@ Les anciennes clés sont **refusées au démarrage** (message listant la corresp
 | `ai.verdict.timeout-seconds=90` | `refinr.llm.verdict.timeout=90s` |
 
 Les variables d'environnement **du système** ne sont pas contrôlées (une `GEMINI_API_KEY` peut servir à d'autres outils) : seuls les fichiers de configuration et le `.env` le sont.
+
+### OpenProject
+
+Refinr crée le backlog dans **un seul** gestionnaire de tickets par instance : Jira (défaut) ou OpenProject (v1.1,
+vérifié avec OpenProject 17.9). Le choix se fait par `TRACKER_PROVIDER=openproject` :
+
+```bash
+TRACKER_PROVIDER=openproject
+OPENPROJECT_BASE_URL=https://openproject.example.com   # en Docker, une instance locale : http://host.docker.internal:<port>
+OPENPROJECT_API_KEY=votre-cle-api-openproject
+OPENPROJECT_PROJECT=mon-projet      # projet par défaut : identifiant (minuscules, chiffres, - et _) ou id numérique
+OPENPROJECT_WEB_URL=                # liens de l'interface ; vide = OPENPROJECT_BASE_URL (ex. http://localhost:8090 en Docker)
+# Optionnel (valeurs par défaut) :
+# OPENPROJECT_TYPE_EPIC=Epic  OPENPROJECT_TYPE_STORY=User story  OPENPROJECT_TYPE_SUBTASK=Task
+# OPENPROJECT_READINESS_FIELD=Agent readiness  OPENPROJECT_STORY_POINTS_ENABLED=true  OPENPROJECT_PRIORITY_ENABLED=true
+```
+
+**Préparation, une fois, par un administrateur OpenProject** (Refinr ne crée rien de tout cela) :
+
+1. **Types** : activer *Epic* et *User story* dans le projet (*Paramètres du projet → Lots de travaux → Types* ;
+   *Task* l'est par défaut).
+2. **Champ du verdict** : créer un champ personnalisé de type **liste** nommé *Agent readiness*, avec les deux options
+   `ai-ready` et `validation-necessaire` (*Administration → Champs personnalisés → Lots de travaux*), puis
+   - l'activer **dans le projet** (*Paramètres du projet → Lots de travaux → Champs personnalisés*), **et**
+   - l'ajouter au **formulaire de chaque type** *Epic*, *User story* et *Task* (*Administration → Types → {type} →
+     Formulaire* : glisser le champ dans un groupe).
+
+   Sans ces trois réglages, le champ est absent de l'API : Refinr le signale en les listant.
+3. **Compte** : un compte dédié **non administrateur** (ex. `refinr-bot`), membre du projet avec ces 5 permissions :
+   `view_work_packages`, `add_work_packages`, `edit_work_packages`, `add_work_package_comments`, `manage_subtasks`.
+   Le rôle standard **Member** les contient toutes : c'est l'option la plus simple.
+4. **Clé API** : *Administration → API et webhooks → API* : laisser *Activer les jetons d'API* coché ; puis, connecté
+   avec le compte Refinr, *Mon compte → Jetons d'accès → API* → générer la clé pour `OPENPROJECT_API_KEY`.
+
+Correspondance avec OpenProject :
+
+- Epic → User story → Task via le **parent** des lots de travaux ; descriptions Markdown envoyées telles quelles.
+- **Verdict** dans le champ *Agent readiness* de chaque User story (pas un label). OpenProject n'a pas de labels :
+  les autres labels forment une dernière ligne `**Labels:** …` de la description.
+- **Story points** sur les User stories uniquement (module Backlogs, actif par défaut), comme pour Jira ;
+  **priorité** retrouvée par son nom (`Medium` → `Normal`).
+- La **réévaluation** ajoute la précision et le nouveau verdict en **commentaire** (la description est conservée) et
+  met à jour le champ.
+- Les clés des tickets sont les ids des lots de travaux (ex. `39`) ; `projectKey` accepte un identifiant ou un id OpenProject.
 
 ### Frontend
 
@@ -633,7 +680,8 @@ Base URL : `http://localhost:8080/api/v1`
 | `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optionnel, même format)* | Crée une structure déjà générée, dans `projectKey` ou le projet par défaut ; verdict `ai-ready` recalculé par le serveur (`aiReady` / `aiReadyReason` du client ignorés) |
 | `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Réévalue une story `validation-necessaire` (`409` si elle ne l'est pas) |
 | `GET` | `/confluence/search` | `?spaceKey=SPACE&title=…` | Recherche de pages Confluence (CQL) : `{ success, results: [{ id, title, url }] }` |
-| `GET` | `/health` | — | Santé détaillée Confluence / Jira / IA (analyse, et verdict s'il est distinct), en cache 45 s |
+| `GET` | `/tracker` | — | Gestionnaire de tickets actif : `{ "name": "Jira" }` ou `{ "name": "OpenProject" }` (utilisé par l'interface web) |
+| `GET` | `/health` | — | Santé détaillée Confluence / gestionnaire de tickets actif (`jira` ou `openproject`) / IA (analyse, et verdict s'il est distinct), en cache 45 s |
 | `GET` | `/health/live` | — | Sonde de vivacité `{ "status": "UP" }`, sans appel aux services externes (conteneurs, orchestrateurs) |
 
 **Clé d'API** : si `refinr.security.api-key` (`REFINR_API_KEY`) est définie, chaque appel doit envoyer
@@ -769,6 +817,15 @@ Les appels HTTP externes sont simulés avec **OkHttp MockWebServer** : aucun acc
 | `502` *The AI provider is unavailable* | Fournisseur injoignable, clé refusée, quota épuisé ou délai dépassé (après les nouveaux essais) | Voir `GET /api/v1/health` et les logs (`correlationId`) |
 | `400` *The document is empty or contains no text to analyze* | Page Confluence vide, non publiée ou sans texte (images seules) | Publier le contenu de la page, puis relancer |
 | Toutes les stories en `validation-necessaire` | Fournisseur de verdict injoignable | Vérifier `LLM_VERDICT_BASE_URL` / `LLM_VERDICT_API_KEY` ou vider `LLM_VERDICT_PROVIDER` |
+| `ai: UP` mais chaque analyse échoue : *does not know the model or endpoint (HTTP 404)* | Modèle retiré pour la génération : le health Google ne fait que lire le modèle (`GET /v1beta/models/{modèle}`), qui peut encore répondre pour un modèle retiré | Passer `LLM_ANALYSIS_MODEL` à un modèle actuel (exemple par défaut : `gemini-3.6-flash`) |
+| IA surchargée : *HTTP 503* | Fournisseur saturé (forte demande) | Réessayer quelques minutes plus tard |
+| Démarrage refusé : *Missing configuration for tracker.provider=…* | Propriété absente pour le gestionnaire choisi (`application.properties` local antérieur à la 1.1) | Recopier les lignes `tracker.provider` et `openproject.*` depuis `application-example.properties` |
+| `openproject: DOWN — openproject.project not set` / `HTTP 404` | Projet par défaut absent ou inconnu | Renseigner `OPENPROJECT_PROJECT` (identifiant ou id) et vérifier que le compte en est membre |
+| Les liens vers les lots de travaux créés pointent vers `host.docker.internal` | Les liens reprennent `OPENPROJECT_BASE_URL`, l'adresse par laquelle Refinr joint OpenProject | Renseigner `OPENPROJECT_WEB_URL` avec l'adresse du navigateur (ex. `http://localhost:8090`) |
+| `openproject: DOWN — HTTP 400` (*Invalid host_name configuration*) | OpenProject refuse le nom d'hôte utilisé par Refinr (ex. `host.docker.internal` pour une instance locale) | Côté OpenProject, l'ajouter : `OPENPROJECT_ADDITIONAL__HOST__NAMES=host.docker.internal:<port>` |
+| `403` dans l'interface (ex. *Preview failed — HTTP 403*) après un changement de port du frontend | La nouvelle origine du navigateur n'est pas dans `CORS_ALLOWED_ORIGINS` (défaut `http://localhost:3000`) | Ajouter la nouvelle origine, ex. `CORS_ALLOWED_ORIGINS=http://localhost:3006`, puis redémarrer le backend |
+| *field 'Agent readiness' not found* / *has no option* | Préparation OpenProject incomplète | Appliquer les 3 réglages de la section [OpenProject](#openproject) |
+| Réévaluation en échec, logs : *could not comment work package … (HTTP 404)* | Le compte n'a pas `add_work_package_comments` (OpenProject répond 404 et non 403) | Donner le rôle **Member** au compte, ou cette permission |
 
 Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour suivre tout son parcours.
 
@@ -780,7 +837,8 @@ Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour 
 
 - La création n'est pas transactionnelle : un échec en cours de route laisse les tickets déjà créés
   (réponse partielle `created` / `failed`, à relancer pour les seuls éléments en échec).
-- Confluence Cloud et Jira Cloud uniquement ; types de tickets `Epic`, `Story` et `Subtask` requis.
+- Source : Confluence Cloud uniquement ; gestionnaire de tickets : Jira Cloud (types `Epic`, `Story` et `Subtask` requis) ou
+  OpenProject (préparation décrite dans [OpenProject](#openproject)), un seul par instance.
 - L'aperçu de l'interface web est en lecture seule et la réévaluation n'y figure pas encore (modification de l'aperçu et réévaluation disponibles par l'API).
 - Pas d'authentification des utilisateurs : clé d'API partagée, ajoutée par le proxy (cf. [Sécurité](#sécurité)).
 - Cache des verdicts en mémoire, local à chaque instance.
@@ -789,7 +847,7 @@ Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour 
 
 - [x] **v1.0** : Confluence → Jira, verdict `ai-ready`, fournisseurs `anthropic` / `google` / `openai-compatible`,
   images Docker multi-arch, CI.
-- [ ] **v1.1** : **OpenProject** comme gestionnaire de tickets (nouvel adaptateur de `IssueTrackerPort`).
+- [x] **v1.1** : **OpenProject** comme gestionnaire de tickets (`tracker.provider=openproject`, nouvel adaptateur de `IssueTrackerPort`).
 - [ ] **v1.2** : **sources documentaires au-delà de Confluence** : envoi de fichier (Markdown, Word, PDF) et texte collé,
   via de nouveaux adaptateurs de `DocumentSourcePort`.
 - [ ] **v1.3** : **démo hébergée** avec **BYOK** (*bring your own key* : chacun fournit sa propre clé de fournisseur IA),

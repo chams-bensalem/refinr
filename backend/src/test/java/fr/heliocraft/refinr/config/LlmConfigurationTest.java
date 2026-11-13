@@ -42,7 +42,7 @@ class LlmConfigurationTest {
     @Test
     @DisplayName("google and anthropic get their official base URL; verdict defaults: 90 s, 4096 tokens")
     void providerDefaults() {
-        LlmSettings google = LlmConfiguration.analysisSettings(role("google", "", "gemini-2.5-flash", "k"));
+        LlmSettings google = LlmConfiguration.analysisSettings(role("google", "", "gemini-3.6-flash", "k"));
         LlmSettings anthropic = LlmConfiguration.verdictSettings(role("anthropic", null, "claude-opus-5-5", "k"));
 
         assertEquals("https://generativelanguage.googleapis.com", google.baseUrl());
@@ -55,7 +55,7 @@ class LlmConfigurationTest {
     @DisplayName("An explicit provider never inherits the Ollama defaults: google keeps its official URL, openai-compatible needs a base-url")
     void explicitProviderGetsNoOllamaDefault() {
         // Seul le fournisseur est renseigne (cas d'un .env qui passe de Ollama a google)
-        LlmSettings google = LlmConfiguration.analysisSettings(role("google", null, "gemini-2.5-flash", "k"));
+        LlmSettings google = LlmConfiguration.analysisSettings(role("google", null, "gemini-3.6-flash", "k"));
         assertEquals("https://generativelanguage.googleapis.com", google.baseUrl());
 
         IllegalStateException googleWithoutModel = assertThrows(IllegalStateException.class,
@@ -89,7 +89,7 @@ class LlmConfigurationTest {
     @Test
     @DisplayName("Retry settings are configurable per role and validated at startup")
     void retryIsConfigurable() {
-        LlmProperties.Role custom = new LlmProperties.Role("google", null, "gemini-2.5-flash", "k", null, null, null, null,
+        LlmProperties.Role custom = new LlmProperties.Role("google", null, "gemini-3.6-flash", "k", null, null, null, null,
                 null, null, 4, Duration.ofSeconds(1), 3.0, 0.0, Duration.ofSeconds(10));
         var retry = LlmConfiguration.verdictSettings(custom).retry();
         assertEquals(4, retry.maxRetries());
@@ -98,7 +98,7 @@ class LlmConfigurationTest {
         assertEquals(0, retry.jitter());
         assertEquals(Duration.ofSeconds(10), retry.maxDelay());
 
-        LlmProperties.Role badJitter = new LlmProperties.Role("google", null, "gemini-2.5-flash", "k", null, null, null, null,
+        LlmProperties.Role badJitter = new LlmProperties.Role("google", null, "gemini-3.6-flash", "k", null, null, null, null,
                 null, null, null, null, null, 1.5, null);
         IllegalStateException error = assertThrows(IllegalStateException.class, () -> LlmConfiguration.verdictSettings(badJitter));
         assertTrue(error.getMessage().contains("retry-jitter must be between 0 and 1"), error.getMessage());
@@ -163,7 +163,7 @@ class LlmConfigurationTest {
         assertTrue(unknown.getMessage().contains("anthropic, google, openai-compatible"), unknown.getMessage());
 
         IllegalStateException noKey = assertThrows(IllegalStateException.class,
-                () -> LlmConfiguration.verdictSettings(role("google", null, "gemini-2.5-flash", "")));
+                () -> LlmConfiguration.verdictSettings(role("google", null, "gemini-3.6-flash", "")));
         assertTrue(noKey.getMessage().contains("api-key is required"), noKey.getMessage());
 
         IllegalStateException noUrl = assertThrows(IllegalStateException.class,

@@ -45,6 +45,8 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
     private static final Logger log = LoggerFactory.getLogger(JiraIssueTracker.class);
 
     private final WebClient webClient;
+    // Adresse du site (sans / final) pour les liens vers les tickets : {site}/browse/{KEY}
+    private final String siteUrl;
     private final String projectKey;
     // Les projets "team-managed" (next-gen) n'ont pas de champ priority : Jira refuse l'issue s'il est envoye
     private final boolean priorityEnabled;
@@ -69,6 +71,7 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
             @Value("${jira.story-points-field:}") String storyPointsField) {
 
         this.projectKey = projectKey;
+        this.siteUrl = baseUrl == null ? "" : baseUrl.strip().replaceAll("/+$", "");
         this.priorityEnabled = priorityEnabled;
         this.storyPointsField = storyPointsField == null ? "" : storyPointsField.strip();
 
@@ -91,6 +94,11 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
     @Override
     public boolean acceptsProjectId(String project) {
         return JiraProjectKeys.isValid(project);
+    }
+
+    @Override
+    public String issueUrl(String key) {
+        return siteUrl.isEmpty() || key == null || key.isBlank() ? null : siteUrl + "/browse/" + key;
     }
 
     public String createEpic(Epic epic) {

@@ -3,7 +3,7 @@
 
 import axios, { isAxiosError } from 'axios';
 import { apiBaseUrl } from '../config';
-import type { AnalyzeRequest, ApiErrorBody, CreationResponse, Epic, HealthStatus, PreviewResponse } from '../types';
+import type { AnalyzeRequest, ApiErrorBody, CreationResponse, Epic, HealthStatus, PreviewResponse, TrackerInfo } from '../types';
 
 const api = axios.create({
     baseURL: apiBaseUrl(),
@@ -52,7 +52,7 @@ function isCreationResponse(body: unknown): body is CreationResponse {
 }
 
 /**
- * Cree dans Jira le backlog affiche (le serveur recalcule le verdict ai-ready sur ce contenu).
+ * Cree le backlog affiche dans le gestionnaire de tickets actif (le serveur recalcule le verdict ai-ready sur ce contenu).
  * 200 : tout est cree ; 207 : creation partielle ; 502 avec created / failed : rien n'a pu etre cree, raisons incluses.
  * Toute autre reponse : ApiError.
  */
@@ -69,6 +69,16 @@ export const createBacklog = async (epics: Epic[], projectKey?: string): Promise
         throw new ApiError(typeof body?.error === 'string' ? body.error : `Request failed (HTTP ${response.status})`, body);
     } catch (error) {
         throw error instanceof ApiError ? error : toApiError(error);
+    }
+};
+
+/** Nom du gestionnaire de tickets actif (Jira ou OpenProject), pour les libelles. */
+export const getTracker = async (): Promise<TrackerInfo> => {
+    try {
+        const response = await api.get<TrackerInfo>('/tracker');
+        return response.data;
+    } catch (error) {
+        throw toApiError(error);
     }
 };
 

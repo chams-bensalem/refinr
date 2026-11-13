@@ -23,6 +23,9 @@ public interface IssueTrackerPort {
     /** Vrai si {@code project} a le format d'un identifiant de projet de l'outil (cle, identifiant ou id). */
     boolean acceptsProjectId(String project);
 
+    /** Adresse web du ticket {@code key} pour un navigateur (ex. lien de l'interface), ou null si inconnue. */
+    String issueUrl(String key);
+
     String createEpic(Epic epic, String project);
 
     String createStory(Story story, String epicKey, String project);

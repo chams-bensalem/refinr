@@ -5,6 +5,40 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-13
+
+**OpenProject** comme gestionnaire de tickets, au choix de Jira (un seul par instance). Contrat REST existant inchangé ;
+deux ajouts rétrocompatibles.
+
+### Added
+- `tracker.provider` (`TRACKER_PROVIDER`, défaut `jira`) : `jira` ou `openproject`. Valeur inconnue ou propriété absente
+  du gestionnaire choisi : arrêt au démarrage avec un message listant les propriétés manquantes.
+- Adaptateur **OpenProject** (API v3, vérifié avec OpenProject 17.9) : Epic → User story → Task via le parent des lots
+  de travaux, descriptions Markdown, verdict dans le champ liste *Agent readiness*, story points sur les User stories
+  uniquement, priorité par nom, labels en dernière ligne de la description, réévaluation en commentaire.
+  Configuration `openproject.*` / `OPENPROJECT_*` ; préparation côté OpenProject (types, champ, 5 permissions, clé API)
+  décrite dans le README.
+- API : `GET /api/v1/tracker` → `{ "name": "Jira" | "OpenProject" }` ; chaque élément de `created` des réponses de
+  création porte désormais `url`, l'adresse web du ticket (`{site}/browse/KEY` pour Jira, `{instance}/work_packages/{id}`
+  pour OpenProject ; `openproject.web-url` permet une adresse de liens différente de `openproject.base-url`).
+- `projectKey` : clé Jira ou identifiant / id OpenProject selon le gestionnaire actif (même champ, même `400`).
+
+### Changed
+- Interface web : libellés selon le gestionnaire actif (« Create in OpenProject »…) et liens vers les tickets créés
+  sur la page Results.
+- Health : la section du gestionnaire de tickets est celle du gestionnaire actif (`jira` ou `openproject`).
+- Modèle Gemini des exemples : `gemini-3.6-flash` (`gemini-2.5-flash` est retiré pour `generateContent` : 404, bien que
+  toujours listé). Section Dépannage : un health `ai: UP` ne garantit pas que le modèle génère encore.
+- Versions du backend et du frontend : `1.1.0`.
+
+### Migration
+- **`application.properties` local** (copie de `application-example.properties`) : recopier les nouvelles lignes
+  `tracker.provider` et `openproject.*`. Sans elles, `tracker.provider=openproject` s'arrête au démarrage sur
+  *Missing configuration for tracker.provider=openproject: …* ; avec Jira, rien ne change.
+- **`.env`** : pour OpenProject, ajouter `TRACKER_PROVIDER=openproject` et les variables `OPENPROJECT_*` (cf. `.env.example`).
+- **Clés Google AI Studio** : les nouvelles clés sont au format `AQ.…` ; elles s'envoient toujours dans l'en-tête
+  `x-goog-api-key`, rien à changer côté Refinr. Si `LLM_ANALYSIS_MODEL=gemini-2.5-flash`, passer à un modèle actuel.
+
 ## [1.0.1] - 2026-11-13
 
 Interface web et documentation ; API REST inchangée.

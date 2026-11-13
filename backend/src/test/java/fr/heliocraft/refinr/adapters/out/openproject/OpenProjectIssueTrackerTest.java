@@ -659,4 +659,31 @@ class OpenProjectIssueTrackerTest {
         assertTrue(tracker.acceptsProjectId("3"));
         assertFalse(tracker.acceptsProjectId("PROJ"));
     }
+
+    @Test
+    @DisplayName("Web address of a work package: {instance}/work_packages/{id}, only for numeric ids")
+    void issueUrl() {
+        OpenProjectIssueTracker withSlash = new OpenProjectIssueTracker("https://op.example.com/", API_KEY, "p", "Epic",
+                "User story", "Task", "Agent readiness", true, true, Duration.ofSeconds(5));
+        assertEquals("https://op.example.com/work_packages/39", withSlash.issueUrl("39"));
+        assertNull(withSlash.issueUrl("PROJ-1"));
+        assertNull(withSlash.issueUrl(null));
+    }
+
+    @Test
+    @DisplayName("openproject.web-url, when set, replaces base-url in the links only (API calls keep base-url)")
+    void webUrlForLinksOnly() throws Exception {
+        OpenProjectIssueTracker internal = new OpenProjectIssueTracker(server.url("/").toString(), API_KEY,
+                "refinr-spike", "Epic", "User story", "Task", "Agent readiness", true, true, Duration.ofSeconds(5),
+                "http://localhost:8090/");
+        assertEquals("http://localhost:8090/work_packages/39", internal.issueUrl("39"));
+
+        server.enqueue(json(200, "{\"id\":3}"));
+        assertTrue(internal.health().get(0).up());
+        assertEquals("/api/v3/projects/refinr-spike", next().getPath(), "calls still go to base-url");
+
+        OpenProjectIssueTracker blank = new OpenProjectIssueTracker("https://op.example.com", API_KEY, "p", "Epic",
+                "User story", "Task", "Agent readiness", true, true, Duration.ofSeconds(5), " ");
+        assertEquals("https://op.example.com/work_packages/39", blank.issueUrl("39"), "empty web-url: base-url");
+    }
 }

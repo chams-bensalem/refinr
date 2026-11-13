@@ -175,7 +175,7 @@ class ConfigurationDefaultsTest {
     @Test
     @DisplayName("One Gemini model everywhere it is mentioned: README (badge, examples) and .env.example")
     void geminiModelIsAligned() throws IOException {
-        String model = "gemini-2.5-flash";
+        String model = "gemini-3.6-flash";
         for (Path readme : READMES) {
             assertTrue(Files.readString(readme).contains("badge/Gemini-2.5%20Flash-"), readme + " badge should show " + model);
         }
