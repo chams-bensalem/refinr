@@ -1,8 +1,9 @@
 import axios, { isAxiosError } from 'axios';
+import { apiBaseUrl } from '../config';
 import type { AnalyzeRequest, ApiErrorBody, CreationResponse, HealthStatus } from '../types';
 
 const api = axios.create({
-    baseURL: '/api/v1',
+    baseURL: apiBaseUrl(),
     headers: {
         'Content-Type': 'application/json',
     },
