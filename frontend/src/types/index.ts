@@ -63,6 +63,13 @@ export interface FailedIssue {
     reason: string;
 }
 
+/** Reponse de analyze-preview : backlog genere, rien n'est cree. */
+export interface PreviewResponse {
+    success: boolean;
+    message: string;
+    epics: Epic[];
+}
+
 /** Reponse de analyze-and-create / create-jira : 200 (tout cree) ou 207 (creation partielle). */
 export interface CreationResponse {
     success: boolean;

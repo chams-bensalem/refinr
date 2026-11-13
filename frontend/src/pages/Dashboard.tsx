@@ -16,13 +16,13 @@ export default function Dashboard() {
                 <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-32">
                     <div className="text-center">
                         <h1 className="text-6xl font-extrabold text-gray-900 mb-6">
-                            Transform Your
-                            <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent"> CDC </span>
-                            into Jira Magic
+                            Turn a Confluence spec into an
+                            <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent whitespace-nowrap"> agent-ready </span>
+                            Jira backlog
                         </h1>
 
                         <p className="text-xl text-gray-600 mb-10 max-w-3xl mx-auto">
-                            Automate your workflow with AI-powered analysis. Convert Confluence requirements into structured Jira tickets.
+                            Refinr drafts Epics, Stories and Sub-tasks from your requirements document, flags the stories a coding agent can take on, and creates them in Jira once you have reviewed the preview.
                         </p>
 
                         <div className="flex items-center justify-center space-x-4">
@@ -43,7 +43,7 @@ export default function Dashboard() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20 -mt-16">
                 <div className="text-center mb-16">
                     <h2 className="text-4xl font-bold text-gray-900 mb-4">How It Works</h2>
-                    <p className="text-xl text-gray-600">Three simple steps to automate your Jira workflow</p>
+                    <p className="text-xl text-gray-600">From requirements document to reviewed Jira backlog in three steps</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -55,7 +55,7 @@ export default function Dashboard() {
                             </div>
                             <h3 className="text-2xl font-bold text-gray-900 mb-3">1. Connect Confluence</h3>
                             <p className="text-gray-600">
-                                Simply provide your Confluence page ID. We'll fetch and analyze your requirements automatically.
+                                Provide the ID of the Confluence page that holds your spec. Refinr reads it with your Atlassian API token.
                             </p>
                         </div>
                     </div>
@@ -68,7 +68,7 @@ export default function Dashboard() {
                             </div>
                             <h3 className="text-2xl font-bold text-gray-900 mb-3">2. AI Analysis</h3>
                             <p className="text-gray-600">
-                                The configured language model (local Ollama or Gemini) structures your CDC into Epics, Stories and Tasks, and flags which stories are ready for a coding agent.
+                                The configured language model structures the spec into Epics, Stories and Sub-tasks and labels each story ai-ready or validation-necessaire, with the reason. You review the preview first.
                             </p>
                         </div>
                     </div>
@@ -79,9 +79,9 @@ export default function Dashboard() {
                             <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-pink-600 rounded-2xl flex items-center justify-center mb-6">
                                 <TrendingUp className="h-8 w-8 text-white" />
                             </div>
-                            <h3 className="text-2xl font-bold text-gray-900 mb-3">3. Jira Creation</h3>
+                            <h3 className="text-2xl font-bold text-gray-900 mb-3">3. Create in Jira</h3>
                             <p className="text-gray-600">
-                                Complete ticket hierarchy created in Jira with proper formatting, labels, and priorities.
+                                After your confirmation, the Epic → Story → Sub-task hierarchy is created in Jira with formatted descriptions, labels and priorities.
                             </p>
                         </div>
                     </div>
