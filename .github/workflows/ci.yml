@@ -108,6 +108,25 @@ jobs:
           curl -fsS -o /dev/null http://localhost:3000/
           curl -fsS http://localhost:3000/config.js
           curl -fsS http://localhost:3000/api/v1/health/live && echo
+      # DNS rebinding protection: a Host that is not in REFINR_ALLOWED_HOSTS must be refused on both sides
+      - name: Host allowlist
+        run: |
+          set -u
+          for host in localhost:3000 127.0.0.1:3000 '[::1]:3000'; do
+            curl -fsS -o /dev/null -H "Host: $host" http://localhost:3000/healthz && echo "frontend accepts Host $host"
+          done
+          if curl -sS -o /dev/null -H 'Host: evil.example' http://localhost:3000/; then
+            echo "::error::frontend accepted Host evil.example"; exit 1
+          fi
+          echo "frontend closes the connection for Host evil.example (nginx 444)"
+          if curl -sS -o /dev/null -H 'Host: evil.example' http://localhost:3000/api/v1/health; then
+            echo "::error::frontend proxied a request with Host evil.example"; exit 1
+          fi
+          code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: evil.example' http://localhost:8080/api/v1/health/live)
+          test "$code" = 403 || { echo "::error::backend answered $code for Host evil.example"; exit 1; }
+          echo "backend answers 403 for Host evil.example"
+          code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: [::1]:8080' http://localhost:8080/api/v1/health/live)
+          test "$code" = 200 && echo "backend accepts Host [::1]:8080"
       - name: Logs
         if: always()
         run: docker compose logs --no-color
