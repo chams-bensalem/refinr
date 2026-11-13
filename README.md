@@ -91,7 +91,7 @@ Le projet est un monorepo :
   | Appel | Nouvel essai | Détail |
   |---|---|---|
   | Lecture d'une page Confluence | ✅ sur HTTP `429` et `500` | 2 nouveaux essais, après 1 s puis 2 s (`503` et autres erreurs : pas de nouvel essai) |
-  | Appels IA (analyse, verdict, réévaluation), tous fournisseurs | ✅ sur HTTP `429`, `5xx` (dont `529` d'Anthropic) et fournisseur injoignable | 2 nouveaux essais, `Retry-After` respecté (plafonné à 30 s), sinon 1 s puis 2 s ; jamais après un délai dépassé (`timeout` : 300 s analyse, 90 s verdict) ni sur une autre erreur `4xx` (`401` : clé refusée) |
+  | Appels IA (analyse, verdict, réévaluation), tous fournisseurs | ✅ sur HTTP `429`, `5xx` (dont `503` de Gemini et `529` d'Anthropic) et fournisseur injoignable | 2 nouveaux essais, `Retry-After` prioritaire (plafonné à 30 s), sinon 2 s puis 8 s à ± 20 % près (configurable : `refinr.llm.*.max-retries`, `retry-base-delay`, `retry-multiplier`, `retry-jitter`, `retry-max-delay`) ; jamais après un délai dépassé (`timeout` : 300 s analyse, 90 s verdict) ni sur une autre erreur `4xx` (`401` : clé refusée) |
   | Sortie IA invalide (JSON illisible ou non conforme au schéma) | ✅ relance **avec la liste des erreurs** | `refinr.llm.max-repair-attempts` (2) relances, puis `502` (`create-jira` : `validation-necessaire`) |
   | Sortie IA tronquée (limite de tokens) | ❌ | erreur explicite `502` : augmenter `max-output-tokens` |
   | Recherche Confluence | ❌ | |
@@ -279,9 +279,11 @@ jira.story-points-field=         # ex. customfield_10016 ; vide = story points n
 
 # --- IA : analyse (structure Epic/Story/Task) -------------------
 # anthropic | google | openai-compatible (OpenAI, DeepSeek, Mistral, Groq, OpenRouter, Ollama, LiteLLM, vLLM)
-refinr.llm.analysis.provider=${LLM_ANALYSIS_PROVIDER:openai-compatible}
-refinr.llm.analysis.base-url=${LLM_ANALYSIS_BASE_URL:http://localhost:11434/v1}
-refinr.llm.analysis.model=${LLM_ANALYSIS_MODEL:qwen3:8b}
+# provider vide : Ollama local (http://localhost:11434/v1, qwen3:8b) ; provider explicite : base-url et model à fournir
+# (base-url vide = URL officielle pour anthropic / google, obligatoire pour openai-compatible)
+refinr.llm.analysis.provider=${LLM_ANALYSIS_PROVIDER:}
+refinr.llm.analysis.base-url=${LLM_ANALYSIS_BASE_URL:}
+refinr.llm.analysis.model=${LLM_ANALYSIS_MODEL:}
 refinr.llm.analysis.api-key=${LLM_ANALYSIS_API_KEY:}
 refinr.llm.analysis.timeout=300s
 refinr.llm.analysis.max-output-tokens=32768
@@ -306,13 +308,18 @@ refinr.llm.verdict.max-output-tokens=4096
 | `jira.project-key` | — | Clé du projet utilisé si `projectKey` n'est pas fourni |
 | `jira.priority-enabled` | `true` | Envoie le champ `priority` (désactiver en team-managed) |
 | `jira.story-points-field` | *(vide)* | Champ personnalisé des story points (ex. `customfield_10016`, cf. ci-dessous) ; vide = non envoyés |
-| `refinr.llm.analysis.provider` | `openai-compatible` | Fournisseur de l'analyse : `anthropic`, `google` ou `openai-compatible` |
-| `refinr.llm.analysis.base-url` | `http://localhost:11434/v1` | URL de l'API (avec `/v1` pour `openai-compatible`) ; vide = URL officielle pour `anthropic` / `google` |
-| `refinr.llm.analysis.model` | `qwen3:8b` | Modèle de l'analyse (et du health check) |
+| `refinr.llm.analysis.provider` | `openai-compatible` | Fournisseur de l'analyse : `anthropic`, `google` ou `openai-compatible`. Non renseigné : Ollama local, soit `openai-compatible` + `http://localhost:11434/v1` + `qwen3:8b` |
+| `refinr.llm.analysis.base-url` | *(vide)* | URL de l'API (avec `/v1` pour `openai-compatible`). Vide = URL officielle pour `anthropic` / `google` ; **obligatoire** pour `openai-compatible` choisi explicitement (sinon échec au démarrage) |
+| `refinr.llm.analysis.model` | *(vide)* | Modèle de l'analyse (et du health check), obligatoire dès qu'un fournisseur est choisi |
 | `refinr.llm.analysis.api-key` | *(vide)* | Clé API (obligatoire pour `anthropic` et `google`) |
 | `refinr.llm.analysis.timeout` | `300s` | Délai maximal par appel d'analyse |
 | `refinr.llm.analysis.extra-body.*` | *(vide)* | `openai-compatible` : propriétés ajoutées au corps de la requête ; `reasoning_effort` vient de `LLM_ANALYSIS_REASONING_EFFORT` (`none` pour Ollama) |
 | `refinr.llm.analysis.max-output-tokens` | `32768` | Limite de tokens de sortie (sortie tronquée ⇒ erreur explicite) |
+| `refinr.llm.analysis.max-retries` | `2` | Nouveaux essais sur `429`, `5xx` et fournisseur injoignable (idem `refinr.llm.verdict.*`) |
+| `refinr.llm.analysis.retry-base-delay` | `2s` | Délai avant le 1ᵉʳ nouvel essai |
+| `refinr.llm.analysis.retry-multiplier` | `4` | Facteur entre deux délais (défauts : 2 s puis 8 s) |
+| `refinr.llm.analysis.retry-jitter` | `0.2` | Part aléatoire du délai (± 20 %), pour ne pas relancer tous en même temps |
+| `refinr.llm.analysis.retry-max-delay` | `30s` | Plafond d'un délai, y compris un `Retry-After` du fournisseur (prioritaire sur le backoff) |
 | `refinr.llm.max-repair-attempts` | `2` | Relances avec la liste des erreurs quand la sortie ne respecte pas le schema JSON, puis `502` |
 | `refinr.llm.verdict.provider` | *(vide)* | Fournisseur dédié au verdict `ai-ready` ; vide = celui de l'analyse |
 | `refinr.llm.verdict.timeout` | `90s` | Délai maximal par appel de verdict |

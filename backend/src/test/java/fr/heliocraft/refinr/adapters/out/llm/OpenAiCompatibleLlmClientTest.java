@@ -68,8 +68,8 @@ class OpenAiCompatibleLlmClientTest extends AbstractLlmClientTest {
 
     private LlmClient client(JsonMode mode, String apiKey, Map<String, Object> extraBody, int maxOutputTokens) {
         return LlmClients.create(new LlmSettings("verdict", LlmProvider.OPENAI_COMPATIBLE, server.url("/v1").toString(),
-                "deepseek-chat", apiKey, Duration.ofSeconds(2), maxOutputTokens, null, mode, extraBody, 0,
-                Duration.ZERO, Duration.ZERO));
+                "deepseek-chat", apiKey, Duration.ofSeconds(2), maxOutputTokens, null, mode, extraBody,
+                RetryPolicy.none()));
     }
 
     @Test

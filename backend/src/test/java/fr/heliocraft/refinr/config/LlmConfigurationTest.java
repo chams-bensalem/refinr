@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class LlmConfigurationTest {
 
     private static LlmProperties.Role role(String provider, String baseUrl, String model, String apiKey) {
-        return new LlmProperties.Role(provider, baseUrl, model, apiKey, null, null, null, null, null, null, null, null);
+        return new LlmProperties.Role(provider, baseUrl, model, apiKey, null, null, null, null, null, null, null, null, null, null);
     }
 
     @Test
@@ -46,6 +46,59 @@ class LlmConfigurationTest {
     }
 
     @Test
+    @DisplayName("An explicit provider never inherits the Ollama defaults: google keeps its official URL, openai-compatible needs a base-url")
+    void explicitProviderGetsNoOllamaDefault() {
+        // Seul le fournisseur est renseigne (cas d'un .env qui passe de Ollama a google)
+        LlmSettings google = LlmConfiguration.analysisSettings(role("google", null, "gemini-2.5-flash", "k"));
+        assertEquals("https://generativelanguage.googleapis.com", google.baseUrl());
+
+        IllegalStateException googleWithoutModel = assertThrows(IllegalStateException.class,
+                () -> LlmConfiguration.analysisSettings(role("google", null, null, "k")));
+        assertTrue(googleWithoutModel.getMessage().contains("model is required"), googleWithoutModel.getMessage());
+
+        IllegalStateException openAiWithoutUrl = assertThrows(IllegalStateException.class,
+                () -> LlmConfiguration.analysisSettings(role("openai-compatible", "", "qwen3:8b", "")));
+        assertEquals("Invalid refinr.llm.analysis configuration: base-url is required for the openai-compatible provider (analysis)",
+                openAiWithoutUrl.getMessage());
+
+        // base-url explicite vers Ollama : accepte, mais le modele reste a choisir
+        assertEquals("http://localhost:11434/v1",
+                LlmConfiguration.analysisSettings(role("openai-compatible", "http://localhost:11434/v1", "qwen3:8b", "")).baseUrl());
+        assertThrows(IllegalStateException.class,
+                () -> LlmConfiguration.analysisSettings(role("openai-compatible", "http://localhost:11434/v1", null, "")));
+    }
+
+    @Test
+    @DisplayName("Retry defaults: 2 retries, 2 s then 8 s (x4) with 20 % jitter, capped at 30 s")
+    void retryDefaults() {
+        var retry = LlmConfiguration.analysisSettings(LlmProperties.Role.EMPTY).retry();
+
+        assertEquals(2, retry.maxRetries());
+        assertEquals(Duration.ofSeconds(2), retry.baseDelay());
+        assertEquals(4, retry.multiplier());
+        assertEquals(0.2, retry.jitter());
+        assertEquals(Duration.ofSeconds(30), retry.maxDelay());
+    }
+
+    @Test
+    @DisplayName("Retry settings are configurable per role and validated at startup")
+    void retryIsConfigurable() {
+        LlmProperties.Role custom = new LlmProperties.Role("google", null, "gemini-2.5-flash", "k", null, null, null, null,
+                null, 4, Duration.ofSeconds(1), 3.0, 0.0, Duration.ofSeconds(10));
+        var retry = LlmConfiguration.verdictSettings(custom).retry();
+        assertEquals(4, retry.maxRetries());
+        assertEquals(Duration.ofSeconds(1), retry.baseDelay());
+        assertEquals(3, retry.multiplier());
+        assertEquals(0, retry.jitter());
+        assertEquals(Duration.ofSeconds(10), retry.maxDelay());
+
+        LlmProperties.Role badJitter = new LlmProperties.Role("google", null, "gemini-2.5-flash", "k", null, null, null, null,
+                null, null, null, null, 1.5, null);
+        IllegalStateException error = assertThrows(IllegalStateException.class, () -> LlmConfiguration.verdictSettings(badJitter));
+        assertTrue(error.getMessage().contains("retry-jitter must be between 0 and 1"), error.getMessage());
+    }
+
+    @Test
     @DisplayName("Invalid configurations fail at startup with a clear message")
     void invalidConfigurationsFailFast() {
         IllegalStateException unknown = assertThrows(IllegalStateException.class,
@@ -69,7 +122,7 @@ class LlmConfigurationTest {
     @DisplayName("anthropic and google need a positive max-output-tokens")
     void positiveOutputLimit() {
         LlmProperties.Role zero = new LlmProperties.Role("anthropic", null, "claude-opus-5-5", "k", null, 0, null, null,
-                null, null, null, null);
+                null, null, null, null, null, null);
 
         IllegalStateException error = assertThrows(IllegalStateException.class, () -> LlmConfiguration.verdictSettings(zero));
         assertTrue(error.getMessage().contains("max-output-tokens must be > 0"), error.getMessage());

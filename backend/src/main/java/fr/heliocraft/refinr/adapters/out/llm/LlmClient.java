@@ -15,9 +15,11 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Client HTTP d'un fournisseur de modele : envoie une requete de sortie structuree et renvoie le texte produit.
@@ -112,7 +114,7 @@ public abstract class LlmClient {
     /** Envoie la requete et renvoie le texte du modele. */
     public String complete(LlmRequest request) {
         String payload = mapper.writeValueAsString(body(request));
-        int attempts = settings.maxRetries() + 1;
+        int attempts = settings.retry().maxRetries() + 1;
         for (int attempt = 1; ; attempt++) {
             try {
                 log.info("LLM {} call: {}, attempt {}/{}", settings.role(), settings.describe(), attempt, attempts);
@@ -219,17 +221,9 @@ public abstract class LlmClient {
         return false;
     }
 
-    /** Delai avant le prochain essai : Retry-After (secondes) s'il est fourni, sinon backoff exponentiel ; plafonne. */
+    /** Delai avant le prochain essai : Retry-After s'il est fourni, sinon backoff exponentiel avec jitter ; plafonne. */
     Duration retryDelay(int attempt, String retryAfter) {
-        Duration delay = settings.retryBaseDelay().multipliedBy(1L << Math.min(attempt - 1, 16));
-        if (retryAfter != null) {
-            try {
-                delay = Duration.ofSeconds(Long.parseLong(retryAfter.trim()));
-            } catch (NumberFormatException ignored) {
-                // Date HTTP : backoff exponentiel
-            }
-        }
-        return delay.compareTo(settings.retryMaxDelay()) > 0 ? settings.retryMaxDelay() : delay;
+        return settings.retry().delay(attempt, retryAfter, ThreadLocalRandom.current().nextDouble(), Instant.now());
     }
 
     private static void pause(Duration delay) {

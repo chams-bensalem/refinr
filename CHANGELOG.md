@@ -12,6 +12,11 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   `groq.*`, `anthropic.api-key` et `AI_PROVIDER`, `OLLAMA_*`, `GEMINI_*`, `AI_VERDICT_*` dans `.env`) sont **refusées
   au démarrage**, avec la correspondance à appliquer (cf. README, « Migration depuis l'ancienne configuration IA »).
   Ollama passe par son API compatible OpenAI : `base-url` avec `/v1`.
+- `base-url` et `model` : sans fournisseur (`LLM_ANALYSIS_PROVIDER` vide), l'analyse utilise l'Ollama local
+  (`http://localhost:11434/v1`, `qwen3:8b`). Un fournisseur choisi explicitement n'hérite plus de ces valeurs :
+  `anthropic` et `google` utilisent leur URL officielle quand `base-url` est vide, `openai-compatible` exige un
+  `base-url` explicite (sinon échec clair au démarrage), et `model` est obligatoire. Auparavant, `LLM_ANALYSIS_PROVIDER=google`
+  sans `LLM_ANALYSIS_BASE_URL` envoyait les appels vers l'URL Ollama (`HTTP 404`).
 
 ### Changed — contrat REST
 - `analyze-preview`, `analyze-and-create`, `reassess-story` : `502` (message générique) quand la sortie de l'IA est
@@ -36,8 +41,10 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   `LLM_ANALYSIS_REASONING_EFFORT=none` désactive la réflexion des modèles Ollama (équivalent de l'ancien `think: false`).
 
 ### Changed
-- Appels IA : nouveaux essais sur `429`, `5xx` (dont `529`) et fournisseur injoignable, `Retry-After` respecté
-  (plafonné à 30 s) ; jamais après un délai dépassé. Le verdict (`create-jira`, `reassess-story`) est désormais
+- Appels IA : nouveaux essais sur `429`, `5xx` (dont `503` et `529`) et fournisseur injoignable, avec backoff
+  exponentiel et jitter : 2 s puis 8 s, ± 20 % (`refinr.llm.*.max-retries`, `retry-base-delay`, `retry-multiplier`,
+  `retry-jitter`, `retry-max-delay`). `Retry-After` (secondes ou date HTTP) prioritaire, plafonné à 30 s ; jamais après
+  un délai dépassé. Le verdict (`create-jira`, `reassess-story`) est désormais
   retenté comme l'analyse.
 - Le modèle ne peut plus fournir de clés de ticket (`jiraKey`, `epicKey`…) dans sa sortie : refusées par le schéma.
 - Les corps d'erreur des fournisseurs IA ne sont plus journalisés (certains recopient une partie de la clé refusée).
