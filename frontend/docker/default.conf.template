@@ -1,0 +1,62 @@
+# Refinr frontend - generated at container start by the nginx image (envsubst on REFINR_* variables only).
+#   REFINR_BACKEND_URL   backend reached by the /api proxy (default http://backend:8080)
+#   REFINR_API_BASE_URL  API base URL used by the browser, served in /config.js (default /api/v1, same origin)
+#   REFINR_API_KEY       optional: added server-side by the proxy as X-API-Key, never sent to the browser
+server {
+    listen 8080;
+    server_name _;
+    server_tokens off;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Runtime configuration read by the SPA before it starts
+    location = /config.js {
+        default_type application/javascript;
+        add_header Cache-Control "no-store" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        return 200 'window.__REFINR_CONFIG__ = { apiBaseUrl: "${REFINR_API_BASE_URL}" };\n';
+    }
+
+    # Liveness probe of the container itself (does not call the backend)
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 'ok\n';
+    }
+
+    location /api/ {
+        proxy_pass ${REFINR_BACKEND_URL};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # Empty value = header not sent
+        proxy_set_header X-API-Key "${REFINR_API_KEY}";
+        # Document analysis by a local model can take minutes (backend LLM timeout: 300 s)
+        proxy_read_timeout 360s;
+        proxy_send_timeout 360s;
+        client_max_body_size 5m;
+    }
+
+    # Fingerprinted build assets: cached for a long time
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        try_files $uri =404;
+    }
+
+    # Single-page app: unknown paths serve index.html (client-side routing)
+    location / {
+        add_header Cache-Control "no-cache" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        try_files $uri $uri/ /index.html;
+    }
+}
