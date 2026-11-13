@@ -105,6 +105,25 @@ class ConfigurationDefaultsTest {
     }
 
     @Test
+    @DisplayName("CORS origins and API key have the same defaults in the code, the example config, .env.example and the README")
+    void httpSecurityDefaultsAreAligned() throws Exception {
+        Class<?> config = HttpSecurityConfiguration.class;
+        String corsDefault = config.getDeclaredMethod("corsFilter", String.class)
+                .getParameters()[0].getAnnotation(org.springframework.beans.factory.annotation.Value.class).value();
+        assertEquals("${refinr.cors.allowed-origins:http://localhost:3000}", corsDefault);
+        assertEquals("http://localhost:3000", exampleDefault("refinr.cors.allowed-origins"));
+        assertEquals("http://localhost:3000", envExample("CORS_ALLOWED_ORIGINS"));
+        assertEquals("http://localhost:3000", readmeTableDefault("refinr.cors.allowed-origins"));
+
+        String apiKeyDefault = config.getDeclaredMethod("apiKeyFilter", String.class, tools.jackson.databind.ObjectMapper.class)
+                .getParameters()[0].getAnnotation(org.springframework.beans.factory.annotation.Value.class).value();
+        assertEquals("${refinr.security.api-key:}", apiKeyDefault);
+        assertEquals("", exampleDefault("refinr.security.api-key"));
+        assertEquals("", envExample("REFINR_API_KEY"));
+        assertTrue(readmeTableRow("refinr.security.api-key").startsWith("| `refinr.security.api-key` | *(vide)* |"));
+    }
+
+    @Test
     @DisplayName("Verdict batch size and cache defaults are aligned between the code, the example config and the README")
     void verdictBatchAndCacheAreAligned() throws Exception {
         java.lang.reflect.Parameter[] parameters = LlmConfiguration.class.getMethod("readinessAssessor",
