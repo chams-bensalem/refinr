@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Chams Bensalem
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package fr.heliocraft.refinr.config;
 
 import org.junit.jupiter.api.DisplayName;
@@ -6,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -13,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Les valeurs par defaut d'une propriete doivent etre les memes partout : dans le code ({@link LlmConfiguration}),
- * dans la configuration d'exemple, dans {@code .env.example} et dans le README.
+ * dans la configuration d'exemple, dans {@code .env.example} et dans les deux README (anglais et francais).
  */
 class ConfigurationDefaultsTest {
 
@@ -21,6 +26,8 @@ class ConfigurationDefaultsTest {
     private static final Path EXAMPLE = Path.of("src/main/resources/application-example.properties");
     private static final Path ENV_EXAMPLE = Path.of("../.env.example");
     private static final Path README = Path.of("../README.md");
+    private static final Path README_FR = Path.of("../README.fr.md");
+    private static final Path[] READMES = {README, README_FR};
 
     @Test
     @DisplayName("The default analysis provider (local Ollama, OpenAI-compatible API) is aligned everywhere")
@@ -31,8 +38,9 @@ class ConfigurationDefaultsTest {
         assertEquals(LlmConfiguration.DEFAULT_MODEL, envExample("LLM_ANALYSIS_MODEL"));
         // README : fournisseur par defaut, et preset Ollama decrit sur la meme ligne
         assertEquals(LlmConfiguration.DEFAULT_PROVIDER, readmeTableDefault("refinr.llm.analysis.provider"));
-        String providerRow = readmeTableRow("refinr.llm.analysis.provider");
-        assertTrue(providerRow.contains(LlmConfiguration.DEFAULT_BASE_URL) && providerRow.contains(LlmConfiguration.DEFAULT_MODEL), providerRow);
+        for (String providerRow : readmeTableRows("refinr.llm.analysis.provider")) {
+            assertTrue(providerRow.contains(LlmConfiguration.DEFAULT_BASE_URL) && providerRow.contains(LlmConfiguration.DEFAULT_MODEL), providerRow);
+        }
     }
 
     @Test
@@ -65,7 +73,9 @@ class ConfigurationDefaultsTest {
         assertEquals(String.valueOf(LlmConfiguration.DEFAULT_ANALYSIS_TEMPERATURE), exampleDefault("refinr.llm.analysis.temperature"));
         assertEquals(String.valueOf(LlmConfiguration.DEFAULT_VERDICT_TEMPERATURE), exampleDefault("refinr.llm.verdict.temperature"));
         assertEquals(exampleDefault("refinr.llm.analysis.temperature"), readmeTableDefault("refinr.llm.analysis.temperature"));
-        assertTrue(readmeTableRow("refinr.llm.analysis.temperature").contains("`" + LlmConfiguration.DEFAULT_VERDICT_TEMPERATURE + "`"));
+        for (String row : readmeTableRows("refinr.llm.analysis.temperature")) {
+            assertTrue(row.contains("`" + LlmConfiguration.DEFAULT_VERDICT_TEMPERATURE + "`"), row);
+        }
         for (String key : new String[] {"refinr.llm.analysis.max-tokens-param", "refinr.llm.verdict.max-tokens-param"}) {
             assertEquals("max_tokens", exampleDefault(key), key);
         }
@@ -132,7 +142,9 @@ class ConfigurationDefaultsTest {
         assertEquals("${refinr.security.api-key:}", apiKeyDefault);
         assertEquals("", exampleDefault("refinr.security.api-key"));
         assertEquals("", envExample("REFINR_API_KEY"));
-        assertTrue(readmeTableRow("refinr.security.api-key").startsWith("| `refinr.security.api-key` | *(vide)* |"));
+        for (String row : readmeTableRows("refinr.security.api-key")) {
+            assertTrue(row.matches("^\\| `refinr\\.security\\.api-key` \\| \\*\\((empty|vide)\\)\\* \\|.*"), row);
+        }
     }
 
     @Test
@@ -164,9 +176,10 @@ class ConfigurationDefaultsTest {
     @DisplayName("One Gemini model everywhere it is mentioned: README (badge, examples) and .env.example")
     void geminiModelIsAligned() throws IOException {
         String model = "gemini-2.5-flash";
-        String readme = Files.readString(README);
-        assertTrue(readme.contains("badge/Gemini-2.5%20Flash-"), "README badge should show " + model);
-        for (Path file : new Path[] {README, ENV_EXAMPLE}) {
+        for (Path readme : READMES) {
+            assertTrue(Files.readString(readme).contains("badge/Gemini-2.5%20Flash-"), readme + " badge should show " + model);
+        }
+        for (Path file : new Path[] {README, README_FR, ENV_EXAMPLE}) {
             Matcher mentioned = Pattern.compile("gemini-\\d[\\w.-]*").matcher(Files.readString(file));
             while (mentioned.find()) {
                 assertEquals(model, mentioned.group(), "Gemini model mentioned in " + file);
@@ -174,13 +187,14 @@ class ConfigurationDefaultsTest {
         }
     }
 
-    static String readmeTableRow(String key) throws IOException {
-        for (String line : Files.readAllLines(README)) {
-            if (line.startsWith("| `" + key + "` |")) {
-                return line;
-            }
+    /** Ligne de la propriete dans le tableau de chaque README (anglais puis francais). */
+    static List<String> readmeTableRows(String key) throws IOException {
+        List<String> rows = new ArrayList<>();
+        for (Path readme : READMES) {
+            rows.add(Files.readAllLines(readme).stream().filter(line -> line.startsWith("| `" + key + "` |")).findFirst()
+                    .orElseThrow(() -> new AssertionError(key + " missing from the property table of " + readme)));
         }
-        throw new AssertionError(key + " missing from the README property table");
+        return rows;
     }
 
     /** Defaut d'une propriete de application-example.properties ecrite {@code cle=${VAR:defaut}} ou {@code cle=valeur}. */
@@ -202,16 +216,19 @@ class ConfigurationDefaultsTest {
         throw new AssertionError(variable + " missing from " + ENV_EXAMPLE);
     }
 
-    /** Colonne « Defaut » du tableau des proprietes du README : {@code | `cle` | `defaut` | ... |}. */
+    /**
+     * Colonne « Defaut » du tableau des proprietes : {@code | `cle` | `defaut` | ... |}, identique dans les deux README.
+     */
     static String readmeTableDefault(String key) throws IOException {
         Pattern row = Pattern.compile("^\\| `" + Pattern.quote(key) + "` \\| `([^`]*)` \\|");
-        for (String line : Files.readAllLines(README)) {
+        List<String> defaults = new ArrayList<>();
+        for (String line : readmeTableRows(key)) {
             Matcher matcher = row.matcher(line);
-            if (matcher.find()) {
-                return matcher.group(1);
-            }
+            assertTrue(matcher.find(), "no `default` column for " + key + ": " + line);
+            defaults.add(matcher.group(1));
         }
-        throw new AssertionError(key + " missing from the README property table");
+        assertEquals(defaults.get(0), defaults.get(1), key + ": README.md and README.fr.md disagree");
+        return defaults.get(0);
     }
 
     /** {@code ${cle:defaut}} -> defaut (le premier ':' separe la variable de son defaut) ; sinon la valeur. */
