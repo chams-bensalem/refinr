@@ -53,7 +53,6 @@ public final class RestBacklogMapper {
         story.setTitle(dto.getTitle());
         story.setDescription(dto.getDescription());
         story.setAcceptanceCriteria(dto.getAcceptanceCriteria());
-        story.setStoryPoints(dto.getStoryPoints());
         story.setEstimatedStoryPoints(dto.getEstimatedStoryPoints());
         story.setPriority(dto.getPriority());
         story.setLabels(dto.getLabels());
@@ -107,7 +106,6 @@ public final class RestBacklogMapper {
         dto.setTitle(story.getTitle());
         dto.setDescription(story.getDescription());
         dto.setAcceptanceCriteria(story.getAcceptanceCriteria());
-        dto.setStoryPoints(story.getStoryPoints());
         dto.setEstimatedStoryPoints(story.getEstimatedStoryPoints());
         dto.setPriority(story.getPriority());
         dto.setLabels(story.getLabels());
