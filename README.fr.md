@@ -383,13 +383,20 @@ refinr.llm.verdict.max-output-tokens=4096
 
 | Propriété | Défaut | Description |
 |---|---|---|
-| `tracker.provider` | `jira` | Gestionnaire de tickets de l'instance (un seul par instance) : `jira` (`openproject` arrive en v1.1). Valeur inconnue ou propriété absente du gestionnaire choisi : arrêt au démarrage avec un message explicite |
+| `tracker.provider` | `jira` | Gestionnaire de tickets de l'instance (un seul par instance) : `jira` ou `openproject`. Valeur inconnue ou propriété absente du gestionnaire choisi : arrêt au démarrage avec un message explicite |
 | `confluence.base-url` / `jira.base-url` | — | URL du site Atlassian Cloud (sans `/wiki`) |
 | `confluence.username` / `jira.username` | — | E-mail du compte Atlassian |
 | `confluence.token` / `jira.token` | — | Token API Atlassian |
 | `jira.project-key` | — | Clé du projet utilisé si `projectKey` n'est pas fourni |
 | `jira.priority-enabled` | `true` | Envoie le champ `priority` (désactiver en team-managed) |
 | `jira.story-points-field` | *(vide)* | Champ personnalisé des story points (ex. `customfield_10016`, cf. ci-dessous) ; vide = non envoyés |
+| `openproject.base-url` | — | URL d'OpenProject (avec `tracker.provider=openproject`) |
+| `openproject.api-key` | — | Clé API du compte Refinr (*Mon compte → Jetons d'accès → API*) |
+| `openproject.project` | — | Projet par défaut (identifiant ou id numérique) si `projectKey` n'est pas fourni |
+| `openproject.types.epic` / `.story` / `.subtask` | `Epic` / `User story` / `Task` | Types de work package utilisés pour chaque niveau |
+| `openproject.readiness-field` | `Agent readiness` | Champ personnalisé de type liste qui porte le verdict (options `ai-ready` / `validation-necessaire`) |
+| `openproject.story-points-enabled` | `true` | Envoie `storyPoints` sur les User stories uniquement (module Backlogs) |
+| `openproject.priority-enabled` | `true` | Envoie la priorité (par nom, `Medium` → `Normal`) |
 | `refinr.llm.analysis.provider` | `openai-compatible` | Fournisseur de l'analyse : `anthropic`, `google` ou `openai-compatible`. Non renseigné : Ollama local, soit `openai-compatible` + `http://localhost:11434/v1` + `qwen3:8b` |
 | `refinr.llm.analysis.base-url` | *(vide)* | URL de l'API (avec `/v1` pour `openai-compatible`). Vide = URL officielle pour `anthropic` / `google` ; **obligatoire** pour `openai-compatible` choisi explicitement (sinon échec au démarrage) |
 | `refinr.llm.analysis.model` | *(vide)* | Modèle de l'analyse (et du health check), obligatoire dès qu'un fournisseur est choisi |
@@ -621,7 +628,7 @@ Base URL : `http://localhost:8080/api/v1`
 
 | Méthode | Endpoint | Corps / paramètres | Description |
 |---|---|---|---|
-| `POST` | `/analyze-and-create` | `{ "confluencePageId": "…", "projectKey": "PROJ" }` *(projectKey optionnel : projet du gestionnaire de tickets actif — clé Jira `^[A-Z][A-Z0-9]{1,9}$`, ou identifiant OpenProject `^[a-z0-9_-]{1,100}$` / id numérique quand il sera disponible en v1.1)* | Lit, analyse et crée toute la hiérarchie dans Jira |
+| `POST` | `/analyze-and-create` | `{ "confluencePageId": "…", "projectKey": "PROJ" }` *(projectKey optionnel : projet du gestionnaire de tickets actif — clé Jira `^[A-Z][A-Z0-9]{1,9}$`, ou identifiant OpenProject `^[a-z0-9_-]{1,100}$` / id numérique)* | Lit, analyse et crée toute la hiérarchie dans Jira |
 | `POST` | `/analyze-preview` | `{ "confluencePageId": "…" }` | Analyse sans créer de tickets |
 | `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optionnel, même format)* | Crée une structure déjà générée, dans `projectKey` ou le projet par défaut ; verdict `ai-ready` recalculé par le serveur (`aiReady` / `aiReadyReason` du client ignorés) |
 | `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Réévalue une story `validation-necessaire` (`409` si elle ne l'est pas) |

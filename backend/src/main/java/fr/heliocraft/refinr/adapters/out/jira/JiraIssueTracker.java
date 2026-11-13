@@ -15,6 +15,7 @@ import fr.heliocraft.refinr.domain.model.TrackedStory;
 import fr.heliocraft.refinr.domain.model.TrackerContent;
 import fr.heliocraft.refinr.domain.service.LabelNormalizer;
 import fr.heliocraft.refinr.domain.service.ReadinessPolicy;
+import fr.heliocraft.refinr.domain.service.StoryMarkdown;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -125,9 +126,7 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
     public String createStory(Story story, String epicKey, String project) {
         log.info("Creating Jira Story: {} under Epic: {}", story.getTitle(), epicKey);
 
-        String description = formatStoryDescription(story);
-        String fullDescription = description + "\n\n" + formatAcceptanceCriteria(story.getAcceptanceCriteria())
-                + formatAiReadiness(story);
+        String fullDescription = StoryMarkdown.description(story);
         String summary = story.getTitle();
         List<String> labels = story.getLabels();
 
@@ -240,37 +239,6 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
         }
     }
 
-    private String formatStoryDescription(Story story) {
-        StringBuilder sb = new StringBuilder();
-
-        sb.append("**As a** ").append(story.getAsA()).append("\n");
-        sb.append("**I want** ").append(story.getIWant()).append("\n");
-        sb.append("**So that** ").append(story.getSoThat()).append("\n\n");
-
-        if (story.getDescription() != null && !story.getDescription().isEmpty()) {
-            sb.append("### Description\n\n");
-            sb.append(story.getDescription()).append("\n");
-        }
-
-        return sb.toString();
-    }
-
-    private String formatAcceptanceCriteria(List<String> criteria) {
-        if (criteria == null || criteria.isEmpty()) {
-            return "No acceptance criteria defined";
-        }
-
-        StringBuilder formatted = new StringBuilder();
-        formatted.append("### Acceptance Criteria\n\n");
-
-        for (int i = 0; i < criteria.size(); i++) {
-            formatted.append("- **AC").append(i + 1).append(":** ");
-            formatted.append(criteria.get(i)).append("\n");
-        }
-
-        return formatted.toString();
-    }
-
     /**
      * Story relue pour une reevaluation : description en texte brut (pour l'analyse), description ADF d'origine
      * (conservee telle quelle a la reecriture : images, tableaux, liens, via {@link JiraAdfContent}) et labels actuels.
@@ -312,9 +280,7 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
     @Override
     public void applyReassessment(TrackedStory story, String precision, Readiness readiness) {
         boolean aiReady = readiness.aiReady();
-        String reason = readiness.aiReadyReason();
         String verdict = ReadinessPolicy.verdictLabel(aiReady);
-        String justification = reason != null && !reason.isBlank() ? reason : "non precise par l'analyse";
         List<Object> content = new ArrayList<>();
         Map<String, Object> originalAdf = adfOf(story.originalContent());
         if (originalAdf != null && originalAdf.get("content") instanceof List<?> original) {
@@ -322,8 +288,8 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
         } else if (story.description() != null && !story.description().isBlank()) {
             content.add(adfParagraph(story.description()));
         }
-        content.add(adfParagraph("Precision de l'utilisateur (reevaluation): " + precision));
-        content.add(adfParagraph("AI readiness (" + verdict + "): " + justification));
+        content.add(adfParagraph(StoryMarkdown.precisionLine(precision)));
+        content.add(adfParagraph(StoryMarkdown.reassessedReadinessLine(readiness)));
         Map<String, Object> description = new HashMap<>();
         description.put("type", "doc");
         description.put("version", 1);
@@ -375,12 +341,6 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
             text.append("\n");
         }
         return text.toString();
-    }
-
-    private String formatAiReadiness(Story story) {
-        String verdict = ReadinessPolicy.verdictLabel(story.getAiReady());
-        String reason = story.getAiReadyReason() != null ? story.getAiReadyReason() : "non evalue par l'analyse";
-        return "\n\nAI readiness (" + verdict + "): " + reason;
     }
 
     /** Descriptions ecrites en Markdown (analyse et mise en forme ci-dessus) -> ADF structure. */
