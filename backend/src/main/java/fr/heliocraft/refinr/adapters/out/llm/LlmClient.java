@@ -8,15 +8,21 @@ import fr.heliocraft.refinr.application.port.out.LlmException.Reason;
 import fr.heliocraft.refinr.domain.model.ComponentHealth;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.buffer.DataBufferLimitException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
+import javax.net.ssl.SSLException;
+import java.io.IOException;
+import java.net.ConnectException;
+import java.net.UnknownHostException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -30,7 +36,9 @@ import java.util.concurrent.ThreadLocalRandom;
  * Nouveaux essais de transport : HTTP 429, 5xx (dont 529 d'Anthropic) et connexion refusee, au plus
  * {@code maxRetries} fois, en respectant {@code Retry-After} (plafonne). Jamais apres un delai depasse, ni sur une
  * autre erreur 4xx. Une sortie coupee par la limite de tokens leve {@link Reason#TRUNCATED}, sans nouvel essai.
- * Les messages d'erreur ne contiennent ni URL, ni cle, ni corps de reponse.
+ * Les messages d'erreur et les logs ne contiennent ni URL, ni cle, ni corps de reponse, ni texte du modele : seulement
+ * le fournisseur, le modele, le statut HTTP et une categorie d'erreur. Les {@link LlmException} levees ici n'ont
+ * jamais de cause (les exceptions de WebClient et de Jackson portent l'URL, les en-tetes ou des extraits du corps).
  */
 public abstract class LlmClient {
 
@@ -129,7 +137,7 @@ public abstract class LlmClient {
                     // Jamais le corps : certains fournisseurs y recopient une partie de la cle refusee
                     log.warn("LLM {} call failed: HTTP {} ({}), error type: {}", settings.role(), status,
                             settings.describe(), errorType(e.getResponseBodyAsString()));
-                    throw new LlmException(Reason.UNAVAILABLE, failureMessage(status), e);
+                    throw new LlmException(Reason.UNAVAILABLE, failureMessage(status));
                 }
                 Duration delay = retryDelay(attempt, e.getHeaders().getFirst(HttpHeaders.RETRY_AFTER));
                 log.warn("LLM {} busy (HTTP {}), new attempt in {} ms", settings.role(), status, delay.toMillis());
@@ -147,9 +155,10 @@ public abstract class LlmClient {
                 if (isTimeout(e)) {
                     throw unreachableOrTimeout(e);
                 }
-                log.warn("LLM {} call failed ({}): {}", settings.role(), settings.describe(), e.toString());
+                // Jamais le message : Jackson y cite des extraits du corps de la reponse
+                log.warn("LLM {} call failed ({}): {}", settings.role(), settings.describe(), failureCategory(e));
                 throw new LlmException(Reason.UNAVAILABLE,
-                        "Unexpected response from the " + settings.provider().id() + " LLM provider", e);
+                        "Unexpected response from the " + settings.provider().id() + " LLM provider");
             }
         }
     }
@@ -209,10 +218,40 @@ public abstract class LlmClient {
         if (isTimeout(e)) {
             log.warn("LLM {} call timed out after {} ({})", settings.role(), settings.timeout(), settings.describe());
             return new LlmException(Reason.UNAVAILABLE, "The " + settings.provider().id()
-                    + " LLM provider did not answer within " + settings.timeout().toSeconds() + " s", e);
+                    + " LLM provider did not answer within " + settings.timeout().toSeconds() + " s");
         }
-        log.warn("LLM {} unreachable ({}): {}", settings.role(), settings.describe(), e.getMessage());
-        return new LlmException(Reason.UNAVAILABLE, "The " + settings.provider().id() + " LLM provider is unreachable", e);
+        log.warn("LLM {} unreachable ({}): {}", settings.role(), settings.describe(), failureCategory(e));
+        return new LlmException(Reason.UNAVAILABLE, "The " + settings.provider().id() + " LLM provider is unreachable");
+    }
+
+    /**
+     * Categorie d'un echec, deduite du type des exceptions de la chaine (jamais de leur message, qui peut citer
+     * l'hote, l'URL ou le corps de la reponse).
+     */
+    static String failureCategory(Throwable error) {
+        Throwable root = error;
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            if (t instanceof JacksonException) {
+                return "invalid-json";
+            }
+            if (t instanceof DataBufferLimitException) {
+                return "response-too-large";
+            }
+            if (t instanceof TimeoutException) {
+                return "timeout";
+            }
+            if (t instanceof ConnectException) {
+                return "connection-refused";
+            }
+            if (t instanceof UnknownHostException) {
+                return "unknown-host";
+            }
+            if (t instanceof SSLException) {
+                return "tls";
+            }
+            root = t;
+        }
+        return root instanceof IOException ? "io" : root.getClass().getSimpleName();
     }
 
     static boolean isTimeout(Throwable error) {
@@ -237,7 +276,7 @@ public abstract class LlmClient {
             Thread.sleep(delay);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new LlmException(Reason.UNAVAILABLE, "LLM call interrupted", e);
+            throw new LlmException(Reason.UNAVAILABLE, "LLM call interrupted");
         }
     }
 

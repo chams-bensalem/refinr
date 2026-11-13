@@ -43,7 +43,7 @@ final class StoryVerdicts {
             Story story = stories.get(i);
             Readiness verdict = verdicts != null && i < verdicts.size() ? verdicts.get(i) : null;
             if (verdict == null) {
-                log.warn("Readiness verdict unavailable for '{}'", story.getTitle());
+                log.warn("Readiness verdict unavailable for story {}/{}", i + 1, stories.size());
                 verdict = ReadinessPolicy.unavailable(failure);
             }
             story.setAiReady(verdict.aiReady());

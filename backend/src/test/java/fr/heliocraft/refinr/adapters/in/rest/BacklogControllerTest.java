@@ -5,6 +5,16 @@ package fr.heliocraft.refinr.adapters.in.rest;
 
 import fr.heliocraft.refinr.adapters.out.confluence.ConfluenceIds;
 import fr.heliocraft.refinr.adapters.out.jira.JiraProjectKeys;
+import fr.heliocraft.refinr.adapters.out.llm.JsonMode;
+import fr.heliocraft.refinr.adapters.out.llm.LlmBacklogGenerator;
+import fr.heliocraft.refinr.adapters.out.llm.LlmClient;
+import fr.heliocraft.refinr.adapters.out.llm.LlmClients;
+import fr.heliocraft.refinr.adapters.out.llm.LlmProvider;
+import fr.heliocraft.refinr.adapters.out.llm.LlmReadinessAssessor;
+import fr.heliocraft.refinr.adapters.out.llm.LlmSettings;
+import fr.heliocraft.refinr.adapters.out.llm.MaxTokensParam;
+import fr.heliocraft.refinr.adapters.out.llm.RetryPolicy;
+import fr.heliocraft.refinr.adapters.out.llm.StructuredOutput;
 import fr.heliocraft.refinr.application.port.in.DescribeTracker;
 import fr.heliocraft.refinr.application.port.out.DocumentSourceException;
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
@@ -14,6 +24,8 @@ import fr.heliocraft.refinr.application.port.out.LlmException;
 import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
 import fr.heliocraft.refinr.config.UseCaseConfig;
 import fr.heliocraft.refinr.domain.model.*;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,7 +41,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -991,5 +1006,106 @@ class BacklogControllerTest {
                 output.getAll());
         assertFalse(output.getAll().contains("Secret-marker-7f3a"));
         assertFalse(output.getAll().contains("Title-marker-9c2e"));
+    }
+    // --- Non-fuite du contenu de bout en bout (issue #29) : vrai adaptateur LLM sur un serveur simule ---
+
+    /** Client OpenAI-compatible reel vers le serveur simule, avec une cle factice evidente portant le marqueur. */
+    private static LlmClient llmClient(MockWebServer server, String marker) {
+        return LlmClients.create(new LlmSettings("analysis", LlmProvider.OPENAI_COMPATIBLE, server.url("/v1").toString(),
+                "test-model", "fake-test-key-" + marker, Duration.ofSeconds(2), 1000, null, JsonMode.JSON_SCHEMA,
+                MaxTokensParam.MAX_TOKENS, Map.of(), RetryPolicy.none()));
+    }
+
+    private static MockResponse modelAnswer(String text) {
+        return new MockResponse().addHeader("Content-Type", "application/json").setBody(
+                "{\"choices\":[{\"finish_reason\":\"stop\",\"message\":{\"content\":"
+                        + tools.jackson.databind.node.StringNode.valueOf(text) + "}}]}");
+    }
+
+    private void assertNoLeak(String marker, String responseBody, CapturedOutput output) {
+        assertFalse(responseBody.contains(marker), responseBody);
+        assertFalse(output.getAll().contains(marker), output.getAll());
+    }
+
+    @Test
+    @DisplayName("No leak: invalid model output in text mode (preview), neither in the response nor in the logs")
+    void noLeakOnInvalidModelOutputInPreview(CapturedOutput output) throws Exception {
+        String marker = "LEAK-MARKER-" + UUID.randomUUID();
+        try (MockWebServer server = new MockWebServer()) {
+            server.enqueue(modelAnswer(marker + " pas du JSON"));
+            server.enqueue(modelAnswer("{\"epics\":[{\"" + marker + "\":\"" + marker + "\"}]}"));
+            LlmBacklogGenerator real = new LlmBacklogGenerator(llmClient(server, marker), new StructuredOutput(1));
+            when(generator.generate(any())).thenAnswer(call -> real.generate(call.getArgument(0)));
+
+            String body = mockMvc.perform(post("/api/v1/analyze-preview").contentType(MediaType.APPLICATION_JSON)
+                            .content(json("title", "Titre " + marker, "content", "# Spec\nGestion des stocks " + marker)))
+                    .andExpect(status().isBadGateway())
+                    .andExpect(jsonPath("$.error").value("The AI model did not produce a valid result, even after retries"))
+                    .andReturn().getResponse().getContentAsString();
+
+            assertNoLeak(marker, body, output);
+        }
+    }
+
+    @Test
+    @DisplayName("No leak: unreadable provider response in text mode (analyze-and-create), nothing created")
+    void noLeakOnUnreadableProviderResponse(CapturedOutput output) throws Exception {
+        String marker = "LEAK-MARKER-" + UUID.randomUUID();
+        try (MockWebServer server = new MockWebServer()) {
+            server.enqueue(new MockResponse().setBody(marker + " <html>proxy</html>"));
+            LlmBacklogGenerator real = new LlmBacklogGenerator(llmClient(server, marker), new StructuredOutput(1));
+            when(generator.generate(any())).thenAnswer(call -> real.generate(call.getArgument(0)));
+
+            String body = mockMvc.perform(post("/api/v1/analyze-and-create").contentType(MediaType.APPLICATION_JSON)
+                            .content(json("content", "# Spec\nGestion des stocks " + marker)))
+                    .andExpect(status().isBadGateway())
+                    .andExpect(jsonPath("$.error").value("The AI provider is unavailable"))
+                    .andReturn().getResponse().getContentAsString();
+
+            assertNoLeak(marker, body, output);
+            verifyNoInteractions(jiraService);
+        }
+    }
+
+    @Test
+    @DisplayName("No leak: HTTP 429 whose body echoes the prompt and the key (status and message unchanged)")
+    void noLeakOnRateLimit(CapturedOutput output) throws Exception {
+        String marker = "LEAK-MARKER-" + UUID.randomUUID();
+        try (MockWebServer server = new MockWebServer()) {
+            server.enqueue(new MockResponse().setResponseCode(429).setBody(
+                    "{\"error\":{\"message\":\"" + marker + " fake-test-key-" + marker + "\"}}"));
+            LlmBacklogGenerator real = new LlmBacklogGenerator(llmClient(server, marker), new StructuredOutput(1));
+            when(generator.generate(any())).thenAnswer(call -> real.generate(call.getArgument(0)));
+
+            String body = mockMvc.perform(post("/api/v1/analyze-preview").contentType(MediaType.APPLICATION_JSON)
+                            .content(json("content", "# Spec\nGestion des stocks " + marker)))
+                    .andExpect(status().isBadGateway())
+                    .andExpect(jsonPath("$.error").value("The AI provider is unavailable"))
+                    .andReturn().getResponse().getContentAsString();
+
+            assertNoLeak(marker, body, output);
+        }
+    }
+
+    @Test
+    @DisplayName("No leak: reassessment failing (story content and user precision), neither in the response nor in the logs")
+    void noLeakOnReassessmentFailure(CapturedOutput output) throws Exception {
+        String marker = "LEAK-MARKER-" + UUID.randomUUID();
+        try (MockWebServer server = new MockWebServer()) {
+            server.enqueue(new MockResponse().setResponseCode(503).setBody("busy " + marker));
+            LlmReadinessAssessor real = new LlmReadinessAssessor(llmClient(server, marker), new StructuredOutput(1), 5);
+            when(assessor.reassess(any(), any(), any())).thenAnswer(call ->
+                    real.reassess(call.getArgument(0), call.getArgument(1), call.getArgument(2)));
+            when(jiraService.findStory("TEST-7")).thenReturn(new TrackedStory("TEST-7", "Export " + marker,
+                    "Description " + marker, List.of("validation-necessaire")));
+
+            String body = mockMvc.perform(post("/api/v1/reassess-story").contentType(MediaType.APPLICATION_JSON)
+                            .content(json("issueKey", "TEST-7", "precision", "Precision " + marker)))
+                    .andExpect(status().isBadGateway())
+                    .andExpect(jsonPath("$.error").value("The AI provider is unavailable"))
+                    .andReturn().getResponse().getContentAsString();
+
+            assertNoLeak(marker, body, output);
+        }
     }
 }

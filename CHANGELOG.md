@@ -24,6 +24,19 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 - `title` envoyé sans `content` sur `analyze-preview` / `analyze-and-create` → `400`
   (`title is only accepted with content`) ; auparavant, ce champ inconnu était ignoré.
 
+### Security
+- Les messages d'erreur IA et les logs ne contiennent plus d'extraits de la sortie du modèle, du corps de réponse du
+  fournisseur ni du contenu des stories (#29). Ils ne gardent que le fournisseur, le modèle, le statut HTTP, une
+  catégorie d'erreur et des tailles ; les erreurs de l'adaptateur IA ne portent plus de cause (ni URL, ni en-têtes,
+  ni message Jackson dans une trace). Le détail des erreurs de validation reste renvoyé au modèle pour la réparation.
+  Statuts et messages REST inchangés.
+- Format des lignes de log concernées modifié (WARN ; ERROR pour un ticket non créé) :
+  `Invalid … output … (attempt n/m): k problem(s) [json-syntax | schema: type=1, required=2 | mapping: …],
+  N characters received` ; `LLM … call failed` et `LLM … unreachable` donnent une catégorie (`invalid-json`,
+  `response-too-large`, `connection-refused`, `unknown-host`, `tls`, `io`…) ; une story sans verdict ou un ticket non
+  créé est désigné par sa position (`story 3/12`, `story 1.2`), plus par son titre ; la réévaluation ne logue plus le
+  résumé de la story.
+
 ### Migration
 - Facultatif : recopier les lignes `refinr.document.max-content-chars` et `refinr.http.max-body-bytes` de
   `application-example.properties` dans `application.properties` (les valeurs par défaut s'appliquent sinon).

@@ -4,8 +4,9 @@
 package fr.heliocraft.refinr.application.port.out;
 
 /**
- * Echec d'un appel au modele de langage. Le message est sur pour le client : jamais d'URL, de cle ni de corps de
- * reponse (le detail est dans les logs de l'adaptateur).
+ * Echec d'un appel au modele de langage. Le message est sur pour le client comme pour les logs : jamais d'URL, de
+ * cle, de corps de reponse, de texte du prompt ni de sortie du modele (seulement fournisseur, statut HTTP, categorie
+ * et tailles). Les adaptateurs ne lui donnent pas de cause, pour qu'une trace complete reste sure elle aussi.
  */
 public class LlmException extends RuntimeException {
 

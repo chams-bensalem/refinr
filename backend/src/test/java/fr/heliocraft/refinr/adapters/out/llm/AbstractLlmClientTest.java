@@ -4,6 +4,8 @@
 package fr.heliocraft.refinr.adapters.out.llm;
 
 import fr.heliocraft.refinr.application.port.out.LlmException;
+import fr.heliocraft.refinr.domain.model.Readiness;
+import fr.heliocraft.refinr.domain.model.Story;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -11,11 +13,20 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.time.Duration;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -24,7 +35,12 @@ import static org.junit.jupiter.api.Assertions.*;
  * Contrat commun aux trois clients, sur un serveur HTTP simule : succes (requete au format du fournisseur, schema
  * envoye), 401 sans nouvel essai, 429 + Retry-After puis succes, 5xx epuise, delai depasse sans nouvel essai,
  * sortie tronquee sans nouvel essai, et aucun secret dans les messages d'erreur.
+ * <p>
+ * Non-fuite (issue #29) : un marqueur unique est place dans le prompt, la sortie du modele, le corps des reponses
+ * d'erreur et une cle factice ; sur chaque chemin d'echec, il n'apparait ni dans les logs captures, ni dans la trace
+ * complete de l'exception, et une {@link LlmException} n'a jamais de cause.
  */
+@ExtendWith(OutputCaptureExtension.class)
 abstract class AbstractLlmClientTest {
 
     protected MockWebServer server;
@@ -263,5 +279,209 @@ abstract class AbstractLlmClientTest {
 
         assertEquals(LlmException.Reason.UNAVAILABLE, error.reason());
         assertFalse(error.getMessage().contains(url), error.getMessage());
+    }
+    // --- Non-fuite du contenu (issue #29) ---
+
+    private static String marker() {
+        return "LEAK-MARKER-" + UUID.randomUUID();
+    }
+
+    /** Cle factice evidente portant le marqueur. */
+    private static String fakeKey(String marker) {
+        return "fake-test-key-" + marker;
+    }
+
+    private LlmClient leakClient(String marker) {
+        return leakClient(marker, server.url("/").toString(), Duration.ofSeconds(2));
+    }
+
+    private LlmClient leakClient(String marker, String baseUrl, Duration timeout) {
+        return LlmClients.create(LlmTestSettings.of(provider(), baseUrl, timeout, 1000, fakeKey(marker)));
+    }
+
+    /** Analyse d'un document portant le marqueur : l'echec attendu, toujours une LlmException. */
+    private LlmException failGenerate(LlmClient client, String marker) {
+        return assertThrows(LlmException.class, () -> new LlmBacklogGenerator(client, structured())
+                .generate("# Spec confidentielle " + marker + "\nGestion des stocks " + marker));
+    }
+
+    private static void assertNoLeak(String marker, CapturedOutput output, Throwable error) {
+        assertFalse(output.getAll().contains(marker), "marker in the logs:\n" + output.getAll());
+        if (error != null) {
+            StringWriter trace = new StringWriter();
+            error.printStackTrace(new PrintWriter(trace));
+            assertFalse(trace.toString().contains(marker), "marker in the stack trace:\n" + trace);
+            assertNull(error.getCause(), "an LlmException never carries a cause: " + trace);
+        }
+    }
+
+    @Test
+    @DisplayName("No leak: invalid JSON from the model on every attempt (prompt and output never logged)")
+    void noLeakOnInvalidJson(CapturedOutput output) {
+        String marker = marker();
+        for (int i = 0; i < 3; i++) {
+            server.enqueue(success(marker + " pas du JSON {\"epics\": " + marker + "}"));
+        }
+
+        LlmException error = failGenerate(leakClient(marker), marker);
+
+        assertEquals(LlmException.Reason.INVALID_OUTPUT, error.reason());
+        assertTrue(output.getAll().contains("problem(s) [json-syntax]"), output.getAll());
+        assertNoLeak(marker, output, error);
+    }
+
+    @Test
+    @DisplayName("No leak: schema violated after every repair (field names and values from the model never logged)")
+    void noLeakOnSchemaViolation(CapturedOutput output) throws Exception {
+        String marker = marker();
+        for (int i = 0; i < 3; i++) {
+            server.enqueue(success("{\"epics\":[{\"" + marker + "\":\"" + marker + "\",\"name\":1}],\""
+                    + marker + "x\":\"" + marker + "\"}"));
+        }
+
+        LlmException error = failGenerate(leakClient(marker), marker);
+
+        assertEquals(LlmException.Reason.INVALID_OUTPUT, error.reason());
+        assertTrue(output.getAll().contains("[schema: "), output.getAll());
+        assertTrue(output.getAll().contains("additionalProperties="), output.getAll());
+        assertNoLeak(marker, output, error);
+        // Le detail reste renvoye au modele, seul destinataire de la reparation
+        server.takeRequest();
+        assertTrue(server.takeRequest().getBody().readUtf8().contains(marker));
+    }
+
+    @Test
+    @DisplayName("No leak: a mapping error quoting the model output (duplicate verdict id) is never logged")
+    void noLeakOnMappingError(CapturedOutput output) {
+        String marker = marker();
+        String duplicated = "{\"verdicts\":[{\"id\":\"" + marker + "\",\"aiReady\":true,\"aiReadyReason\":\"ok\"},"
+                + "{\"id\":\"" + marker + "\",\"aiReady\":true,\"aiReadyReason\":\"ok\"}]}";
+        for (int i = 0; i < 6; i++) {
+            server.enqueue(success(duplicated));
+        }
+        Story story = new Story();
+        story.setTitle("Story " + marker);
+        story.setDescription("Description " + marker);
+
+        List<Readiness> verdicts = new LlmReadinessAssessor(leakClient(marker), structured(), 5).assess(List.of(story));
+
+        assertNull(verdicts.get(0), "no verdict after the failed repairs");
+        assertTrue(output.getAll().contains("[mapping: IllegalArgumentException]"), output.getAll());
+        assertNoLeak(marker, output, null);
+    }
+
+    @Test
+    @DisplayName("No leak: stories without a verdict are logged by position, never by title")
+    void noLeakOnMissingVerdict(CapturedOutput output) {
+        String marker = marker();
+        server.enqueue(success("{\"verdicts\":[]}"));
+        server.enqueue(success("{\"verdicts\":[]}"));
+        Story story = new Story();
+        story.setTitle("Story " + marker);
+
+        List<Readiness> verdicts = new LlmReadinessAssessor(leakClient(marker), structured(), 5).assess(List.of(story));
+
+        assertNull(verdicts.get(0));
+        assertTrue(output.getAll().contains("Readiness verdict unavailable for story 1/1"), output.getAll());
+        assertNoLeak(marker, output, null);
+    }
+
+    @Test
+    @DisplayName("No leak: reassessment failing (story summary, description and user precision never logged)")
+    void noLeakOnReassessment(CapturedOutput output) {
+        String marker = marker();
+        for (int i = 0; i < 3; i++) {
+            server.enqueue(success("{\"aiReady\":\"" + marker + "\"}"));
+        }
+
+        LlmException error = assertThrows(LlmException.class, () -> new LlmReadinessAssessor(leakClient(marker),
+                structured(), 5).reassess("Export " + marker, "Description " + marker, "Precision " + marker));
+
+        assertEquals(LlmException.Reason.INVALID_OUTPUT, error.reason());
+        assertNoLeak(marker, output, error);
+    }
+
+    @Test
+    @DisplayName("No leak: output truncated by the token limit")
+    void noLeakOnTruncation(CapturedOutput output) {
+        String marker = marker();
+        server.enqueue(truncated("{\"epics\":[{\"name\":\"" + marker));
+
+        LlmException error = failGenerate(leakClient(marker), marker);
+
+        assertEquals(LlmException.Reason.TRUNCATED, error.reason());
+        assertNoLeak(marker, output, error);
+    }
+
+    @ParameterizedTest(name = "HTTP {0}")
+    @ValueSource(ints = {400, 401, 403, 404, 413, 429, 500, 503})
+    @DisplayName("No leak: HTTP error whose body echoes the prompt and the key")
+    void noLeakOnHttpError(int status, CapturedOutput output) {
+        String marker = marker();
+        for (int i = 0; i < 3; i++) {
+            server.enqueue(new MockResponse().setResponseCode(status).addHeader("Content-Type", "application/json")
+                    .setBody("{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"prompt " + marker
+                            + " rejected for key " + fakeKey(marker) + "\"}}"));
+        }
+
+        LlmException error = failGenerate(leakClient(marker), marker);
+
+        assertEquals(LlmException.Reason.UNAVAILABLE, error.reason());
+        assertTrue(error.getMessage().contains("HTTP " + status), error.getMessage());
+        assertTrue(output.getAll().contains("HTTP " + status), output.getAll());
+        assertNoLeak(marker, output, error);
+    }
+
+    @Test
+    @DisplayName("No leak: HTTP 200 whose body is not JSON (proxy page quoting the request)")
+    void noLeakOnUnreadableResponse(CapturedOutput output) {
+        String marker = marker();
+        server.enqueue(new MockResponse().setResponseCode(200).setBody(marker + " <html>proxy " + marker + "</html>"));
+
+        LlmException error = failGenerate(leakClient(marker), marker);
+
+        assertEquals(LlmException.Reason.UNAVAILABLE, error.reason());
+        assertTrue(output.getAll().contains("invalid-json"), output.getAll());
+        assertNoLeak(marker, output, error);
+    }
+
+    @Test
+    @DisplayName("No leak: timeout")
+    void noLeakOnTimeout(CapturedOutput output) {
+        String marker = marker();
+        server.enqueue(success(marker).setHeadersDelay(3, TimeUnit.SECONDS));
+
+        LlmException error = failGenerate(leakClient(marker, server.url("/").toString(), Duration.ofMillis(300)), marker);
+
+        assertEquals(LlmException.Reason.UNAVAILABLE, error.reason());
+        assertNoLeak(marker, output, error);
+    }
+
+    @Test
+    @DisplayName("No leak: unreachable provider whose base URL carries credentials (user info, ?key=)")
+    void noLeakOnUnreachableProvider(CapturedOutput output) throws IOException {
+        String marker = marker();
+        int port = server.getPort();
+        server.shutdown();
+        String baseUrl = "http://refinr:" + fakeKey(marker) + "@localhost:" + port + "/v1?key=" + fakeKey(marker);
+
+        LlmException error = failGenerate(leakClient(marker, baseUrl, Duration.ofSeconds(2)), marker);
+
+        assertEquals(LlmException.Reason.UNAVAILABLE, error.reason());
+        assertTrue(output.getAll().contains("connection-refused"), output.getAll());
+        assertNoLeak(marker, output, error);
+    }
+
+    @Test
+    @DisplayName("No leak: HTTP error with credentials in the base URL (user info, ?key=)")
+    void noLeakOnHttpErrorWithCredentialsInUrl(CapturedOutput output) {
+        String marker = marker();
+        server.enqueue(new MockResponse().setResponseCode(401).setBody("unauthorized"));
+        String baseUrl = "http://refinr:" + fakeKey(marker) + "@localhost:" + server.getPort() + "/?key=" + fakeKey(marker);
+
+        LlmException error = failGenerate(leakClient(marker, baseUrl, Duration.ofSeconds(2)), marker);
+
+        assertEquals(LlmException.Reason.UNAVAILABLE, error.reason());
+        assertNoLeak(marker, output, error);
     }
 }
