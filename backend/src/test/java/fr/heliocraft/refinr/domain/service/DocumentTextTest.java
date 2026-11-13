@@ -36,4 +36,39 @@ class DocumentTextTest {
         assertTrue(DocumentText.hasUsefulText("<ac:plain-text-body><![CDATA[if (a > b) { return a; }]]></ac:plain-text-body>"));
         assertFalse(DocumentText.hasUsefulText("<ac:plain-text-body><![CDATA[ \n ]]></ac:plain-text-body>"));
     }
+
+    @Test
+    @DisplayName("Rich Markdown (headings, lists, table, code block) is useful text")
+    void richMarkdownHasUsefulText() {
+        String markdown = """
+                # Gestion des stocks
+
+                ## Exigences
+                - Créer un article
+                - Supprimer un article
+                1. Saisir la quantité
+                2. Valider
+
+                | Champ | Type | Obligatoire |
+                |-------|------|:-----------:|
+                | sku   | text | oui         |
+
+                ```java
+                List<String> skus = load();
+                if (a < b && b > c) { return; }
+                ```
+                > Note : l'export PDF est hors périmètre.
+                """;
+        assertTrue(DocumentText.hasUsefulText(markdown));
+        // Chaque construction seule porte encore son texte
+        assertTrue(DocumentText.hasUsefulText("| sku | qty |\n|---|---|\n| A1 | 3 |"));
+        assertTrue(DocumentText.hasUsefulText("```\nList<String> a;\n```"));
+        assertTrue(DocumentText.hasUsefulText("- [ ] tâche"));
+    }
+
+    @Test
+    @DisplayName("Markdown made only of syntax (no letter or digit) has no useful text")
+    void markdownSyntaxOnlyHasNoUsefulText() {
+        assertFalse(DocumentText.hasUsefulText("# \n## \n- \n* \n> \n---\n|---|---|\n| | |\n```\n```\n"));
+    }
 }

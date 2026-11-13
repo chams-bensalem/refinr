@@ -6,6 +6,7 @@ package fr.heliocraft.refinr.adapters.in.rest;
 import fr.heliocraft.refinr.adapters.in.rest.dto.EpicDto;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
+import fr.heliocraft.refinr.application.port.in.ContentTooLargeException;
 import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
 import fr.heliocraft.refinr.application.port.in.DescribeSource;
 import fr.heliocraft.refinr.application.port.in.DocumentNotFoundException;
@@ -45,6 +46,9 @@ public class BacklogController {
     // Identifiant du document a analyser : champ neutre, et ancien nom garde comme alias (clients existants)
     static final String DOCUMENT_ID = "documentId";
     static final String LEGACY_DOCUMENT_ID = "confluencePageId";
+    // Document fourni en texte (Markdown ou texte brut), exclusif de l'identifiant, et son titre optionnel
+    static final String CONTENT = "content";
+    static final String TITLE = "title";
 
     // Alias deprecie de GET /documents/search (RFC 9745 : date de depreciation, RFC 8288 : remplacant)
     static final String LEGACY_SEARCH_DEPRECATION = "@1794528000";
@@ -90,6 +94,34 @@ public class BacklogController {
         return hasId ? id : hasLegacy ? legacy : id;
     }
 
+    /**
+     * Vrai si le document est fourni en texte : {@code content} present (meme vide : refuse ensuite comme document
+     * vide). Combine a un identifiant non vide -> 400 ; {@code title} sans {@code content} -> 400.
+     */
+    private static boolean isTextInput(Map<String, String> request) {
+        if (request.get(CONTENT) == null) {
+            if (isPresent(request.get(TITLE))) {
+                throw new InvalidRequestException(TITLE + " is only accepted with " + CONTENT);
+            }
+            return false;
+        }
+        if (isPresent(request.get(DOCUMENT_ID)) || isPresent(request.get(LEGACY_DOCUMENT_ID))) {
+            throw new InvalidRequestException(CONTENT + " cannot be combined with " + DOCUMENT_ID + " or " + LEGACY_DOCUMENT_ID);
+        }
+        return true;
+    }
+
+    private static boolean isPresent(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    /** Journal du mode texte : taille seulement, jamais le contenu ni le titre. */
+    private static void logTextInput(String action, Map<String, String> request) {
+        String content = request.get(CONTENT);
+        log.info("{} request for provided text: {} characters, title: {}", action,
+                content.codePointCount(0, content.length()), isPresent(request.get(TITLE)) ? "yes" : "no");
+    }
+
     @PostMapping("/analyze-and-create")
     public ResponseEntity<Map<String, Object>> analyzeAndCreate(@RequestBody Map<String, String> request) {
         // Projet cible optionnel (sinon le projet par defaut du gestionnaire de tickets actif) : cle Jira ou identifiant
@@ -100,12 +132,19 @@ public class BacklogController {
         }
         
         try {
+            if (isTextInput(request)) {
+                // Pas de documentUrl : le texte n'a pas d'adresse dans la source active
+                logTextInput("Analyze", request);
+                return creationResponse(analyzeDocument.analyzeTextAndCreate(request.get(TITLE), request.get(CONTENT), projectKey));
+            }
             String documentId = documentId(request);
             log.info("Received request to analyze {} document: {}", describeSource.displayName(), documentId);
             return withDocumentUrl(creationResponse(analyzeDocument.analyzeAndCreate(documentId, projectKey)), documentId);
 
         } catch (InvalidRequestException e) {
             return invalidRequest(e);
+        } catch (ContentTooLargeException e) {
+            return contentTooLarge(e);
         } catch (DocumentNotFoundException e) {
             return documentNotFound(e);
         } catch (DocumentSourceUnavailableException e) {
@@ -192,6 +231,12 @@ public class BacklogController {
         return ResponseEntity.badRequest().body(ErrorResponses.error(e.getMessage()));
     }
 
+    /** 413 : texte fourni au-dela de refinr.document.max-content-chars ; le message ne cite que la limite. */
+    private static ResponseEntity<Map<String, Object>> contentTooLarge(ContentTooLargeException e) {
+        log.warn("Provided text rejected: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(ErrorResponses.error(e.getMessage()));
+    }
+
     /** Absent ou vide : projet par defaut ; sinon au format du gestionnaire de tickets actif (ex. PROJ pour Jira). */
     private boolean isValidProjectKey(String projectKey) {
         return projectKey == null || projectKey.isBlank() || describeTracker.acceptsProjectId(projectKey);
@@ -204,18 +249,20 @@ public class BacklogController {
     @PostMapping("/analyze-preview")
     public ResponseEntity<Map<String, Object>> analyzePreview(@RequestBody Map<String, String> request) {
         try {
+            if (isTextInput(request)) {
+                // Pas de documentUrl : le texte n'a pas d'adresse dans la source active
+                logTextInput("Preview", request);
+                return ResponseEntity.ok(previewBody(previewBacklog.previewText(request.get(TITLE), request.get(CONTENT))));
+            }
             String documentId = documentId(request);
             log.info("Preview request for {} document: {}", describeSource.displayName(), documentId);
             List<Epic> epics = previewBacklog.preview(documentId);
-
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("success", true);
-            body.put("message", "Preview generated successfully");
-            body.put("epics", RestBacklogMapper.toDto(epics));
-            return withDocumentUrl(ResponseEntity.ok(body), documentId);
+            return withDocumentUrl(ResponseEntity.ok(previewBody(epics)), documentId);
             
         } catch (InvalidRequestException e) {
             return invalidRequest(e);
+        } catch (ContentTooLargeException e) {
+            return contentTooLarge(e);
         } catch (DocumentNotFoundException e) {
             return documentNotFound(e);
         } catch (DocumentSourceUnavailableException e) {
@@ -228,6 +275,14 @@ public class BacklogController {
             log.error("Error generating preview", e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to generate the preview"));
         }
+    }
+
+    private static Map<String, Object> previewBody(List<Epic> epics) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", true);
+        body.put("message", "Preview generated successfully");
+        body.put("epics", RestBacklogMapper.toDto(epics));
+        return body;
     }
 
     @PostMapping("/create-jira")

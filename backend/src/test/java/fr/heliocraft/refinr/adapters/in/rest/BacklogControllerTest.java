@@ -17,6 +17,9 @@ import fr.heliocraft.refinr.domain.model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -47,6 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "confluence.token=test-token",
     "gemini.api-key=test-api-key"
 })
+@ExtendWith(OutputCaptureExtension.class)
 class BacklogControllerTest {
 
     @Autowired
@@ -856,5 +860,136 @@ class BacklogControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.documentUrl").doesNotExist());
         }
+    }
+
+    // ---- Document fourni en texte (content / title) ----
+
+    private static final String MARKDOWN = "# Gestion des stocks\n\n- Créer un article\n\n| sku | qty |\n|---|---|\n| A1 | 3 |\n\n```\nList<String> a;\n```";
+
+    private static String json(String... keyValues) {
+        tools.jackson.databind.node.ObjectNode node = new tools.jackson.databind.ObjectMapper().createObjectNode();
+        for (int i = 0; i < keyValues.length; i += 2) {
+            node.put(keyValues[i], keyValues[i + 1]);
+        }
+        return node.toString();
+    }
+
+    @Test
+    @DisplayName("Text only (preview): Markdown sent to the model unchanged, no source call, no documentUrl")
+    void previewText() throws Exception {
+        when(generator.generate(any())).thenReturn(testEpics);
+
+        mockMvc.perform(post("/api/v1/analyze-preview").contentType(MediaType.APPLICATION_JSON).content(json("content", MARKDOWN)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.epics[0].name").value("Epic: Inventaire"))
+                .andExpect(jsonPath("$.documentUrl").doesNotExist());
+
+        verify(generator).generate(MARKDOWN);
+        verifyNoInteractions(confluenceService, jiraService);
+    }
+
+    @Test
+    @DisplayName("Text + title (analyze-and-create): '# title' heads the text, issues created in the requested project, no documentUrl")
+    void analyzeAndCreateText() throws Exception {
+        when(generator.generate(any())).thenReturn(testEpics);
+        when(jiraService.createEpic(any(Epic.class), any())).thenReturn("DEMO-1");
+        when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("DEMO-2");
+        when(jiraService.createSubtask(any(Task.class), anyString(), any())).thenReturn("DEMO-3");
+
+        mockMvc.perform(post("/api/v1/analyze-and-create").contentType(MediaType.APPLICATION_JSON)
+                        .content(json("title", "CDC Stocks", "content", MARKDOWN, "projectKey", "DEMO")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.created.length()").value(3))
+                .andExpect(jsonPath("$.documentUrl").doesNotExist());
+
+        verify(generator).generate("# CDC Stocks\n\n" + MARKDOWN);
+        verify(jiraService).createEpic(any(Epic.class), eq("DEMO"));
+        verifyNoInteractions(confluenceService);
+    }
+
+    @Test
+    @DisplayName("Text and document id together (documentId or confluencePageId) is a clear 400, nothing called")
+    void textAndIdTogetherIs400() throws Exception {
+        for (String endpoint : List.of("/api/v1/analyze-preview", "/api/v1/analyze-and-create")) {
+            for (String body : List.of(json("content", MARKDOWN, "documentId", "123"),
+                    json("content", MARKDOWN, "confluencePageId", "123"),
+                    json("content", "", "documentId", "123"))) {
+                mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content(body))
+                        .andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.success").value(false))
+                        .andExpect(jsonPath("$.error").value("content cannot be combined with documentId or confluencePageId"));
+            }
+        }
+        verifyNoInteractions(confluenceService, generator, assessor, jiraService);
+    }
+
+    @Test
+    @DisplayName("Empty or blank text is the existing 400 'document empty', without source or model call; a blank id is ignored")
+    void emptyTextIs400() throws Exception {
+        for (String endpoint : List.of("/api/v1/analyze-preview", "/api/v1/analyze-and-create")) {
+            for (String body : List.of(json("content", ""), json("content", "  \n\t "), json("title", "CDC", "content", " "),
+                    json("content", "# \n- \n|---|"), json("content", " ", "documentId", " "))) {
+                mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content(body))
+                        .andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.error").value("The document is empty or contains no text to analyze"));
+            }
+        }
+        verifyNoInteractions(confluenceService, generator, assessor, jiraService);
+    }
+
+    @Test
+    @DisplayName("A title without content is a 400; neither content nor id keeps the existing 'documentId is required'")
+    void titleWithoutContentIs400() throws Exception {
+        for (String endpoint : List.of("/api/v1/analyze-preview", "/api/v1/analyze-and-create")) {
+            mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content(json("title", "CDC")))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error").value("title is only accepted with content"));
+            mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content("{\"content\":null}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error").value("documentId is required"));
+        }
+        verify(confluenceService, never()).getDocumentContent(any());
+        verifyNoInteractions(generator, jiraService);
+    }
+
+    @Test
+    @DisplayName("Text over refinr.document.max-content-chars (default 200 000, title included) is a 413 without model call")
+    void tooLongTextIs413() throws Exception {
+        when(generator.generate(any())).thenReturn(testEpics);
+        mockMvc.perform(post("/api/v1/analyze-preview").contentType(MediaType.APPLICATION_JSON)
+                        .content(json("content", "a".repeat(UseCaseConfig.DEFAULT_MAX_CONTENT_CHARS))))
+                .andExpect(status().isOk());
+
+        for (String endpoint : List.of("/api/v1/analyze-preview", "/api/v1/analyze-and-create")) {
+            for (String body : List.of(json("content", "a".repeat(UseCaseConfig.DEFAULT_MAX_CONTENT_CHARS + 1)),
+                    json("title", "T", "content", "a".repeat(UseCaseConfig.DEFAULT_MAX_CONTENT_CHARS)))) {
+                mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content(body))
+                        .andExpect(status().isContentTooLarge())
+                        .andExpect(jsonPath("$.success").value(false))
+                        .andExpect(jsonPath("$.error").value("The document exceeds the maximum size of 200000 characters"));
+            }
+        }
+        verify(generator, times(1)).generate(any());
+        verifyNoInteractions(confluenceService, jiraService);
+    }
+
+    @Test
+    @DisplayName("Text mode logs its size only, never the content nor the title")
+    void textModeLogsSizeOnly(CapturedOutput output) throws Exception {
+        when(generator.generate(any())).thenReturn(testEpics);
+        String content = "Secret-marker-7f3a " + "x".repeat(100);
+        mockMvc.perform(post("/api/v1/analyze-preview").contentType(MediaType.APPLICATION_JSON)
+                        .content(json("title", "Title-marker-9c2e", "content", content)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/analyze-preview").contentType(MediaType.APPLICATION_JSON)
+                        .content(json("content", "Secret-marker-7f3a " + "x".repeat(UseCaseConfig.DEFAULT_MAX_CONTENT_CHARS))))
+                .andExpect(status().isContentTooLarge());
+
+        assertTrue(output.getAll().contains("Preview request for provided text: " + content.length() + " characters, title: yes"),
+                output.getAll());
+        assertFalse(output.getAll().contains("Secret-marker-7f3a"));
+        assertFalse(output.getAll().contains("Title-marker-9c2e"));
     }
 }

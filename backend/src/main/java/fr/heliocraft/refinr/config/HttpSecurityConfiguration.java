@@ -5,6 +5,7 @@ package fr.heliocraft.refinr.config;
 
 import fr.heliocraft.refinr.adapters.in.rest.AllowedHostFilter;
 import fr.heliocraft.refinr.adapters.in.rest.ApiKeyFilter;
+import fr.heliocraft.refinr.adapters.in.rest.RequestBodyLimitFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,17 +27,21 @@ import java.util.List;
  *   <li>en-tete {@code Host} limite a {@code refinr.security.allowed-hosts} (anti DNS rebinding, toujours actif) ;</li>
  *   <li>CORS limite aux origines de {@code refinr.cors.allowed-origins} (liste separee par des virgules, defaut
  *       {@code http://localhost:3000} ; vide = aucune origine tierce ; {@code *} refuse au demarrage) ;</li>
- *   <li>cle d'API optionnelle {@code refinr.security.api-key} (vide = desactivee, cas du poste local).</li>
+ *   <li>cle d'API optionnelle {@code refinr.security.api-key} (vide = desactivee, cas du poste local) ;</li>
+ *   <li>taille du corps des requetes plafonnee a {@code refinr.http.max-body-bytes} (413), comme le proxy nginx.</li>
  * </ul>
- * Ordre des filtres : correlationId ({@link LoggingFilter}), puis hote autorise, puis CORS (une reponse 401 garde ses en-tetes CORS et
- * reste lisible par le navigateur), puis cle d'API.
+ * Ordre des filtres : correlationId ({@link LoggingFilter}), puis hote autorise, puis CORS (une reponse 401 ou 413 garde ses en-tetes CORS et
+ * reste lisible par le navigateur), puis taille du corps (refusee avant toute lecture du corps), puis cle d'API.
  */
 @Configuration
 public class HttpSecurityConfiguration {
 
     static final int HOST_ORDER = Ordered.HIGHEST_PRECEDENCE + 5;
     static final int CORS_ORDER = Ordered.HIGHEST_PRECEDENCE + 10;
+    static final int BODY_LIMIT_ORDER = Ordered.HIGHEST_PRECEDENCE + 15;
     static final int API_KEY_ORDER = Ordered.HIGHEST_PRECEDENCE + 20;
+    /** 5 Mio : meme valeur que {@code client_max_body_size 5m} du proxy nginx du frontend. */
+    public static final long DEFAULT_MAX_BODY_BYTES = 5L * 1024 * 1024;
 
     private static final Logger log = LoggerFactory.getLogger(HttpSecurityConfiguration.class);
 
@@ -75,6 +80,19 @@ public class HttpSecurityConfiguration {
         log.info("CORS allowed origins: {}", origins.isEmpty() ? "none (same origin only)" : origins);
         FilterRegistrationBean<CorsFilter> registration = new FilterRegistrationBean<>(new CorsFilter(source));
         registration.setOrder(CORS_ORDER);
+        return registration;
+    }
+
+    @Bean
+    FilterRegistrationBean<RequestBodyLimitFilter> requestBodyLimitFilter(
+            @Value("${refinr.http.max-body-bytes:" + DEFAULT_MAX_BODY_BYTES + "}") long maxBodyBytes, ObjectMapper mapper) {
+        if (maxBodyBytes <= 0) {
+            throw new IllegalStateException("refinr.http.max-body-bytes must be a positive number of bytes, got " + maxBodyBytes);
+        }
+        RequestBodyLimitFilter filter = new RequestBodyLimitFilter(maxBodyBytes, mapper);
+        FilterRegistrationBean<RequestBodyLimitFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setOrder(BODY_LIMIT_ORDER);
+        log.info("Maximum request body size: {} bytes", maxBodyBytes);
         return registration;
     }
 

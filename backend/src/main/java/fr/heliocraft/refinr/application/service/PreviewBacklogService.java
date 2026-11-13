@@ -17,18 +17,32 @@ public class PreviewBacklogService implements PreviewBacklog {
     private final BacklogGeneratorPort generator;
     // Fournisseur de verdict distinct, ou null : le verdict produit par l'analyse est alors conserve
     private final ReadinessAssessorPort separateAssessor;
+    // Taille maximale (caracteres Unicode) d'un document fourni en texte
+    private final int maxContentChars;
 
     public PreviewBacklogService(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
-                                 ReadinessAssessorPort separateAssessor) {
+                                 ReadinessAssessorPort separateAssessor, int maxContentChars) {
         this.documentSource = documentSource;
         this.generator = generator;
         this.separateAssessor = separateAssessor;
+        this.maxContentChars = DocumentAnalysis.requirePositiveLimit(maxContentChars);
     }
 
     @Override
     public List<Epic> preview(String documentId) {
         DocumentAnalysis.requireValidId(documentSource, documentId);
         String content = SourceFailures.translate(() -> documentSource.getDocumentContent(documentId));
+        return analyze(content);
+    }
+
+    @Override
+    public List<Epic> previewText(String title, String content) {
+        // Texte fourni : aucun appel a la source active
+        return analyze(DocumentAnalysis.providedText(title, content, maxContentChars));
+    }
+
+    /** Chemin commun aux deux entrees : texte utile, generation, verdict distinct eventuel. */
+    private List<Epic> analyze(String content) {
         DocumentAnalysis.requireUsefulText(content);
         List<Epic> epics = LlmFailures.translate(() -> generator.generate(content));
         if (separateAssessor != null) {
