@@ -26,7 +26,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/mvp")
-@CrossOrigin(origins = "*")
 public class MvpController {
 
     private static final Logger log = LoggerFactory.getLogger(MvpController.class);
