@@ -1,0 +1,10 @@
+target
+out
+*.iml
+.idea
+.env
+.env.*
+# Local configuration may hold real values: the image uses application-example.properties instead
+src/main/resources/application.properties
+Dockerfile
+.dockerignore
