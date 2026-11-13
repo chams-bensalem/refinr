@@ -531,7 +531,7 @@ curl localhost:8080/api/v1/health
 Build de production sans Docker :
 
 ```bash
-(cd backend && mvn clean package && java -jar target/refinr-1.0.0.jar)
+(cd backend && mvn clean package && java -jar target/refinr-1.0.1.jar)
 (cd frontend && npm run build)   # génère frontend/dist/
 ```
 

@@ -382,7 +382,7 @@ ollama serve && ollama pull qwen3:8b                 # 1. local LLM (default pro
 (cd frontend && npm install && npm run dev)           # 3. UI  → http://localhost:3000 (Vite proxies /api)
 ```
 
-Production build: `(cd backend && mvn clean package && java -jar target/refinr-1.0.0.jar)` and
+Production build: `(cd backend && mvn clean package && java -jar target/refinr-1.0.1.jar)` and
 `(cd frontend && npm run build)` (output in `frontend/dist/`).
 
 ---
