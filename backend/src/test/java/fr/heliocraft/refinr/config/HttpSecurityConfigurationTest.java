@@ -174,6 +174,48 @@ class HttpSecurityConfigurationTest {
     }
 
     @Nested
+    @TestPropertySource(properties = {"refinr.security.api-key=",
+            "refinr.security.allowed-hosts=localhost,127.0.0.1,[::1],refinr.example.com"})
+    class AllowedHosts extends WebLayer {
+
+        @Test
+        @DisplayName("Legitimate Host headers are accepted, with or without port, any case")
+        void legitimateHostsAreAccepted() throws Exception {
+            for (String host : List.of("localhost", "localhost:8080", "127.0.0.1:8080", "[::1]", "[::1]:3000",
+                    "Refinr.Example.com", "refinr.example.com:443")) {
+                mockMvc.perform(get(SEARCH).header("Host", host)).andExpect(status().isOk());
+            }
+        }
+
+        @Test
+        @DisplayName("Any other Host (DNS rebinding) gets 403, even without API key and on the health probes")
+        void otherHostsAreRefused() throws Exception {
+            for (String path : List.of(SEARCH, HEALTH, HEALTH + "/live")) {
+                mockMvc.perform(get(path).header("Host", "evil.example"))
+                        .andExpect(status().isForbidden())
+                        .andExpect(jsonPath("$.success").value(false))
+                        .andExpect(jsonPath("$.error").value("Host not allowed"))
+                        .andExpect(jsonPath("$.correlationId").isNotEmpty());
+            }
+            for (String host : List.of("evil.example:8080", "localhost.evil.example", "127.0.0.1.nip.io", "[::2]")) {
+                mockMvc.perform(get(HEALTH + "/live").header("Host", host)).andExpect(status().isForbidden());
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("'*' or an empty allowed-hosts list is refused at startup")
+    void wildcardOrEmptyHostsAreRefused() {
+        HttpSecurityConfiguration config = new HttpSecurityConfiguration();
+        assertThatThrownBy(() -> config.allowedHostFilter("localhost,*", null))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("'*' is not allowed");
+        assertThatThrownBy(() -> config.allowedHostFilter("localhost,*.example.com", null))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("'*' is not allowed");
+        assertThatThrownBy(() -> config.allowedHostFilter(" , ", null))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("is empty");
+    }
+
+    @Nested
     @TestPropertySource(properties = {"refinr.cors.allowed-origins=", "refinr.security.api-key="})
     class WithoutCorsOrigins extends WebLayer {
 
