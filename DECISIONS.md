@@ -92,7 +92,8 @@ sont ceux de l'instance de test (exemples, à résoudre à l'exécution) ; les m
   **activé dans le projet** (*Paramètres du projet → Lots de travaux → Champs personnalisés*) **et** ajouté au formulaire de chaque type
   (*Administration → Types → {type} → Formulaire*, glisser le champ dans un groupe). Types Epic et User story à activer dans le projet (seuls Task, Milestone, Summary task le sont par défaut).
 - **Story points** : le module Backlogs existe toujours en 17.9.7 et est actif par défaut dans un nouveau projet ; attribut API `storyPoints`
-  (schéma : `"Story points"`, `writable: true`) sur Epic, User story et Task ; `"storyPoints":5` accepté et relu. → story points **gardés** pour OpenProject en v1.1 (optionnels).
+  (schéma : `"Story points"`, `writable: true`) sur Epic, User story et Task ; `"storyPoints":5` accepté et relu. → story points **gardés** pour OpenProject en v1.1
+  (optionnels, `openproject.story-points-enabled`), mais **sur les User stories uniquement**, même périmètre que Jira : jamais sur Epic ni Task, bien que l'API les accepte.
 - **Priorité** : `_links.priority` → `/api/v3/priorities/{id}` ; valeurs par défaut `Low` / `Normal` / `High` / `Immediate` (`GET /api/v3/priorities`, aussi dans `allowedValues` du schéma) → résolution par nom.
 - **Commentaire** : `POST /api/v3/work_packages/{id}/activities?notify=false` `{"comment":{"raw":"Reassessment: **ai-ready** now."}}` → `201 {"_type":"Activity::Comment"}` (markdown).
   Le commentaire **incrémente le `lockVersion`** du work package.
@@ -112,3 +113,13 @@ sont ceux de l'instance de test (exemples, à résoudre à l'exécution) ; les m
   L'id numérique est aussi accepté partout (`/api/v3/projects/3`).
   → validation Refinr : `^[a-z0-9_-]{1,100}$` (slug ; s'il est entièrement numérique, il est traité comme un id) ; les mots réservés restent signalés par le 422 d'OpenProject.
 - **Lien web d'un work package** : `{base-url}/work_packages/{id}` (redirige vers `/projects/{identifiant}/work_packages/{id}/activity`).
+
+### Adaptateur OpenProject (v1.1 phase 2)
+
+- **`OpenProjectIssueTracker` (clients HTTP maison sur `WebClient`, comme Jira et Confluence)**, actif seulement avec `tracker.provider=openproject` ; propriétés obligatoires `openproject.base-url`, `openproject.api-key`, `openproject.project` (absente → arrêt au démarrage ; vide tolérée, signalée par le health) ; projet par défaut non vide contrôlé au démarrage par `OpenProjectProjectIds`.
+- **Résolution des noms en ids au premier usage, mémorisée par projet** : types activés (`GET /projects/{p}/types`), champ du verdict, ses options et les priorités lus dans le formulaire de la User story (`POST /projects/{p}/work_packages/form`) ; type, champ ou option introuvable → message listant les 3 réglages admin. Une résolution en échec n'est pas mémorisée ; un `422 PropertyConstraintViolation` sur `type` ou `customFieldN` invalide le cache du projet (la requête suivante re-résout), **sans relance du POST** (non idempotent).
+- **Labels dans la description** : OpenProject n'a pas de labels ; les labels normalisés (sans le verdict, porté par le champ liste) forment une dernière ligne `**Labels:** a, b` de la description de l'epic, de la story et de la tâche.
+- **Texte commun extrait dans `domain/service/StoryMarkdown`** (description d'une story, lignes de réévaluation) : utilisé par les deux adaptateurs (qui ne peuvent pas dépendre l'un de l'autre) ; sortie Jira identique au caractère près (test de référence `StoryMarkdownTest`).
+- **Priorité** : par nom, insensible à la casse, avec l'alias `Medium` → `Normal` (l'analyse produit High / Medium / Low) ; absente ou inconnue → non envoyée (défaut du projet OpenProject).
+- **Réévaluation** : la précision et le nouveau verdict vont dans un **commentaire** (la description d'origine n'est pas réécrite), puis relecture du work package (le commentaire incrémente `lockVersion`) et `PATCH` du champ liste ; sur `409`, une seule nouvelle tentative (relecture + PATCH). Le verdict courant (option du champ) tient lieu de label pour la règle « en attente de validation » : `ReassessStoryService` est inchangé.
+- **Délais** : 30 s fixes par appel (5 s pour le health, comme Jira), sans propriété dédiée ; un délai dépassé à la création le signale (« it may have been created »). Lectures (`findStory`) relancées sur 429 et 500 comme Confluence ; POST et PATCH jamais relancés automatiquement (hors la nouvelle tentative sur 409).

@@ -304,13 +304,20 @@ without `/wiki`).
 
 | Property | Default | Description |
 |---|---|---|
-| `tracker.provider` | `jira` | Issue tracker of the instance (one per instance): `jira` (`openproject` arrives in v1.1). Unknown value or missing property of the chosen tracker: startup fails with an explicit message |
+| `tracker.provider` | `jira` | Issue tracker of the instance (one per instance): `jira` or `openproject`. Unknown value or missing property of the chosen tracker: startup fails with an explicit message |
 | `confluence.base-url` / `jira.base-url` | — | Atlassian Cloud site URL (without `/wiki`) |
 | `confluence.username` / `jira.username` | — | Atlassian account e-mail |
 | `confluence.token` / `jira.token` | — | Atlassian API token |
 | `jira.project-key` | — | Project used when the request sets no `projectKey` |
 | `jira.priority-enabled` | `true` | Sends the `priority` field (disable for team-managed) |
 | `jira.story-points-field` | *(empty)* | Story points custom field (e.g. `customfield_10016`); empty = not sent |
+| `openproject.base-url` | — | OpenProject URL (when `tracker.provider=openproject`) |
+| `openproject.api-key` | — | API key of the Refinr account (*My account → Access tokens → API*) |
+| `openproject.project` | — | Default project (identifier or numeric id) when the request sets no `projectKey` |
+| `openproject.types.epic` / `.story` / `.subtask` | `Epic` / `User story` / `Task` | Work package types used for each level |
+| `openproject.readiness-field` | `Agent readiness` | List custom field holding the verdict (options `ai-ready` / `validation-necessaire`) |
+| `openproject.story-points-enabled` | `true` | Sends `storyPoints` on user stories only (Backlogs module) |
+| `openproject.priority-enabled` | `true` | Sends the priority (matched by name, `Medium` → `Normal`) |
 | `refinr.llm.analysis.provider` | `openai-compatible` | Analysis provider: `anthropic`, `google` or `openai-compatible`. Unset: local Ollama, i.e. `openai-compatible` + `http://localhost:11434/v1` + `qwen3:8b` |
 | `refinr.llm.analysis.base-url` | *(empty)* | API URL (with `/v1` for `openai-compatible`). Empty = official URL for `anthropic` / `google`; **required** for an explicit `openai-compatible` (startup fails otherwise) |
 | `refinr.llm.analysis.model` | *(empty)* | Analysis model (also used by the health check), required as soon as a provider is set |
@@ -442,7 +449,7 @@ Base URL: `http://localhost:8080/api/v1`
 
 | Method | Endpoint | Body / parameters | Description |
 |---|---|---|---|
-| `POST` | `/analyze-and-create` | `{ "confluencePageId": "…", "projectKey": "PROJ" }` *(projectKey optional: project of the active tracker — Jira key `^[A-Z][A-Z0-9]{1,9}$`, or OpenProject identifier `^[a-z0-9_-]{1,100}$` / numeric id once available in v1.1)* | Reads, analyzes and creates the whole hierarchy in Jira |
+| `POST` | `/analyze-and-create` | `{ "confluencePageId": "…", "projectKey": "PROJ" }` *(projectKey optional: project of the active tracker — Jira key `^[A-Z][A-Z0-9]{1,9}$`, or OpenProject identifier `^[a-z0-9_-]{1,100}$` / numeric id)* | Reads, analyzes and creates the whole hierarchy in Jira |
 | `POST` | `/analyze-preview` | `{ "confluencePageId": "…" }` | Analyzes without creating issues |
 | `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optional, same format)* | Creates a generated structure; the server recomputes the verdict (client `aiReady` / `aiReadyReason` ignored) |
 | `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Reassesses a `validation-necessaire` story (`409` if it is not one) |

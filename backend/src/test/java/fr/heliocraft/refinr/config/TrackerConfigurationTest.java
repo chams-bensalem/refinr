@@ -4,6 +4,7 @@
 package fr.heliocraft.refinr.config;
 
 import fr.heliocraft.refinr.adapters.out.jira.JiraIssueTracker;
+import fr.heliocraft.refinr.adapters.out.openproject.OpenProjectIssueTracker;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,8 +19,12 @@ class TrackerConfigurationTest {
             "jira.base-url=http://localhost:9", "jira.username=user@example.com",
             "jira.token=test-token", "jira.project-key=PROJ"};
 
+    private static final String[] OPENPROJECT_PROPERTIES = {
+            "tracker.provider=openproject", "openproject.base-url=http://localhost:9",
+            "openproject.api-key=test-key", "openproject.project=refinr-spike"};
+
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withUserConfiguration(TrackerConfiguration.class, JiraIssueTracker.class);
+            .withUserConfiguration(TrackerConfiguration.class, JiraIssueTracker.class, OpenProjectIssueTracker.class);
 
     @Test
     @DisplayName("Without tracker.provider, Jira is the only issue tracker (backward compatible default)")
@@ -63,13 +68,45 @@ class TrackerConfigurationTest {
     }
 
     @Test
-    @DisplayName("tracker.provider=openproject is refused explicitly until its adapter exists (no OpenProject bean)")
-    void openProjectNotAvailableYet() {
-        runner.withPropertyValues(JIRA_PROPERTIES).withPropertyValues("tracker.provider=openproject").run(context -> {
-            assertThat(context).hasFailed();
-            assertThat(context.getStartupFailure()).hasMessageContaining("tracker.provider=openproject")
-                    .hasMessageContaining("not available yet");
+    @DisplayName("tracker.provider=openproject selects the OpenProject adapter as the only issue tracker")
+    void openProjectSelected() {
+        runner.withPropertyValues(OPENPROJECT_PROPERTIES).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).hasSingleBean(IssueTrackerPort.class);
+            assertThat(context.getBean(IssueTrackerPort.class)).isInstanceOf(OpenProjectIssueTracker.class);
+            assertThat(context).doesNotHaveBean(JiraIssueTracker.class);
         });
+    }
+
+    @Test
+    @DisplayName("Missing OpenProject properties are all listed in one startup error")
+    void missingOpenProjectPropertiesAreListed() {
+        runner.withPropertyValues("tracker.provider=openproject", "openproject.base-url=http://localhost:9").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure())
+                    .hasMessage("Missing configuration for tracker.provider=openproject: openproject.api-key, openproject.project");
+        });
+    }
+
+    @Test
+    @DisplayName("A default OpenProject project with an invalid format stops the startup")
+    void invalidOpenProjectProject() {
+        runner.withPropertyValues(OPENPROJECT_PROPERTIES).withPropertyValues("openproject.project=Mon Projet")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure()).hasMessageStartingWith(
+                            "Invalid openproject.project 'Mon Projet': expected an OpenProject project identifier");
+                });
+    }
+
+    @Test
+    @DisplayName("Empty OpenProject key and project are tolerated, like an empty Jira token (health reports them)")
+    void emptyOpenProjectValuesAreTolerated() {
+        runner.withPropertyValues(OPENPROJECT_PROPERTIES)
+                .withPropertyValues("openproject.api-key=", "openproject.project=").run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(OpenProjectIssueTracker.class);
+                });
     }
 
     @Test

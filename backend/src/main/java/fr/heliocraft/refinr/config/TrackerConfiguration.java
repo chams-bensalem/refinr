@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.config;
 
+import fr.heliocraft.refinr.adapters.out.openproject.OpenProjectProjectIds;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,8 +16,9 @@ import java.util.Map;
 /**
  * Gestionnaire de tickets de l'instance ({@code tracker.provider}, defaut {@code jira}) : un seul adaptateur
  * {@code IssueTrackerPort} est instancie (condition portee par l'adaptateur). Ce controle arrete le demarrage avec un
- * message explicite, avant la creation de tout bean, si la valeur est inconnue ou si une propriete du gestionnaire
- * choisi est absente. Une propriete presente mais vide (ex. {@code JIRA_TOKEN=}) reste toleree : le health la signale.
+ * message explicite, avant la creation de tout bean, si la valeur est inconnue, si une propriete du gestionnaire
+ * choisi est absente ou si le projet OpenProject par defaut n'a pas un format valide. Une propriete presente mais
+ * vide (ex. {@code JIRA_TOKEN=}) reste toleree : le health la signale.
  */
 @Configuration
 public class TrackerConfiguration {
@@ -26,10 +28,10 @@ public class TrackerConfiguration {
 
     /** Proprietes obligatoires par gestionnaire disponible. */
     static final Map<String, List<String>> REQUIRED_PROPERTIES = Map.of(
-            "jira", List.of("jira.base-url", "jira.username", "jira.token", "jira.project-key"));
+            "jira", List.of("jira.base-url", "jira.username", "jira.token", "jira.project-key"),
+            "openproject", List.of("openproject.base-url", "openproject.api-key", "openproject.project"));
 
-    // Valeur reconnue mais sans adaptateur dans cette version (arrive en v1.1 phase 2)
-    private static final String UPCOMING_PROVIDER = "openproject";
+    private static final String OPENPROJECT_PROJECT = "openproject.project";
 
     /** Statique : execute avant l'instanciation des beans, donc avant les erreurs de placeholder des adaptateurs. */
     @Bean
@@ -39,20 +41,24 @@ public class TrackerConfiguration {
 
     static void check(Environment environment) {
         String provider = environment.getProperty(PROPERTY, DEFAULT_PROVIDER).toLowerCase(Locale.ROOT);
-        if (provider.equals(UPCOMING_PROVIDER)) {
-            throw new IllegalStateException(PROPERTY + "=" + UPCOMING_PROVIDER
-                    + " is not available yet in this version (the OpenProject adapter is not included); use "
-                    + PROPERTY + "=" + DEFAULT_PROVIDER);
-        }
         List<String> required = REQUIRED_PROPERTIES.get(provider);
         if (required == null) {
             throw new IllegalStateException("Unknown " + PROPERTY + " '" + environment.getProperty(PROPERTY)
-                    + "': expected one of " + DEFAULT_PROVIDER + ", " + UPCOMING_PROVIDER);
+                    + "': expected one of jira, openproject");
         }
         List<String> missing = required.stream().filter(name -> !environment.containsProperty(name)).toList();
         if (!missing.isEmpty()) {
             throw new IllegalStateException("Missing configuration for " + PROPERTY + "=" + provider + ": "
                     + String.join(", ", missing));
+        }
+        if (provider.equals("openproject")) {
+            // Projet par defaut : vide tolere (le health le signale), sinon au format d'un identifiant ou id OpenProject
+            String project = environment.getProperty(OPENPROJECT_PROJECT, "");
+            if (!project.isBlank() && !OpenProjectProjectIds.isValid(project)) {
+                throw new IllegalStateException("Invalid " + OPENPROJECT_PROJECT + " '" + project + "': expected an "
+                        + "OpenProject project identifier (lowercase letters, digits, - and _, up to 100 characters) "
+                        + "or a numeric project id");
+            }
         }
     }
 }
