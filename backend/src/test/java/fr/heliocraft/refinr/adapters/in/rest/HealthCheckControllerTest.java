@@ -55,4 +55,13 @@ class HealthCheckControllerTest {
 
         mockMvc.perform(get("/api/v1/health")).andExpect(jsonPath("$.status").value("UP"));
     }
+
+    @Test
+    @DisplayName("Liveness probe answers UP without checking any dependency")
+    void livenessDoesNotCallDependencies() throws Exception {
+        mockMvc.perform(get("/api/v1/health/live"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+        org.mockito.Mockito.verifyNoInteractions(checkHealth);
+    }
 }
