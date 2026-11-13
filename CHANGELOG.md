@@ -14,7 +14,14 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 - URL de l'API du frontend configurable à l'exécution (`/config.js`, `REFINR_API_BASE_URL` dans l'image).
 - CI GitHub Actions (tests, lint, build, scan de secrets, build des images, smoke test Compose) et Dependabot.
 
+- Protection contre le DNS rebinding : `refinr.security.allowed-hosts` (`REFINR_ALLOWED_HOSTS`, défaut
+  `localhost,127.0.0.1,[::1]`, port ignoré). Backend : `403` pour tout autre en-tête `Host`, toujours actif (même sans
+  clé d'API, health checks compris). Frontend (nginx) : même liste, connexion fermée (`444`) pour tout autre `Host`.
+  **Déploiement réseau** : ajouter à la liste le nom DNS ou l'IP utilisés pour joindre Refinr (cf. README, « Sécurité »).
+
 ### Changed — CORS
+- **BREAKING** : un accès par un nom d'hôte non listé dans `REFINR_ALLOWED_HOSTS` (nom DNS, IP du réseau local)
+  est refusé (`403` backend, `444` frontend) tant que ce nom n'est pas ajouté à la liste.
 - **BREAKING** : CORS n'accepte plus toutes les origines (`*`) : seules celles de `refinr.cors.allowed-origins`
   (`CORS_ALLOWED_ORIGINS`, défaut `http://localhost:3000`) ; une autre origine reçoit `403`. `*` est refusé au
   démarrage. Sans effet pour l'interface web (même origine via le proxy Vite ou nginx).
