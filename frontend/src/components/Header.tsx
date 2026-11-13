@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Chams Bensalem
+// SPDX-License-Identifier: AGPL-3.0-only
+
 import { Link } from 'react-router-dom';
 import { Activity } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';

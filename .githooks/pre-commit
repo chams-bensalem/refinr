@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: 2026 Chams Bensalem
+# SPDX-License-Identifier: AGPL-3.0-only
 # Blocks the commit if gitleaks finds a secret in the staged changes.
 # Enable once per clone:  git config core.hooksPath .githooks
 if ! command -v gitleaks >/dev/null 2>&1; then
@@ -7,5 +9,10 @@ if ! command -v gitleaks >/dev/null 2>&1; then
 fi
 if ! gitleaks protect --staged --redact --no-banner; then
   echo "pre-commit: gitleaks detected a potential secret in the staged changes. Commit refused." >&2
+  exit 1
+fi
+# Every staged source file must carry the SPDX license header (same check as the CI job "license-headers").
+if ! "$(git rev-parse --show-toplevel)/scripts/check-spdx.sh" --staged; then
+  echo "pre-commit: source file(s) without the SPDX license header. Commit refused." >&2
   exit 1
 fi

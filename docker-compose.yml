@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Chams Bensalem
+# SPDX-License-Identifier: AGPL-3.0-only
 # Refinr - local stack: backend (Spring Boot) + frontend (static, nginx), optional local Ollama.
 #
 #   cp .env.example .env          # then fill in your Confluence / Jira / LLM values

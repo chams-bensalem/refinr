@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Chams Bensalem
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package fr.heliocraft.refinr.application.service;
 
 import fr.heliocraft.refinr.application.port.in.StoryNotAwaitingValidationException;

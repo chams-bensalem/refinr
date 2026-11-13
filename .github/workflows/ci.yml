@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Chams Bensalem
+# SPDX-License-Identifier: AGPL-3.0-only
 name: ci
 
 on:
@@ -47,6 +49,15 @@ jobs:
       - name: Build
         working-directory: frontend
         run: npm run build
+
+  license-headers:
+    name: SPDX license headers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Fails if a backend/frontend source file has no "SPDX-License-Identifier: AGPL-3.0-only" header
+      - name: Check
+        run: scripts/check-spdx.sh
 
   secrets:
     name: secret scan (gitleaks)

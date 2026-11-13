@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Chams Bensalem
+// SPDX-License-Identifier: AGPL-3.0-only
+
 /**
  * Configuration lue au chargement de la page, sans rebuild : `/config.js` definit `window.__REFINR_CONFIG__`.
  * En dev (Vite) c'est `public/config.js` (vide) ; dans l'image Docker, nginx le genere depuis `REFINR_API_BASE_URL`.

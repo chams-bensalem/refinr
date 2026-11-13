@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Chams Bensalem
+// SPDX-License-Identifier: AGPL-3.0-only
+
 import { Loader2 } from 'lucide-react';
 
 interface LoadingSpinnerProps {

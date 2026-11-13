@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Chams Bensalem
+// SPDX-License-Identifier: AGPL-3.0-only
+
 import { useNavigate } from 'react-router-dom';
 import { FileText, Zap, TrendingUp, ArrowRight, Sparkles } from 'lucide-react';
 

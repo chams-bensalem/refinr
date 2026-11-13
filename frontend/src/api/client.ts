@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Chams Bensalem
+// SPDX-License-Identifier: AGPL-3.0-only
+
 import axios, { isAxiosError } from 'axios';
 import { apiBaseUrl } from '../config';
 import type { AnalyzeRequest, ApiErrorBody, CreationResponse, HealthStatus } from '../types';

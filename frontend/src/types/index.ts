@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Chams Bensalem
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Contrat JSON de l'API backend (/api/v1). Champs optionnels : absents ou null selon l'etape (apercu / creation).
 
 export interface AnalyzeRequest {
