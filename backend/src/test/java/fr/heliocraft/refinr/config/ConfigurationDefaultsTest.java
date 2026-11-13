@@ -173,6 +173,15 @@ class ConfigurationDefaultsTest {
     }
 
     @Test
+    @DisplayName("BookStack: secrets empty by default in the example config, web-url optional and empty everywhere")
+    void bookStackDefaultsAreAligned() throws IOException {
+        assertEquals("", exampleDefault("bookstack.token-id"));
+        assertEquals("", exampleDefault("bookstack.token-secret"));
+        assertEquals("", exampleDefault("bookstack.web-url"));
+        assertEquals("", envExample("BOOKSTACK_WEB_URL"));
+    }
+
+    @Test
     @DisplayName("No separate verdict provider by default")
     void verdictIsOptional() throws IOException {
         assertEquals("", exampleDefault("refinr.llm.verdict.provider"));

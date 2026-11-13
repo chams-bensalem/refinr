@@ -6,10 +6,14 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 ## [Unreleased]
 
 ### Added
-- `source.provider` (`SOURCE_PROVIDER`, défaut `confluence`) : une source documentaire par instance. Valeur inconnue ou
-  propriété absente de la source choisie : arrêt au démarrage avec un message listant les propriétés manquantes
-  (`bookstack` et `xwiki` annoncés, refusés tant que leurs adaptateurs n'existent pas). Les propriétés `confluence.*`
-  ne sont plus requises si la source n'est pas Confluence.
+- `source.provider` (`SOURCE_PROVIDER`, défaut `confluence`) : une source documentaire par instance, `confluence` ou
+  `bookstack`. Valeur inconnue ou propriété absente de la source choisie : arrêt au démarrage avec un message listant
+  les propriétés manquantes (`xwiki` annoncé, refusé tant que son adaptateur n'existe pas). Les propriétés
+  `confluence.*` ne sont plus requises si la source n'est pas Confluence.
+- Source **BookStack** (API REST à jetons, vérifiée avec BookStack v26.09) : contenu lu dans le champ `html` de la page
+  (inclusions développées), recherche par titre dans tout BookStack ou dans un livre (id ou slug), liens par permalien
+  `/link/{id}`, health par `/api/system`. Configuration `bookstack.*` / `BOOKSTACK_*` (`bookstack.web-url` optionnelle
+  pour les liens) ; compte dédié avec les seules permissions *Access system API* et *View* sur les pages.
 - API : champ neutre `documentId` pour `analyze-preview` et `analyze-and-create` (`confluencePageId` toujours accepté
   comme alias ; les deux avec des valeurs différentes → `400`).
 - API : `GET /api/v1/documents/search?title=…&space=…` (`space` optionnel : sans lui, tous les espaces lisibles par le
@@ -28,7 +32,7 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ### Migration
 - Recopier dans `application.properties` la ligne `source.provider=${SOURCE_PROVIDER:confluence}` (facultatif :
-  `confluence` est la valeur par défaut).
+  `confluence` est la valeur par défaut) et, pour BookStack, le bloc `bookstack.*` de `application-example.properties`.
 
 ## [1.1.0] - 2026-11-13
 

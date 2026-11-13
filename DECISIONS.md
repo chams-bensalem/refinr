@@ -245,3 +245,12 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
 - **`GET /api/v1/source` → `{"name": …}`**, endpoint séparé symétrique de `GET /api/v1/tracker` plutôt qu'un champ ajouté à `/tracker` : chaque endpoint décrit un seul port, sans URL ni clé.
 - **Alias dépréciés conservés à l'identique** (`confluencePageId`, `GET /confluence/search` avec `spaceKey` obligatoire et le même message `Invalid spaceKey`) ; dépréciation signalée par les en-têtes `Deprecation` (RFC 9745) et `Link rel="successor-version"` (RFC 8288), sans changer le corps.
 - **Recherche Confluence sans espace** : même clause de titre échappée que la recherche par espace, et `limit=25` explicite dans les deux cas (valeur par défaut de l'API Confluence, désormais testée).
+
+### Adaptateur BookStack (v1.2 phase 2)
+
+- **Erreurs de source typées (`DocumentSourceException` du port sortant, traduite par les cas d'usage en `404` / `502`)**, Confluence compris : message sûr (outil, id, statut HTTP, droit en cause), sans URL ni corps brut ; `404` seulement pour une page absente ou invisible (indiscernables dans BookStack), tout le reste (`401`, `403`, `429`, `5xx`, `3xx`, délai, injoignable) en `502`.
+- **Relances `@Retryable` à travers l'exception enveloppée** : Spring Framework 7 compare `includes` à toute la chaîne des causes (`ExceptionTypeFilter.match(…, true)`) → un `429` / `5xx` enveloppé est relancé, un `404` non (testé). Ces relances supposent des **proxys de classe** (configuration AOP de Spring Boot) : un proxy JDK par interface ne voit pas l'annotation de la méthode de l'adaptateur → test de relance dans un contexte avec `AopAutoConfiguration`, comme l'application.
+- **Recherche par `GET /api/pages?filter[name:like]=…`** (et non `/api/search`, sans filtre par livre) : valeurs passées en variables d'URI, encodées une seule fois (`%25…%25`, testé sur la requête brute) ; jokers `%` `_` et `\` échappés par `\` (vérifié contre BookStack : `%\_%` → 0, `%_%` → tout) ; `count=25` comme Confluence.
+- **Livre par id ou slug** ; slug résolu par `GET /api/books?filter[slug]=` ; slug inconnu ou livre invisible (sans `book-view-all`) → résultat vide et `warn` serveur, pas d'erreur (l'id numérique est recommandé).
+- **Toute réponse 3xx est une erreur** (`onStatus(is3xxRedirection)`) en plus de `Accept: application/json` : un refus BookStack sans cet en-tête redirige vers l'accueil, qui serait sinon lu comme une réponse vide.
+- **Health = `GET /api/system`** (jeton + droit *Access system API*, aucun droit de contenu) ; jeton vide → `DOWN` sans appel.

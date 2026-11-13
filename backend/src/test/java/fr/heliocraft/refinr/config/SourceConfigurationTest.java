@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.config;
 
+import fr.heliocraft.refinr.adapters.out.bookstack.BookStackDocumentSource;
 import fr.heliocraft.refinr.adapters.out.confluence.ConfluenceDocumentSource;
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
 import org.junit.jupiter.api.DisplayName;
@@ -18,8 +19,12 @@ class SourceConfigurationTest {
             "confluence.base-url=http://localhost:9", "confluence.username=user@example.com",
             "confluence.token=test-token"};
 
+    private static final String[] BOOKSTACK_PROPERTIES = {
+            "source.provider=bookstack", "bookstack.base-url=http://localhost:9",
+            "bookstack.token-id=test-id", "bookstack.token-secret=test-secret"};
+
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withUserConfiguration(SourceConfiguration.class, ConfluenceDocumentSource.class);
+            .withUserConfiguration(SourceConfiguration.class, ConfluenceDocumentSource.class, BookStackDocumentSource.class);
 
     @Test
     @DisplayName("Without source.provider, Confluence is the only document source (backward compatible default)")
@@ -49,7 +54,7 @@ class SourceConfigurationTest {
         runner.withPropertyValues(CONFLUENCE_PROPERTIES).withPropertyValues("source.provider=notion").run(context -> {
             assertThat(context).hasFailed();
             assertThat(context.getStartupFailure())
-                    .hasMessage("Unknown source.provider 'notion': expected one of confluence");
+                    .hasMessage("Unknown source.provider 'notion': expected one of bookstack, confluence");
         });
     }
 
@@ -59,20 +64,54 @@ class SourceConfigurationTest {
         runner.withPropertyValues(CONFLUENCE_PROPERTIES).withPropertyValues("source.provider=").run(context -> {
             assertThat(context).hasFailed();
             assertThat(context.getStartupFailure())
-                    .hasMessage("Unknown source.provider '': expected one of confluence");
+                    .hasMessage("Unknown source.provider '': expected one of bookstack, confluence");
         });
     }
 
     @Test
-    @DisplayName("BookStack and XWiki are announced but refused until their adapter exists ('not available yet')")
+    @DisplayName("XWiki is announced but refused until its adapter exists ('not available yet')")
     void plannedSourcesAreNotAvailableYet() {
-        for (String value : new String[] {"bookstack", "XWiki"}) {
+        for (String value : new String[] {"xwiki", "XWiki"}) {
             runner.withPropertyValues("source.provider=" + value).run(context -> {
                 assertThat(context).hasFailed();
-                assertThat(context.getStartupFailure()).hasMessage("source.provider '" + value.toLowerCase()
-                        + "' is not available yet: expected confluence");
+                assertThat(context.getStartupFailure()).hasMessage("source.provider 'xwiki' is not available yet: "
+                        + "expected one of bookstack, confluence");
             });
         }
+    }
+
+    @Test
+    @DisplayName("source.provider=bookstack (any case) selects BookStack as the only source, without any confluence.* property")
+    void bookStackSelectedWithoutConfluence() {
+        for (String value : new String[] {"bookstack", "BookStack"}) {
+            runner.withPropertyValues(BOOKSTACK_PROPERTIES).withPropertyValues("source.provider=" + value).run(context -> {
+                assertThat(context).hasNotFailed();
+                assertThat(context).hasSingleBean(DocumentSourcePort.class);
+                assertThat(context).hasSingleBean(BookStackDocumentSource.class);
+                assertThat(context).doesNotHaveBean(ConfluenceDocumentSource.class);
+                assertThat(context.getBean(DocumentSourcePort.class).displayName()).isEqualTo("BookStack");
+            });
+        }
+    }
+
+    @Test
+    @DisplayName("Missing BookStack properties are all listed in one startup error")
+    void missingBookStackPropertiesAreListed() {
+        runner.withPropertyValues("source.provider=bookstack", "bookstack.base-url=http://localhost:9").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasMessage(
+                    "Missing configuration for source.provider=bookstack: bookstack.token-id, bookstack.token-secret");
+        });
+    }
+
+    @Test
+    @DisplayName("Empty BookStack token values are tolerated (the health check reports them); web-url is optional")
+    void emptyBookStackTokenIsTolerated() {
+        runner.withPropertyValues(BOOKSTACK_PROPERTIES)
+                .withPropertyValues("bookstack.token-id=", "bookstack.token-secret=").run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(BookStackDocumentSource.class);
+                });
     }
 
     @Test
