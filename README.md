@@ -501,7 +501,7 @@ Base URL : `http://localhost:8080/api/v1`
 |---|---|---|
 | `200` | Tous les tickets ont été créés | `true` |
 | `207` | Création partielle : certains tickets créés, d'autres non | `false` |
-| `400` | `projectKey` invalide, ou document vide / sans texte à analyser (`analyze-and-create`, sans appel à l'IA) | `false` |
+| `400` | `projectKey` invalide, ou document vide / sans texte à analyser (`analyze-and-create` ; `analyze-preview` aussi, sans appel à l'IA) | `false` |
 | `502` | Aucun ticket n'a pu être créé, sortie IA inexploitable (invalide après relances, ou tronquée), ou fournisseur IA indisponible | `false` |
 
 Un échec n'interrompt pas la création : l'élément est listé dans `failed` (avec une raison : statut HTTP et
@@ -523,7 +523,7 @@ erreurs de validation de Jira), ses enfants aussi (`Not created: parent … fail
 }
 ```
 
-En cas d'erreur : HTTP `400` / `409` / `500` avec `{ "success": false, "error": "…" }`.
+En cas d'erreur : HTTP `400` / `409` / `500`, ou `502` (fournisseur IA indisponible, sortie IA inexploitable), avec `{ "success": false, "error": "…" }`.
 
 ---
 
