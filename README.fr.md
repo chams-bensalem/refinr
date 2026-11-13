@@ -20,8 +20,9 @@ Epics · User Stories · Sous-tâches · Critères d'acceptation · Story points
 
 </div>
 
-<!-- GIF de démonstration : remplacer par docs/demo.gif (page Confluence → aperçu → tickets Jira avec labels ai-ready) -->
-<p align="center"><em>[ GIF de démonstration à venir ]</em></p>
+<p align="center">
+  <img src="docs/demo.gif" alt="Démonstration de Refinr : un ID de page Confluence est analysé, l'aperçu du backlog indique pour chaque story ai-ready ou validation-necessaire avec sa raison, puis le backlog est créé dans Jira" width="900">
+</p>
 
 ---
 

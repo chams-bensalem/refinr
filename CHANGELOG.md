@@ -5,9 +5,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ## [Unreleased]
 
-## [1.0.1] - Unreleased
+## [1.0.1] - 2026-11-13
 
-Interface web uniquement ; API REST inchangée.
+Interface web et documentation ; API REST inchangée.
 
 ### Changed
 - Page **Analyze** : plus de création en un clic. **Preview** (`POST /api/v1/analyze-preview`) affiche
@@ -20,6 +20,7 @@ Interface web uniquement ; API REST inchangée.
 - Aucune relance automatique côté navigateur (`retry: false` pour les requêtes et les mutations TanStack Query) et
   verrou contre le double-clic / double Entrée sur **Preview** et **Create in Jira** : un `POST /create-jira` rejoué
   pourrait créer des tickets en double.
+- README : GIF de démonstration (`docs/demo.gif`) à la place de l'emplacement réservé.
 - Versions du backend et du frontend : `1.0.1`.
 - Libellés : « CDC » remplacé par « spec » / « requirements document », « Doc to Jira » par « Analyze a spec » dans
   l'en-tête, titre d'accueil « Turn a Confluence spec into an agent-ready Jira backlog ».
