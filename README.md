@@ -17,8 +17,9 @@
 
 </div>
 
-<!-- Demo GIF: replace with docs/demo.gif (Confluence page → preview → Jira issues labelled ai-ready) -->
-<p align="center"><em>[ demo GIF coming soon ]</em></p>
+<p align="center">
+  <img src="docs/demo.gif" alt="Refinr demo: a Confluence page ID is analyzed, the backlog preview shows each story labelled ai-ready or validation-necessaire with its reason, then the backlog is created in Jira" width="900">
+</p>
 
 ---
 
