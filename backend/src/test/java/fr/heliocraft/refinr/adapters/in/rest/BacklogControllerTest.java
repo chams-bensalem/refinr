@@ -31,7 +31,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 // Controleur + vrais cas d'usage (UseCaseConfig) ; seuls les ports sortants sont simules
-@WebMvcTest(MvpController.class)
+@WebMvcTest(BacklogController.class)
 @Import(UseCaseConfig.class)
 @TestPropertySource(properties = {
     "jira.base-url=http://localhost:8080",
@@ -43,7 +43,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "confluence.token=test-token",
     "gemini.api-key=test-api-key"
 })
-class MvpControllerTest {
+class BacklogControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -106,7 +106,7 @@ class MvpControllerTest {
         when(jiraService.createSubtask(any(Task.class), anyString(), any())).thenReturn("PROJ-3");
 
         // When/Then
-        mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
+        mockMvc.perform(post("/api/v1/analyze-and-create")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"confluencePageId\":\"" + pageId + "\"}"))
                 .andExpect(status().isOk());
@@ -127,7 +127,7 @@ class MvpControllerTest {
         when(jiraService.createEpic(any(Epic.class), any())).thenReturn("DEMO-1");
         when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("DEMO-2");
 
-        mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
+        mockMvc.perform(post("/api/v1/analyze-and-create")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"confluencePageId\":\"42\",\"projectKey\":\"DEMO\"}"))
                 .andExpect(status().isOk());
@@ -140,7 +140,7 @@ class MvpControllerTest {
     @Test
     @DisplayName("Should reject an invalid projectKey before reading Confluence")
     void shouldRejectInvalidProjectKey() throws Exception {
-        mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
+        mockMvc.perform(post("/api/v1/analyze-and-create")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"confluencePageId\":\"42\",\"projectKey\":\"demo; drop\"}"))
                 .andExpect(status().isBadRequest());
@@ -156,7 +156,7 @@ class MvpControllerTest {
             .thenThrow(new RuntimeException("Page ID is required"));
 
         // When/Then
-        mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
+        mockMvc.perform(post("/api/v1/analyze-and-create")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
                 .andExpect(status().is5xxServerError());
@@ -171,7 +171,7 @@ class MvpControllerTest {
             .thenThrow(new RuntimeException("Confluence API error"));
 
         // When/Then
-        mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
+        mockMvc.perform(post("/api/v1/analyze-and-create")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"confluencePageId\":\"" + pageId + "\"}"))
                 .andExpect(status().is5xxServerError());
@@ -193,7 +193,7 @@ class MvpControllerTest {
             .thenThrow(new RuntimeException("Gemini API error"));
 
         // When/Then
-        mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
+        mockMvc.perform(post("/api/v1/analyze-and-create")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"confluencePageId\":\"" + pageId + "\"}"))
                 .andExpect(status().is5xxServerError());
@@ -210,7 +210,7 @@ class MvpControllerTest {
         when(generator.generate("cdc")).thenThrow(new LlmException(LlmException.Reason.INVALID_OUTPUT,
                 "The analysis model did not produce a valid result after 3 attempt(s)"));
 
-        for (String endpoint : List.of("/api/v1/mvp/analyze-preview", "/api/v1/mvp/analyze-and-create")) {
+        for (String endpoint : List.of("/api/v1/analyze-preview", "/api/v1/analyze-and-create")) {
             mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content("{\"confluencePageId\":\"123\"}"))
                     .andExpect(status().isBadGateway())
                     .andExpect(jsonPath("$.success").value(false))
@@ -225,7 +225,7 @@ class MvpControllerTest {
         when(confluenceService.getDocumentContent("123")).thenReturn("cdc");
         when(generator.generate("cdc")).thenThrow(new LlmException(LlmException.Reason.TRUNCATED, "truncated"));
 
-        mockMvc.perform(post("/api/v1/mvp/analyze-preview").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/v1/analyze-preview").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"confluencePageId\":\"123\"}"))
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.error").value("The AI model output was truncated: increase max-output-tokens"));
@@ -237,7 +237,7 @@ class MvpControllerTest {
         when(confluenceService.getDocumentContent("123")).thenReturn("cdc");
         when(generator.generate("cdc")).thenThrow(new LlmException(LlmException.Reason.UNAVAILABLE, "HTTP 401"));
 
-        for (String endpoint : List.of("/api/v1/mvp/analyze-preview", "/api/v1/mvp/analyze-and-create")) {
+        for (String endpoint : List.of("/api/v1/analyze-preview", "/api/v1/analyze-and-create")) {
             mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content("{\"confluencePageId\":\"123\"}"))
                     .andExpect(status().isBadGateway())
                     .andExpect(jsonPath("$.success").value(false))
@@ -252,7 +252,7 @@ class MvpControllerTest {
         for (String content : new String[] {"", "   ", "<p></p><p>&nbsp;</p>",
                 "<ac:image><ri:attachment ri:filename=\"schema.png\" /></ac:image>"}) {
             when(confluenceService.getDocumentContent("123")).thenReturn(content);
-            for (String endpoint : List.of("/api/v1/mvp/analyze-preview", "/api/v1/mvp/analyze-and-create")) {
+            for (String endpoint : List.of("/api/v1/analyze-preview", "/api/v1/analyze-and-create")) {
                 mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content("{\"confluencePageId\":\"123\"}"))
                         .andExpect(status().isBadRequest())
                         .andExpect(jsonPath("$.success").value(false))
@@ -275,7 +275,7 @@ class MvpControllerTest {
             .thenThrow(new RuntimeException("Jira API error"));
 
         // When/Then
-        mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
+        mockMvc.perform(post("/api/v1/analyze-and-create")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"confluencePageId\":\"" + pageId + "\"}"))
                 .andExpect(status().is5xxServerError());
@@ -300,7 +300,7 @@ class MvpControllerTest {
         when(generator.generate(cdcContent)).thenReturn(emptyEpics);
 
         // When/Then
-        mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
+        mockMvc.perform(post("/api/v1/analyze-and-create")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"confluencePageId\":\"" + pageId + "\"}"))
                 .andExpect(status().isOk());
@@ -313,19 +313,17 @@ class MvpControllerTest {
     @DisplayName("Should handle invalid JSON request")
     void shouldHandleInvalidJSONRequest() throws Exception {
         // When/Then
-        mockMvc.perform(post("/api/v1/mvp/analyze-and-create")
+        mockMvc.perform(post("/api/v1/analyze-and-create")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("invalid json"))
                 .andExpect(status().is4xxClientError());
     }
 
     @Test
-    @DisplayName("Should return health status")
-    void shouldReturnHealthStatus() throws Exception {
-        // When/Then
-        mockMvc.perform(get("/api/v1/mvp/health"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("UP"));
+    @DisplayName("Serves no health endpoint: GET /api/v1/health belongs to HealthCheckController")
+    void servesNoHealthEndpoint() throws Exception {
+        mockMvc.perform(get("/api/v1/health"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -334,7 +332,7 @@ class MvpControllerTest {
         when(confluenceService.searchDocuments("SPACE", "cahier")).thenReturn(List.of(
             new DocumentSummary("111", "Cahier des charges", "https://your-site.atlassian.net/wiki/spaces/SPACE/pages/111")));
 
-        mockMvc.perform(get("/api/v1/mvp/confluence/search").param("spaceKey", "SPACE").param("title", "cahier"))
+        mockMvc.perform(get("/api/v1/confluence/search").param("spaceKey", "SPACE").param("title", "cahier"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.results.length()").value(1))
@@ -347,11 +345,11 @@ class MvpControllerTest {
     @Test
     @DisplayName("Confluence search answers 400 on invalid input, without calling the document source")
     void searchRejectsInvalidInput() throws Exception {
-        mockMvc.perform(get("/api/v1/mvp/confluence/search").param("spaceKey", "SPACE OR x").param("title", "t"))
+        mockMvc.perform(get("/api/v1/confluence/search").param("spaceKey", "SPACE OR x").param("title", "t"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error").value("Invalid spaceKey"));
-        mockMvc.perform(get("/api/v1/mvp/confluence/search").param("spaceKey", "SPACE").param("title", "  "))
+        mockMvc.perform(get("/api/v1/confluence/search").param("spaceKey", "SPACE").param("title", "  "))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("title is required"));
 
@@ -364,7 +362,7 @@ class MvpControllerTest {
         when(confluenceService.searchDocuments(any(), any()))
             .thenThrow(new IllegalArgumentException("Illegal character in query at index 42: https://internal.example.net"));
 
-        String body = mockMvc.perform(get("/api/v1/mvp/confluence/search").param("spaceKey", "SPACE").param("title", "t"))
+        String body = mockMvc.perform(get("/api/v1/confluence/search").param("spaceKey", "SPACE").param("title", "t"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.error").value("Failed to search the documents"))
                 .andReturn().getResponse().getContentAsString();
@@ -380,13 +378,13 @@ class MvpControllerTest {
         when(jiraService.findStory(any())).thenThrow(new RuntimeException(secret));
 
         for (var request : List.of(
-                post("/api/v1/mvp/analyze-and-create").contentType(MediaType.APPLICATION_JSON)
+                post("/api/v1/analyze-and-create").contentType(MediaType.APPLICATION_JSON)
                     .content("{\"confluencePageId\":\"1\"}"),
-                post("/api/v1/mvp/analyze-preview").contentType(MediaType.APPLICATION_JSON)
+                post("/api/v1/analyze-preview").contentType(MediaType.APPLICATION_JSON)
                     .content("{\"confluencePageId\":\"1\"}"),
-                post("/api/v1/mvp/reassess-story").contentType(MediaType.APPLICATION_JSON)
+                post("/api/v1/reassess-story").contentType(MediaType.APPLICATION_JSON)
                     .content("{\"issueKey\":\"TEST-1\",\"precision\":\"p\"}"),
-                get("/api/v1/mvp/confluence/search").param("spaceKey", "SPACE").param("title", "t"))) {
+                get("/api/v1/confluence/search").param("spaceKey", "SPACE").param("title", "t"))) {
             String body = mockMvc.perform(request)
                     .andExpect(status().is5xxServerError())
                     .andExpect(jsonPath("$.success").value(false))
@@ -406,7 +404,7 @@ class MvpControllerTest {
         when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("DEMO-2");
         when(jiraService.createSubtask(any(Task.class), anyString(), any())).thenReturn("DEMO-3");
 
-        mockMvc.perform(post("/api/v1/mvp/create-jira").param("projectKey", "DEMO")
+        mockMvc.perform(post("/api/v1/create-jira").param("projectKey", "DEMO")
                 .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
                 .andExpect(status().isOk());
 
@@ -421,7 +419,7 @@ class MvpControllerTest {
         when(jiraService.createEpic(any(Epic.class), any())).thenReturn("TEST-1");
         when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("TEST-2");
 
-        mockMvc.perform(post("/api/v1/mvp/create-jira")
+        mockMvc.perform(post("/api/v1/create-jira")
                 .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
                 .andExpect(status().isOk());
 
@@ -431,7 +429,7 @@ class MvpControllerTest {
     @Test
     @DisplayName("create-jira rejects an invalid projectKey with 400, like analyze-and-create")
     void createJiraRejectsInvalidProjectKey() throws Exception {
-        mockMvc.perform(post("/api/v1/mvp/create-jira").param("projectKey", "demo; drop")
+        mockMvc.perform(post("/api/v1/create-jira").param("projectKey", "demo; drop")
                 .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
@@ -448,7 +446,7 @@ class MvpControllerTest {
             .thenThrow(new fr.heliocraft.refinr.application.port.out.IssueTrackerException(
                 "Rejected by Jira (HTTP 400): priority: Field 'priority' cannot be set"));
 
-        mockMvc.perform(post("/api/v1/mvp/create-jira")
+        mockMvc.perform(post("/api/v1/create-jira")
                 .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
                 .andExpect(status().isMultiStatus())
                 .andExpect(jsonPath("$.success").value(false))
@@ -469,7 +467,7 @@ class MvpControllerTest {
         when(jiraService.createEpic(any(Epic.class), any()))
             .thenThrow(new fr.heliocraft.refinr.application.port.out.IssueTrackerException("Jira unreachable"));
 
-        mockMvc.perform(post("/api/v1/mvp/create-jira")
+        mockMvc.perform(post("/api/v1/create-jira")
                 .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.success").value(false))
@@ -488,7 +486,7 @@ class MvpControllerTest {
         when(confluenceService.getDocumentContent("1")).thenReturn("cdc");
         when(generator.generate("cdc")).thenReturn(testEpics);
 
-        mockMvc.perform(post("/api/v1/mvp/analyze-and-create").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/v1/analyze-and-create").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"confluencePageId\":\"1\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -504,7 +502,7 @@ class MvpControllerTest {
         when(jiraService.createEpic(any(Epic.class), any())).thenReturn("TEST-1");
         when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("TEST-2");
 
-        mockMvc.perform(post("/api/v1/mvp/create-jira").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/v1/create-jira").contentType(MediaType.APPLICATION_JSON)
                 .content("[{\"name\":\"E\",\"stories\":[{\"title\":\"S\",\"description\":\"modifiee\","
                     + "\"aiReady\":true,\"aiReadyReason\":\"verdict de l'apercu\"}]}]"))
                 .andExpect(status().isOk())
@@ -521,7 +519,7 @@ class MvpControllerTest {
     @Test
     @DisplayName("The debug endpoint test-issue-types no longer exists")
     void debugIssueTypesEndpointIsGone() throws Exception {
-        mockMvc.perform(post("/api/v1/mvp/test-issue-types"))
+        mockMvc.perform(post("/api/v1/test-issue-types"))
                 .andExpect(status().isNotFound());
 
         verifyNoInteractions(jiraService);
@@ -536,7 +534,7 @@ class MvpControllerTest {
         when(assessor.reassess("Export PDF", "Exporter", "format A4"))
             .thenReturn(new Readiness(true, "Perimetre clair"));
 
-        mockMvc.perform(post("/api/v1/mvp/reassess-story")
+        mockMvc.perform(post("/api/v1/reassess-story")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"issueKey\":\"TEST-7\",\"precision\":\"format A4\"}"))
                 .andExpect(status().isOk())
@@ -554,7 +552,7 @@ class MvpControllerTest {
         when(jiraService.findStory("TEST-7")).thenReturn(
             new TrackedStory("TEST-7", "Export PDF", "Exporter", List.of("ai-ready")));
 
-        mockMvc.perform(post("/api/v1/mvp/reassess-story")
+        mockMvc.perform(post("/api/v1/reassess-story")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"issueKey\":\"TEST-7\",\"precision\":\"format A4\"}"))
                 .andExpect(status().isConflict())
@@ -573,7 +571,7 @@ class MvpControllerTest {
         when(assessor.reassess("Export PDF", "Exporter", "format A4"))
             .thenThrow(new LlmException(LlmException.Reason.UNAVAILABLE, "The google LLM provider is unreachable"));
 
-        mockMvc.perform(post("/api/v1/mvp/reassess-story")
+        mockMvc.perform(post("/api/v1/reassess-story")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"issueKey\":\"TEST-7\",\"precision\":\"format A4\"}"))
                 .andExpect(status().isBadGateway())
@@ -586,7 +584,7 @@ class MvpControllerTest {
     @Test
     @DisplayName("Should require an issue key and a precision")
     void shouldRequireIssueKeyAndPrecision() throws Exception {
-        mockMvc.perform(post("/api/v1/mvp/reassess-story")
+        mockMvc.perform(post("/api/v1/reassess-story")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"issueKey\":\"TEST-7\",\"precision\":\"  \"}"))
                 .andExpect(status().isBadRequest())

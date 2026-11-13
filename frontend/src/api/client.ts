@@ -39,7 +39,7 @@ function toApiError(error: unknown): ApiError {
 /** 200 : tout est cree ; 207 : creation partielle (created / failed) ; autre statut : ApiError. */
 export const analyzeAndCreate = async (request: AnalyzeRequest): Promise<CreationResponse> => {
     try {
-        const response = await api.post<CreationResponse>('/mvp/analyze-and-create', request, {
+        const response = await api.post<CreationResponse>('/analyze-and-create', request, {
             validateStatus: (status) => status === 200 || status === 207,
         });
         return response.data;

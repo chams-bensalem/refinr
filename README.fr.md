@@ -171,7 +171,7 @@ sequenceDiagram
     participant J as Jira Cloud
 
     U->>F: Saisit l'ID de la page Confluence
-    F->>B: POST /api/v1/mvp/analyze-and-create
+    F->>B: POST /api/v1/analyze-and-create
     B->>C: GET /wiki/rest/api/content/{id}?expand=body.storage
     C-->>B: Contenu HTML de la page
     B->>A: Prompt « Scrum Master » + document
@@ -247,7 +247,7 @@ refinr/
         │   │   │   ├── port/out/                    # DocumentSourcePort, IssueTrackerPort, BacklogGeneratorPort, ReadinessAssessorPort
         │   │   │   └── service/                     # Implémentation des cas d'usage
         │   │   ├── adapters/
-        │   │   │   ├── in/rest/                     # MvpController (/api/v1/mvp/*), HealthCheckController, DTO JSON
+        │   │   │   ├── in/rest/                     # BacklogController (/api/v1/*), HealthCheckController, DTO JSON
         │   │   │   └── out/
         │   │   │       ├── confluence/              # ConfluenceDocumentSource
         │   │   │       ├── jira/                    # JiraIssueTracker : labels, priorité, ADF, réévaluation
@@ -466,7 +466,7 @@ curl -s http://localhost:8080/api/v1/health | jq
 
 `DEGRADED` signifie qu'au moins un service est `DOWN` ; le champ `error` donne une cause courte et sans donnée sensible : `HTTP 401` (token invalide), `HTTP 404` (projet introuvable), `unreachable` (service injoignable), `timeout`, `model qwen3:8b not found` (modèle Ollama non téléchargé)… `aiVerdict` apparaît quand un fournisseur de verdict distinct est configuré. Le résultat est gardé en cache `refinr.health.cache-ttl` (45 s). Le détail est dans les logs du backend.
 
-En cas d'erreur, les endpoints `/mvp/*` renvoient `{ "success": false, "error": "<message générique>", "correlationId": "…" }` : jamais le message brut de l'exception ; le `correlationId` permet de retrouver le détail dans les logs.
+En cas d'erreur, les endpoints du backlog (`/api/v1/*`, hors health checks) renvoient `{ "success": false, "error": "<message générique>", "correlationId": "…" }` : jamais le message brut de l'exception ; le `correlationId` permet de retrouver le détail dans les logs.
 
 ---
 
@@ -551,7 +551,7 @@ https://votre-site.atlassian.net/wiki/spaces/SPACE/pages/123456789/Mon+cahier+de
 Ou recherchez-la via l'API :
 
 ```bash
-curl "http://localhost:8080/api/v1/mvp/confluence/search?spaceKey=SPACE&title=cahier"
+curl "http://localhost:8080/api/v1/confluence/search?spaceKey=SPACE&title=cahier"
 ```
 
 ```json
@@ -570,7 +570,7 @@ curl "http://localhost:8080/api/v1/mvp/confluence/search?spaceKey=SPACE&title=ca
 
 ```bash
 # 1. Prévisualiser la structure sans rien créer
-curl -s -X POST http://localhost:8080/api/v1/mvp/analyze-preview \
+curl -s -X POST http://localhost:8080/api/v1/analyze-preview \
   -H "Content-Type: application/json" \
   -d '{"confluencePageId": "123456789"}' > preview.json
 
@@ -578,14 +578,14 @@ curl -s -X POST http://localhost:8080/api/v1/mvp/analyze-preview \
 #    (le verdict ai-ready sera recalculé à la création : inutile de modifier aiReady / aiReadyReason)
 
 # 3. Créer dans Jira à partir de la prévisualisation (projectKey optionnel)
-jq '.epics' preview.json | curl -s -X POST "http://localhost:8080/api/v1/mvp/create-jira?projectKey=PROJ" \
+jq '.epics' preview.json | curl -s -X POST "http://localhost:8080/api/v1/create-jira?projectKey=PROJ" \
   -H "Content-Type: application/json" -d @-
 ```
 
 Ou en une seule étape, éventuellement dans un autre projet :
 
 ```bash
-curl -s -X POST http://localhost:8080/api/v1/mvp/analyze-and-create \
+curl -s -X POST http://localhost:8080/api/v1/analyze-and-create \
   -H "Content-Type: application/json" \
   -d '{"confluencePageId": "123456789", "projectKey": "DEMO"}'
 ```
@@ -593,7 +593,7 @@ curl -s -X POST http://localhost:8080/api/v1/mvp/analyze-and-create \
 ### Débloquer une story `validation-necessaire`
 
 ```bash
-curl -s -X POST http://localhost:8080/api/v1/mvp/reassess-story \
+curl -s -X POST http://localhost:8080/api/v1/reassess-story \
   -H "Content-Type: application/json" \
   -d '{"issueKey": "PROJ-42", "precision": "L’authentification se fait via OAuth2 GitLab, la maquette est validée."}'
 ```
@@ -617,12 +617,11 @@ Base URL : `http://localhost:8080/api/v1`
 
 | Méthode | Endpoint | Corps / paramètres | Description |
 |---|---|---|---|
-| `POST` | `/mvp/analyze-and-create` | `{ "confluencePageId": "…", "projectKey": "PROJ" }` *(projectKey optionnel, format `^[A-Z][A-Z0-9]{1,9}$`)* | Lit, analyse et crée toute la hiérarchie dans Jira |
-| `POST` | `/mvp/analyze-preview` | `{ "confluencePageId": "…" }` | Analyse sans créer de tickets |
-| `POST` | `/mvp/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optionnel, même format)* | Crée une structure déjà générée, dans `projectKey` ou le projet par défaut ; verdict `ai-ready` recalculé par le serveur (`aiReady` / `aiReadyReason` du client ignorés) |
-| `POST` | `/mvp/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Réévalue une story `validation-necessaire` (`409` si elle ne l'est pas) |
-| `GET` | `/mvp/confluence/search` | `?spaceKey=SPACE&title=…` | Recherche de pages Confluence (CQL) : `{ success, results: [{ id, title, url }] }` |
-| `GET` | `/mvp/health` | — | Ping simple du service |
+| `POST` | `/analyze-and-create` | `{ "confluencePageId": "…", "projectKey": "PROJ" }` *(projectKey optionnel, format `^[A-Z][A-Z0-9]{1,9}$`)* | Lit, analyse et crée toute la hiérarchie dans Jira |
+| `POST` | `/analyze-preview` | `{ "confluencePageId": "…" }` | Analyse sans créer de tickets |
+| `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optionnel, même format)* | Crée une structure déjà générée, dans `projectKey` ou le projet par défaut ; verdict `ai-ready` recalculé par le serveur (`aiReady` / `aiReadyReason` du client ignorés) |
+| `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Réévalue une story `validation-necessaire` (`409` si elle ne l'est pas) |
+| `GET` | `/confluence/search` | `?spaceKey=SPACE&title=…` | Recherche de pages Confluence (CQL) : `{ success, results: [{ id, title, url }] }` |
 | `GET` | `/health` | — | Santé détaillée Confluence / Jira / IA (analyse, et verdict s'il est distinct), en cache 45 s |
 | `GET` | `/health/live` | — | Sonde de vivacité `{ "status": "UP" }`, sans appel aux services externes (conteneurs, orchestrateurs) |
 
@@ -729,7 +728,7 @@ Dependabot propose chaque semaine les mises à jour Maven, npm, Docker et GitHub
 | `LlmConfigurationTest` | Défauts par fournisseur, erreurs de configuration au démarrage, refus des anciennes clés |
 | `JiraIssueTrackerTest`, `MarkdownAdfTest` | Création Epic/Story/Subtask, labels, priorité, story points, conversion Markdown → ADF, erreurs Jira, réévaluation, projet cible |
 | `ConfluenceDocumentSourceTest` | Lecture de page, erreurs 404/401, contenu vide, volumineux ou à caractères spéciaux, recherche typée et échappement CQL |
-| `MvpControllerTest`, `HealthCheckControllerTest`, `CheckHealthServiceTest` | Endpoints, validation `projectKey`, réponse partielle (207/502), sortie IA inexploitable et fournisseur indisponible (502, y compris `reassess-story`), document vide (400 sans appel IA), verdict recalculé à la création, réévaluation (409), erreurs sans message brut, health check en cache |
+| `BacklogControllerTest`, `HealthCheckControllerTest`, `CheckHealthServiceTest` | Endpoints, validation `projectKey`, réponse partielle (207/502), sortie IA inexploitable et fournisseur indisponible (502, y compris `reassess-story`), document vide (400 sans appel IA), verdict recalculé à la création, réévaluation (409), erreurs sans message brut, health check en cache |
 | `RestJsonContractTest`, `LlmResponseContractTest` | Contrat JSON figé de l'API REST et du parsing de la réponse LLM |
 | `CreateBacklogServiceTest`, `CreateEditedBacklogServiceTest`, `ReassessStoryServiceTest`, `domain.service.*Test` | Cas d'usage et règles métier, sans framework |
 | `ApplicationWiringTest` | Démarrage du contexte Spring, câblage des cas d'usage, comportement de retry (tel que décrit plus haut) |

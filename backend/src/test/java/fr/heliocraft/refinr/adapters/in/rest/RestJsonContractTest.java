@@ -40,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Contrat JSON de l'API REST (caracterisation, phase 3) : fige la forme exacte des Epic/Story/Task
  * echanges avec le frontend, pour qu'aucun refactoring ne la modifie.
  */
-@WebMvcTest(MvpController.class)
+@WebMvcTest(BacklogController.class)
 @TestPropertySource(properties = {
     "jira.base-url=http://localhost:8080",
     "jira.username=test@example.com",
@@ -76,7 +76,7 @@ class RestJsonContractTest {
     void previewResponseMatchesSnapshot() throws Exception {
         when(previewBacklog.preview("42")).thenReturn(List.of(fullEpic()));
 
-        String body = mockMvc.perform(post("/api/v1/mvp/analyze-preview")
+        String body = mockMvc.perform(post("/api/v1/analyze-preview")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"confluencePageId\":\"42\"}"))
             .andExpect(status().isOk())
@@ -90,7 +90,7 @@ class RestJsonContractTest {
     @SuppressWarnings("unchecked")
     void createJiraRequestReadsEveryField() throws Exception {
         stubCreationResult();
-        mockMvc.perform(post("/api/v1/mvp/create-jira")
+        mockMvc.perform(post("/api/v1/create-jira")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(resource("contract/create-jira-request.json")))
             .andExpect(status().isOk());
@@ -106,7 +106,7 @@ class RestJsonContractTest {
     @SuppressWarnings("unchecked")
     void createJiraIgnoresUnknownProperties() throws Exception {
         stubCreationResult();
-        mockMvc.perform(post("/api/v1/mvp/create-jira")
+        mockMvc.perform(post("/api/v1/create-jira")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("[{\"name\":\"E\",\"color\":\"red\",\"stories\":[{\"title\":\"S\",\"mood\":\"ok\","
                     + "\"tasks\":[{\"title\":\"T\",\"owner\":\"x\"}]}]}]"))
@@ -122,7 +122,7 @@ class RestJsonContractTest {
     @SuppressWarnings("unchecked")
     void createJiraIgnoresRemovedStoryPoints() throws Exception {
         stubCreationResult();
-        mockMvc.perform(post("/api/v1/mvp/create-jira")
+        mockMvc.perform(post("/api/v1/create-jira")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("[{\"name\":\"E\",\"stories\":[{\"title\":\"S\",\"storyPoints\":13,\"estimatedStoryPoints\":5}]},"
                     + "{\"name\":\"F\",\"stories\":[{\"title\":\"U\",\"storyPoints\":8}]}]"))

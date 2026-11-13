@@ -27,11 +27,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Endpoints du backlog : analyse d'un document, apercu, creation dans le gestionnaire de tickets, reevaluation d'une
+ * story et recherche de documents. Le health check est servi par {@link HealthCheckController}.
+ */
 @RestController
-@RequestMapping("/api/v1/mvp")
-public class MvpController {
+@RequestMapping("/api/v1")
+public class BacklogController {
 
-    private static final Logger log = LoggerFactory.getLogger(MvpController.class);
+    private static final Logger log = LoggerFactory.getLogger(BacklogController.class);
 
     private static final java.util.regex.Pattern CLE_PROJET = java.util.regex.Pattern.compile("^[A-Z][A-Z0-9]{1,9}$");
 
@@ -41,7 +45,7 @@ public class MvpController {
     private final ReassessStory reassessStory;
     private final SearchDocuments searchDocuments;
 
-    public MvpController(
+    public BacklogController(
             AnalyzeDocument analyzeDocument,
             PreviewBacklog previewBacklog,
             CreateEditedBacklog createEditedBacklog,
@@ -238,13 +242,5 @@ public class MvpController {
             log.error("Error searching Confluence", e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to search the documents"));
         }
-    }
-
-    @GetMapping("/health")
-    public ResponseEntity<Map<String, String>> health() {
-        return ResponseEntity.ok(Map.of(
-                "status", "UP",
-                "message", "MVP Doc-to-Jira is running"
-        ));
     }
 }
