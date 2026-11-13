@@ -33,17 +33,17 @@ class GoogleLlmClientTest extends AbstractLlmClientTest {
 
     @Override
     String expectedHealthPath() {
-        return "/v1beta/models/gemini-2.5-flash";
+        return "/v1beta/models/gemini-3.6-flash";
     }
 
     @Override
     MockResponse healthUp() {
-        return jsonResponse("{\"name\":\"models/gemini-2.5-flash\"}");
+        return jsonResponse("{\"name\":\"models/gemini-3.6-flash\"}");
     }
 
     @Override
     String expectedPath() {
-        return "/v1beta/models/gemini-2.5-flash:generateContent";
+        return "/v1beta/models/gemini-3.6-flash:generateContent";
     }
 
     @Override

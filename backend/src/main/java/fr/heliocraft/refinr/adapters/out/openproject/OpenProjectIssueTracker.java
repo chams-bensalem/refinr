@@ -66,6 +66,9 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
             "medium", "Normal", "highest", "Immediate", "critical", "Immediate", "lowest", "Low");
 
     private final WebClient webClient;
+    // Adresse web de l'instance (sans / final) pour les liens vers les work packages : {instance}/work_packages/{id} ;
+    // openproject.web-url si renseignee (ex. Refinr joint OpenProject par une adresse interne), sinon base-url
+    private final String siteUrl;
     private final String defaultProject;
     private final String epicType;
     private final String storyType;
@@ -88,15 +91,25 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
             @Value("${openproject.types.subtask:Task}") String subtaskType,
             @Value("${openproject.readiness-field:Agent readiness}") String readinessField,
             @Value("${openproject.story-points-enabled:true}") boolean storyPointsEnabled,
-            @Value("${openproject.priority-enabled:true}") boolean priorityEnabled) {
+            @Value("${openproject.priority-enabled:true}") boolean priorityEnabled,
+            @Value("${openproject.web-url:}") String webUrl) {
         this(baseUrl, apiKey, defaultProject, epicType, storyType, subtaskType, readinessField, storyPointsEnabled,
-                priorityEnabled, TIMEOUT);
+                priorityEnabled, TIMEOUT, webUrl);
     }
 
-    /** Delai par appel parametrable pour les tests ; en production, {@link #TIMEOUT}. */
+    /** Delai par appel parametrable pour les tests ; adresse web = base-url. */
     OpenProjectIssueTracker(String baseUrl, String apiKey, String defaultProject, String epicType, String storyType,
                             String subtaskType, String readinessField, boolean storyPointsEnabled,
                             boolean priorityEnabled, Duration timeout) {
+        this(baseUrl, apiKey, defaultProject, epicType, storyType, subtaskType, readinessField, storyPointsEnabled,
+                priorityEnabled, timeout, null);
+    }
+
+    OpenProjectIssueTracker(String baseUrl, String apiKey, String defaultProject, String epicType, String storyType,
+                            String subtaskType, String readinessField, boolean storyPointsEnabled,
+                            boolean priorityEnabled, Duration timeout, String webUrl) {
+        String site = webUrl == null || webUrl.isBlank() ? baseUrl : webUrl;
+        this.siteUrl = site == null ? "" : site.strip().replaceAll("/+$", "");
         this.defaultProject = defaultProject;
         this.epicType = epicType;
         this.storyType = storyType;
@@ -123,6 +136,12 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
     @Override
     public boolean acceptsProjectId(String project) {
         return OpenProjectProjectIds.isValid(project);
+    }
+
+    @Override
+    public String issueUrl(String key) {
+        return siteUrl.isEmpty() || key == null || !WORK_PACKAGE_ID.matcher(key).matches()
+                ? null : siteUrl + "/work_packages/" + key;
     }
 
     // --- Creation : pas de @Retryable (POST non idempotent : un echec tardif pourrait creer un doublon). Un echec

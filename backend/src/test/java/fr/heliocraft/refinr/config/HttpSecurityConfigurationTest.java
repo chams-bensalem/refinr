@@ -4,6 +4,7 @@
 package fr.heliocraft.refinr.config;
 
 import fr.heliocraft.refinr.adapters.in.rest.HealthCheckController;
+import fr.heliocraft.refinr.adapters.in.rest.TrackerController;
 import fr.heliocraft.refinr.adapters.in.rest.BacklogController;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.CheckHealth;
@@ -43,9 +44,10 @@ class HttpSecurityConfigurationTest {
 
     private static final String SEARCH = "/api/v1/confluence/search?spaceKey=SPACE&title=Spec";
     private static final String HEALTH = "/api/v1/health";
+    private static final String TRACKER = "/api/v1/tracker";
     private static final String ALLOWED = "http://localhost:3000";
 
-    @WebMvcTest({BacklogController.class, HealthCheckController.class})
+    @WebMvcTest({BacklogController.class, HealthCheckController.class, TrackerController.class})
     @Import({HttpSecurityConfiguration.class, LoggingFilter.class})
     abstract static class WebLayer {
         @Autowired MockMvc mockMvc;
@@ -61,6 +63,7 @@ class HttpSecurityConfigurationTest {
         void stubs() {
             when(searchDocuments.search("SPACE", "Spec")).thenReturn(List.of());
             when(checkHealth.check()).thenReturn(new CheckHealth.HealthReport(true, List.of()));
+            when(describeTracker.displayName()).thenReturn("OpenProject");
         }
     }
 
@@ -132,6 +135,18 @@ class HttpSecurityConfigurationTest {
         void wrongKeyIsRejected() throws Exception {
             mockMvc.perform(get(SEARCH).header("X-API-Key", "test-api-key-12"))
                     .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        @DisplayName("GET /api/v1/tracker is protected like the other endpoints: 401 without the key, 200 with it")
+        void trackerRequiresTheKey() throws Exception {
+            mockMvc.perform(get(TRACKER))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.error").value("Missing or invalid API key"));
+            mockMvc.perform(get(TRACKER).header("X-API-Key", "test-api-key-12")).andExpect(status().isUnauthorized());
+            mockMvc.perform(get(TRACKER).header("X-API-Key", "test-api-key-123"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.name").value("OpenProject"));
         }
 
         @Test

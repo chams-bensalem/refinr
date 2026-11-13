@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, FileText, ListChecks, Target, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ExternalLink, FileText, ListChecks, Target, XCircle } from 'lucide-react';
+import { GENERIC_TRACKER, useTrackerName } from '../hooks/useTrackerName';
 import type { CreationResponse, IssueType } from '../types';
 
 const TYPE_LABELS: Record<IssueType, string> = {
@@ -20,6 +21,7 @@ function isCreationResponse(state: unknown): state is CreationResponse {
 export default function Results() {
     const location = useLocation();
     const navigate = useNavigate();
+    const tracker = useTrackerName();
     const results: unknown = location.state;
 
     // Pas de resultat (acces direct, rechargement) : retour a l'analyse, sans naviguer pendant le rendu
@@ -60,7 +62,7 @@ export default function Results() {
                             <div>
                                 <h1 className="text-2xl font-bold text-green-900">Analysis Complete!</h1>
                                 <p className="text-green-700 mt-1">
-                                    {results.created.length} Jira issue(s) created
+                                    {results.created.length} issue(s) created{tracker === GENERIC_TRACKER ? '' : ` in ${tracker}`}
                                 </p>
                             </div>
                         </div>
@@ -108,7 +110,19 @@ export default function Results() {
                         <ul className="divide-y divide-gray-100">
                             {results.created.map((issue) => (
                                 <li key={issue.key} className="py-3 flex items-center gap-3">
-                                    <span className="font-mono text-sm font-semibold text-blue-700 w-24 flex-shrink-0">{issue.key}</span>
+                                    {issue.url ? (
+                                        <a
+                                            href={issue.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 font-mono text-sm font-semibold text-blue-700 hover:underline w-24 flex-shrink-0"
+                                        >
+                                            {issue.key}
+                                            <ExternalLink className="w-3.5 h-3.5" />
+                                        </a>
+                                    ) : (
+                                        <span className="font-mono text-sm font-semibold text-blue-700 w-24 flex-shrink-0">{issue.key}</span>
+                                    )}
                                     <span className="text-xs uppercase tracking-wide text-gray-500 w-16 flex-shrink-0">{TYPE_LABELS[issue.type]}</span>
                                     <span className="text-gray-900">{issue.title}</span>
                                 </li>

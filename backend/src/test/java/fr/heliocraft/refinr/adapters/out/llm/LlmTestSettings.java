@@ -18,7 +18,7 @@ final class LlmTestSettings {
     static LlmSettings of(LlmProvider provider, String baseUrl, Duration timeout, int maxOutputTokens) {
         String model = switch (provider) {
             case ANTHROPIC -> "claude-opus-5-5";
-            case GOOGLE -> "gemini-2.5-flash";
+            case GOOGLE -> "gemini-3.6-flash";
             case OPENAI_COMPATIBLE -> "qwen3:8b";
         };
         return new LlmSettings("analysis", provider, baseUrl, model, "fake-api-key", timeout, maxOutputTokens, 0.2,

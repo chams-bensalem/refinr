@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import './index.css';
 
-// No automatic retry anywhere: a replayed POST could create duplicate Jira issues, and the backend already
+// No automatic retry anywhere: a replayed POST could create duplicate issues in the tracker, and the backend already
 // retries its own calls to Confluence and to the LLM. The health check is polled by Header anyway.
 const queryClient = new QueryClient({
     defaultOptions: {

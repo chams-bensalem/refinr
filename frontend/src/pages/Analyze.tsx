@@ -6,6 +6,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, createBacklog, previewBacklog } from '../api/client';
 import BacklogPreview from '../components/BacklogPreview';
+import { useTrackerName } from '../hooks/useTrackerName';
 import type { Epic } from '../types';
 import { AlertCircle, CheckCircle, Eye, FileText, Loader2, RotateCcw, Send, Sparkles } from 'lucide-react';
 
@@ -50,6 +51,7 @@ function countBacklog(epics: Epic[]) {
 export default function Analyze() {
     const [pageId, setPageId] = useState('');
     const navigate = useNavigate();
+    const tracker = useTrackerName();
 
     // Synchronous lock against a double click or a double Enter: isPending only changes after the next render,
     // so two events in the same tick would both pass a check on isPending.
@@ -64,7 +66,7 @@ export default function Analyze() {
     });
     const creation = useMutation({
         mutationFn: (epics: Epic[]) => createBacklog(epics),
-        // Never replayed: POST /create-jira is not idempotent (a retry could duplicate Jira issues)
+        // Never replayed: POST /create-jira is not idempotent (a retry could duplicate issues in the tracker)
         retry: false,
         onSuccess: (data) => navigate('/results', { state: data }),
         onSettled: () => {
@@ -106,7 +108,7 @@ export default function Analyze() {
                 </div>
                 <h1 className="text-4xl font-bold text-gray-900 mb-3">Analyze a spec</h1>
                 <p className="text-xl text-gray-600">
-                    Preview the backlog drafted from a Confluence requirements document, then create it in Jira
+                    Preview the backlog drafted from a Confluence requirements document, then create it in {tracker}
                 </p>
             </div>
 
@@ -120,7 +122,7 @@ export default function Analyze() {
                         <h3 className="text-xl font-semibold text-gray-900 mb-2">Analyzing your spec</h3>
                         <p className="text-gray-600 mb-8 text-center max-w-md">
                             The language model is reading the requirements document and drafting Epics, Stories and Sub-tasks.
-                            Nothing is created in Jira yet.
+                            Nothing is created in {tracker} yet.
                         </p>
                         <div className="w-full max-w-md space-y-4 text-sm">
                             <div className="flex items-center space-x-3">
@@ -164,7 +166,7 @@ export default function Analyze() {
                                     className="mt-6 rounded-xl border border-red-100"
                                 />
                                 <p className="mt-4 text-sm text-gray-500">
-                                    Some issues may already have been created: check the Jira project before creating again.
+                                    Some issues may already have been created: check the {tracker} project before creating again.
                                 </p>
                             </>
                         ) : (
@@ -183,12 +185,12 @@ export default function Analyze() {
                                 {creation.isPending ? (
                                     <>
                                         <Loader2 className="h-6 w-6 mr-2 animate-spin" />
-                                        Creating issues in Jira…
+                                        Creating issues in {tracker}…
                                     </>
                                 ) : (
                                     <>
                                         <Send className="h-6 w-6 mr-2" />
-                                        Create in Jira
+                                        Create in {tracker}
                                     </>
                                 )}
                             </button>
@@ -237,7 +239,7 @@ export default function Analyze() {
                                 <li>Fetch the spec from Confluence</li>
                                 <li>Draft Epics, Stories and Sub-tasks with AI</li>
                                 <li>Review the preview and each ai-ready verdict</li>
-                                <li>Create the backlog in Jira when you confirm</li>
+                                <li>Create the backlog in {tracker} when you confirm</li>
                             </ol>
                         </div>
 

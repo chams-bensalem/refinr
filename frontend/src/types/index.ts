@@ -5,7 +5,7 @@
 
 export interface AnalyzeRequest {
     confluencePageId: string;
-    /** Projet Jira cible (format PROJ) ; absent : projet par defaut du backend. */
+    /** Projet cible du gestionnaire de tickets actif (cle Jira ou identifiant OpenProject) ; absent : projet par defaut. */
     projectKey?: string;
 }
 
@@ -55,6 +55,8 @@ export interface CreatedIssue {
     type: IssueType;
     title: string;
     key: string;
+    /** Adresse web du ticket dans le gestionnaire actif (null si inconnue). */
+    url?: string | null;
 }
 
 export interface FailedIssue {
@@ -99,9 +101,11 @@ export interface ServiceHealth {
 
 export interface HealthStatus {
     status: 'UP' | 'DEGRADED';
-    services: {
-        confluence: ServiceHealth;
-        jira: ServiceHealth;
-        ai: ServiceHealth;
-    };
+    /** confluence, gestionnaire de tickets actif (jira ou openproject), ai, aiVerdict eventuel. */
+    services: Record<string, ServiceHealth>;
+}
+
+/** Gestionnaire de tickets actif de l'instance (GET /tracker). */
+export interface TrackerInfo {
+    name: string;
 }

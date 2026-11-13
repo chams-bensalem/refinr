@@ -16,8 +16,16 @@ import java.util.List;
  */
 public record BacklogCreationResult(List<Epic> epics, List<CreatedIssue> created, List<FailedIssue> failed) {
 
-    /** @param type epic, story ou subtask */
-    public record CreatedIssue(String type, String title, String key) {}
+    /**
+     * @param type epic, story ou subtask
+     * @param url  adresse web du ticket dans le gestionnaire actif (null si inconnue)
+     */
+    public record CreatedIssue(String type, String title, String key, String url) {
+
+        public CreatedIssue(String type, String title, String key) {
+            this(type, title, key, null);
+        }
+    }
 
     /** @param type epic, story ou subtask */
     public record FailedIssue(String type, String title, String reason) {}

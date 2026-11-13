@@ -67,7 +67,7 @@ class FullFlowIntegrationTest {
         registry.add("jira.token", () -> "fake-token");
         registry.add("jira.project-key", () -> "TEST");
         registry.add("refinr.llm.analysis.provider", () -> "google");
-        registry.add("refinr.llm.analysis.model", () -> "gemini-2.5-flash");
+        registry.add("refinr.llm.analysis.model", () -> "gemini-3.6-flash");
         registry.add("refinr.llm.analysis.api-key", () -> "fake-api-key");
         registry.add("refinr.llm.analysis.base-url", () -> gemini.url("/").toString());
         registry.add("refinr.llm.analysis.retry-base-delay", () -> "10ms");

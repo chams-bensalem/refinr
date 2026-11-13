@@ -83,11 +83,11 @@ public class CreateBacklogService implements CreateBacklog {
     }
 
     /** Cle du ticket cree, ou null si la creation a echoue (echec consigne). */
-    private static String attempt(String type, String title, Supplier<String> creation,
-                                  List<CreatedIssue> created, List<FailedIssue> failed) {
+    private String attempt(String type, String title, Supplier<String> creation,
+                           List<CreatedIssue> created, List<FailedIssue> failed) {
         try {
             String key = creation.get();
-            created.add(new CreatedIssue(type, title, key));
+            created.add(new CreatedIssue(type, title, key, issueTracker.issueUrl(key)));
             return key;
         } catch (IssueTrackerException e) {
             log.error("Failed to create {} '{}': {}", type, title, e.getMessage(), e);

@@ -46,7 +46,7 @@ class ApplicationWiringTest {
         registry.add("jira.base-url", () -> server.url("/").toString());
         registry.add("confluence.base-url", () -> server.url("/").toString());
         registry.add("refinr.llm.analysis.provider", () -> "google");
-        registry.add("refinr.llm.analysis.model", () -> "gemini-2.5-flash");
+        registry.add("refinr.llm.analysis.model", () -> "gemini-3.6-flash");
         registry.add("refinr.llm.analysis.api-key", () -> "test-api-key");
         registry.add("refinr.llm.analysis.base-url", () -> server.url("/").toString());
         registry.add("refinr.llm.analysis.retry-base-delay", () -> "10ms");

@@ -37,7 +37,7 @@ class HealthCheckControllerTest {
                 ComponentHealth.down("confluence", "HTTP 401", Map.of()),
                 ComponentHealth.up("jira", Map.of()),
                 ComponentHealth.up("ai", Map.of("provider", "openai-compatible", "model", "qwen3:8b")),
-                ComponentHealth.down("aiVerdict", "unreachable", Map.of("provider", "google", "model", "gemini-2.5-flash")))));
+                ComponentHealth.down("aiVerdict", "unreachable", Map.of("provider", "google", "model", "gemini-3.6-flash")))));
 
         mockMvc.perform(get("/api/v1/health"))
                 .andExpect(status().isOk())
