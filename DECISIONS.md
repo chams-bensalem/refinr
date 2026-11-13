@@ -131,3 +131,110 @@ sont ceux de l'instance de test (exemples, à résoudre à l'exécution) ; les m
 - **Health Google inchangé (lecture du modèle) et cas documenté dans le Dépannage**, plutôt qu'un appel de génération : un `generateContent` à chaque health (cache 45 s, interrogé par l'interface) consommerait du quota et basculerait en DOWN sur chaque `503` de forte demande.
 - **Modèle Gemini des exemples : `gemini-3.6-flash`** (`gemini-2.5-flash` répond 404 sur `generateContent` tout en restant listé).
 
+## BookStack (v1.2) — reconnaissance de l'API
+
+Faits vérifiés le 2026-11-13 par `curl` contre BookStack **v26.09.3** (image **communautaire** `lscr.io/linuxserver/bookstack:26.09.3`,
+amd64/arm64 — le projet BookStack ne publie pas d'image officielle — + `mariadb:11.8.9`), avec un compte non admin `refinr-bot`.
+Ids et slugs ci-dessous sont ceux de l'instance de test.
+
+- **Authentification** : en-tête `Authorization: Token <token_id>:<token_secret>` ; jeton rattaché à un utilisateur, créé sur sa fiche
+  (*Settings → Users → {compte} → API Tokens → Create Token* : nom + date d'expiration facultative ; un admin peut le créer pour le compte technique),
+  secret affiché une seule fois.
+  `GET /api/system` → `200 {"version":"v26.09.3","instance_id":"…","app_name":"BookStack","base_url":"http://localhost:8091"}` avec les droits minimaux
+  → **sonde de health** (`/api/users/me` n'existe pas : `403`).
+- **Toujours envoyer `Accept: application/json`** : sans lui, un refus de permission sur certaines routes (ex. `/export/*`) répond
+  `302 Location: {base}` (page d'accueil) au lieu d'un `403` JSON.
+- **Identifiant d'une page** : `id` numérique, **stable** (renommage : `slug` `cdc-gestion-des-conges` → `cdc-conges-v2`, `id` 8 inchangé) ;
+  séquence partagée entre livres, chapitres et pages (livres 1–2, pages à partir de 3). Le slug n'est pas un identifiant (change au renommage,
+  unique seulement dans un livre). Dans l'UI : **sélectionner du texte de la page** → la bulle affiche le permalien `{base}/link/4#bkmrk-…`
+  et le tag d'inclusion `{{@4#bkmrk-…}}` (l'id est le nombre) ; il apparaît aussi dans les URL de l'API et les résultats de recherche.
+- **Lecture** : `GET /api/pages/4` → `{"id":4,"name":"…","slug":"…","book_id":1,"chapter_id":null,"editor":"markdown"|"wysiwyg","html":"…","raw_html":"…","markdown":"…",…}`.
+  `markdown` n'est rempli que pour une page écrite avec l'éditeur Markdown (`""` en WYSIWYG) ; `html` est toujours rempli.
+- **Format retenu : `html` de `GET /api/pages/{id}`** (un seul appel, pas de permission d'export, même nature que le HTML de stockage Confluence) :
+  - titres, listes, tableaux, liens, code (`<pre><code class="language-yaml">`) et citations préservés ; images en `<img src>` (pas de base64), attributs `id="bkmrk-…"` sans texte ;
+  - **les inclusions `{{@3}}` sont développées** dans `html` (le contenu de la page 3 apparaît), pas dans `raw_html` ni dans `markdown` ni dans `/export/markdown` ;
+  - pas de titre ajouté : page vide → `<p id="bkmrk-"></p>`, image seule → `<p><img src="…" alt=""></p>`.
+- **Exports écartés** (`GET /api/pages/{id}/export/{markdown|html|plaintext}`, `200 application/octet-stream`, **permission `content-export` requise**
+  sinon `403 {"error":"You do not have permission to perform the requested action."}` — forme d'erreur différente des autres routes) :
+  - `markdown` : **ajoute le nom de la page en `# H1`** (page vide → `# Page vide`) et n'expand pas les inclusions d'une page Markdown.
+    Qualité de l'export d'une page **WYSIWYG** : titres, gras/italique, listes, liens, code avec langue, image `![alt](url)` et citation bien convertis ;
+    **les tableaux restent en HTML brut** (`<table id="bkmrk-…"><thead>…`) ;
+  - `html` : document complet avec `<style>` et images **en base64** (21 Ko pour 2 Ko de contenu) ; `plaintext` : perd listes et tableaux.
+- **`DocumentText.hasUsefulText`** sur les contenus réels : `html` → `true` (CDC Markdown, CDC WYSIWYG, page avec inclusion), **`false` (page vide, image seule)** ;
+  `/export/markdown` → `true` pour la page vide et l'image seule (titre ajouté, `![](…)`) → faux positifs, autre raison d'écarter l'export.
+- **Recherche par titre** :
+  - restreinte à un livre : `GET /api/pages?filter[name:like]=%CDC%&filter[book_id]=1` → `{"data":[{"id":4,"name":"CDC - Gestion des stocks","book_id":1,"slug":"…",…}],"total":2}`
+    (`like` insensible à la casse ; `%` et `_` saisis par l'utilisateur à échapper) ;
+  - globale : `GET /api/search?query={in_name:CDC} {type:page}` → `data[]` avec `type`, `id`, `name`, `book_id`, `url` complète ; **pas de filtre par livre** dans la syntaxe de recherche ;
+  - livre par slug : `GET /api/books?filter[slug]=projet-rh` → `{"data":[{"id":2,…}],"total":1}` → le `space` de Refinr peut être l'id ou le slug du livre.
+  - Les pages sans droit de lecture sont absentes des deux listes (pas d'erreur).
+- **Lien web** : `{base}/link/{id}` redirige vers `{base}/books/{book_slug}/page/{slug}` (connexion requise) et reste valide après renommage ;
+  l'ancien slug redirige aussi. `GET /api/pages/{id}` ne donne pas `book_slug` → utiliser le permalien `/link/{id}` (aucun appel en plus).
+- **Erreurs** (corps `{"error":{"message":"…","code":N}}`, compte en anglais) :
+  `401` sans en-tête (« No authorization token found on the request »), format invalide (« …the format appeared incorrect »),
+  token_id inconnu (« No matching API token was found… »), secret faux (« The secret provided for the given used API token is incorrect ») ;
+  `403` rôle sans `access-api` (« The owner of the used API token does not have permission to make API calls ») ;
+  **`404 Page not found.`** pour une page inexistante, un id non numérique **et une page non visible** (droit `page-view-all` retiré
+  ou restriction sur la page) → un manque de droit de lecture est indiscernable d'une page absente.
+- **Droits minimaux du compte** (vérifiés en les retirant un à un, rôle dédié « Refinr reader ») : `access-api` (« Access system API ») et
+  `page-view-all` (lecture et recherche) ; `book-view-all` seulement pour résoudre un livre par son slug ; `chapter-view-all` et `content-export` inutiles.
+  Le compte n'a besoin d'aucun droit d'écriture. Une restriction de page (*Permissions* de la page, rôle sans *View*) la rend invisible au compte.
+- **Limite de débit** : en-têtes `X-RateLimit-Limit: 180` et `X-RateLimit-Remaining` sur chaque réponse ; **`429` non observé** (185 appels
+  `/api/system` en rafale → 185 × `200`) → relance sur `429` à garder par prudence (documentée par BookStack), non reproduite ici.
+- **Création d'utilisateur depuis l'UI** : échoue si l'envoi d'invitation est coché sans SMTP configuré (« Could not create user since invite email failed to send »).
+
+## XWiki (v1.2) — reconnaissance de l'API REST
+
+Faits vérifiés le 2026-11-13 par `curl` contre XWiki **18.4.8 LTS** (image officielle `xwiki:18.4.8-postgres-tomcat`, amd64/arm64,
++ `postgres:17.12`, flavor « XWiki Standard » 18.4.8 installé par l'assistant), avec un compte non admin `refinr_bot`.
+Références ci-dessous : celles de l'instance de test. Aucune différence d'API avec la 18.9.0 rencontrée (non testée sur 18.9.0).
+
+- **Authentification** : HTTP Basic, **préemptif** (aucun en-tête `WWW-Authenticate` sur les `401` : un client qui attend le défi n'envoie
+  jamais ses identifiants). Seule méthode testée pour un compte technique ; aucun mécanisme de jeton d'API natif n'a été vérifié.
+  Chaque réponse porte **`XWiki-User: xwiki:XWiki.refinr_bot`** (utilisateur effectif) et `XWiki-Version: 18.4.8`.
+- **Identifiants refusés = invité, pas d'erreur systématique** : `GET /rest/wikis/xwiki` avec un mauvais mot de passe → `200` **sans** `XWiki-User` ;
+  sur une page protégée → `401` sans `XWiki-User`. → **Health** : `GET /rest/wikis/xwiki` et vérifier `XWiki-User == xwiki:XWiki.{username}` (absent → identifiants refusés).
+- **Nom d'utilisateur** : lettres latines, chiffres et `_` uniquement (« Invalid username provided ») → `refinr_bot`, pas `refinr-bot`.
+- **Identifiant d'une page = sa référence** : REST `"id":"xwiki:ProjetStocks.CDC-GestionDesStocks.WebHome"`, `"fullName":"ProjetStocks.CDC-GestionDesStocks.WebHome"`.
+  Pages imbriquées : chaque page est un espace, contenu dans `…WebHome`. Les `.` d'un nom sont échappés : page « Spec v1.2 » → `xwiki:ProjetStocks.Spec v1\.2.WebHome`.
+  Chemin REST : chaque espace devient un segment `spaces/{nom}` → `/rest/wikis/xwiki/spaces/ProjetStocks/spaces/CDC-GestionDesStocks/pages/WebHome`
+  (encodage URL des espaces : `Spec%20v1.2`). Pas d'id numérique. Dans l'UI : onglet **Information** de la page → champ **« Page reference »**
+  (bouton copier, bascule locale/globale) ; le HTML de chaque page porte aussi `data-xwiki-reference` et `data-xwiki-rest-url`.
+  **Stabilité au renommage non vérifiée** (job REST `refactoring/rename` en 500, session UI perdue) : par construction la référence change au renommage → point ouvert phase 3.
+- **Lecture** : `GET /rest/wikis/xwiki/spaces/…/pages/WebHome` (`Accept: application/json`) → `{"id":"…","title":"CDC - Gestion des stocks","syntax":"xwiki/2.1","content":"= Gestion…","xwikiAbsoluteUrl":"http://localhost:8092/bin/view/ProjetStocks/CDC-GestionDesStocks/","renderedContent":null,"hierarchy":{…},…}`.
+- **Rendu HTML dans la même réponse** : `?supportedSyntax=html/5.0` (toute syntaxe différente de celle de la page) → **`renderedContent`** = HTML rendu
+  (calculé par `XWikiDocument.displayDocument`, droits du compte appliqués). Paramètre présent dans le WADL (`/rest/application.wadl`).
+  `/bin/get/{espaces}/WebHome?outputSyntax=html` donne le même HTML hors REST (`Content-Type` erroné `text/plain`) ; `outputSyntax=markdown/1.2` non supporté (retombe en HTML) ;
+  `outputSyntax=plain` perd puces et numéros de listes.
+- **Format retenu : `renderedContent` (HTML rendu)** plutôt que la syntaxe XWiki 2.1 brute :
+  - **`{{include}}` développé** dans le rendu (le contenu du Glossaire apparaît), **littéral** dans `content` (`{{include reference="ProjetStocks.Glossaire.WebHome"/}}`) ;
+  - `{{code language="yaml"}}` rendu en `<div class="code">` coloré (`<span style>`, `<br/>`, `&nbsp;`, pas de `<pre>`), texte du code intact ; dans `content`, bloc lisible tel quel ;
+  - titres (`<h1…h3 id="H…">`), listes, tableau (`<th scope="col">`), gras/italique, liens absolus, `{{info}}` (boîte + texte `Information` pour lecteurs d'écran) ;
+    images en `<img src="{base}/bin/download/…/schema.png?rev=1.1">` (pas de base64) ;
+  - **une macro en échec injecte un message et une pile Java complète** (`<div class="box xwikirenderingerror">` + `<div class="… xwikirenderingerrordescription hidden">`) :
+    `{{include}}` d'une page interdite au compte → « Current user [xwiki:XWiki.refinr_bot] doesn't have view rights on document [xwiki:ProjetRH.CDC-Confidentiel.WebHome] »,
+    sans fuite du contenu → **l'adaptateur doit retirer ces blocs** avant l'analyse.
+- **`DocumentText.hasUsefulText`** : rendu HTML → `true` (CDC), **`false` (page vide : `""`, image seule : `<p><img …/></p>`)** ;
+  syntaxe brute → `true` pour l'image seule (`[[image:schema.png]]`) → faux positif, autre raison de retenir le rendu.
+- **Recherche par titre** :
+  - globale : `GET /rest/wikis/xwiki/search?q=CDC&scope=title` → `{"searchResults":[{"type":"page","id":"xwiki:ProjetStocks.CDC-GestionDesStocks.WebHome","title":"CDC - Gestion des stocks","space":"ProjetStocks.CDC-GestionDesStocks","pageName":"WebHome",…}]}`
+    (insensible à la casse, sous-chaîne) ;
+  - `/rest/wikis/xwiki/spaces/ProjetStocks/search` **ne descend pas dans les sous-espaces** (0 résultat : les pages imbriquées sont dans `ProjetStocks.CDC-…`) ;
+  - restreinte à un sous-arbre : `GET /rest/wikis/xwiki/query?type=solr&q=title:*CDC* AND space_prefix:ProjetStocks` → 1 résultat (même forme) ;
+    caractères spéciaux Solr à échapper ; index Solr mis à jour en asynchrone ;
+  - `type=xwql`/`hql` refusés au compte (`400 Query type [xwql] is not allowed. Allowed query types are: [solr].`) ;
+  - pages sans droit de lecture absentes des résultats.
+  → le `space` de Refinr pour XWiki = référence d'espace (`ProjetStocks`, ou `ProjetStocks.Sous-espace`).
+- **Lien web** : champ `xwikiAbsoluteUrl` de la page (`http://localhost:8092/bin/view/ProjetStocks/CDC-GestionDesStocks/`) ; dérivable aussi de la référence
+  (`{base}/bin/view/{espaces séparés par /}/` pour une page `WebHome`), sans appel.
+- **Erreurs** : corps **HTML Tomcat** (`<!doctype html>…HTTP Status 401 – Unauthorized`) même avec `Accept: application/json` → ne s'appuyer que sur le code et `XWiki-User` :
+  `401` identifiants refusés, invité **et page interdite au compte authentifié** (avec `XWiki-User: xwiki:XWiki.refinr_bot`) — **pas de `403`** ;
+  `404` page absente dans un espace lisible ; page absente dans un espace interdit → `401` ; écriture par le compte → `401`.
+- **Droits minimaux** : droit `view` sur les espaces à analyser, et rien d'autre (objet `XWiki.XWikiGlobalRights` sur `{Espace}.WebPreferences`,
+  posé ici par REST), hérité par les sous-espaces ; un refus sur une page (`XWiki.XWikiRights`, `allow=0`) la rend invisible.
+  **Piège** : tout nouvel utilisateur est ajouté automatiquement à `XWiki.XWikiAllGroup`, qui a `edit` (donc lecture) sur tout le wiki par défaut :
+  le compte voyait `Main.WebHome` jusqu'à son retrait du groupe (puis `401`). Wiki rendu privé : `view` accordé explicitement à `XWikiAdminGroup` au niveau wiki
+  → invités et autres comptes implicitement refusés.
+- **CSRF** : les écritures REST authentifiées (formulaires) exigent l'en-tête `XWiki-Form-Token` (fourni dans les réponses) ; **inutile pour les lectures** de Refinr.
+- **Multi-wiki** : wiki principal `xwiki` (préfixe des références et segment `/wikis/xwiki/`) ; sous-wikis non testés → `xwiki.wiki` optionnelle, défaut `xwiki`.
+
