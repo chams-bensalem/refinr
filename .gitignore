@@ -33,3 +33,8 @@ frontend/node_modules/
 frontend/dist/
 frontend/*.log
 frontend/*.tsbuildinfo
+
+# IDE (Eclipse / extension Java de VS Code)
+.classpath
+.project
+.settings/
