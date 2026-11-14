@@ -299,8 +299,8 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
   sur 3 au-delà de 600 s. La seule réussie (page congés) produit un epic « Epic: Congés ».
 - **Diagnostic 3.6 / 3.8 (2026-11-14)** : `gemini-3.8-flash` a échoué sur ses 10 premiers appels (5 × `503`, 5 × délai
   de 300 s, aucun `429`) ; même besoin court, 2 minutes d'écart : `gemini-3.6-flash` OK en 28 s, `gemini-3.8-flash`
-  `503` après 107 s. Clé et format de requête hors de cause → mesure en 3.6, modèle par défaut documenté inchangé
-  (`gemini-3.6-flash`), 3.8 retestée en G0 avec `thinking_level=low` (#38).
+  `503` après 107 s. Clé et format de requête hors de cause → mesure en 3.6 ; Refinr ne fait aucune hypothèse sur le
+  modèle : `gemini-3.6-flash` n'est qu'un exemple dans la documentation (#38).
 - **Mesure `gemini-3.6-flash`** (2026-11-14, 16:45–16:57 CET) : 6 exécutions par document prévues, série arrêtée au
   premier `429` (16e requête) ; 15 exécutions réussies, 0 réparation. Requêtes Gemini du jour : 29 sur le plafond
   de 40 (3.8 : 11, diagnostic : 2, mesure 3.6 : 16).
