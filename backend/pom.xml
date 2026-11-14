@@ -18,7 +18,7 @@
     <artifactId>refinr</artifactId>
     <version>1.3.0</version>
     <name>Refinr</name>
-    <description>Refinr - turns a Confluence spec into a Jira backlog (Epic, Story, Subtask) with an ai-ready verdict</description>
+    <description>Refinr - turns a spec (Confluence, BookStack, XWiki or plain text) into a Jira or OpenProject backlog (Epic, Story, Subtask) with an ai-ready verdict</description>
     <url>https://github.com/chams-bensalem/refinr</url>
     <!-- Overrides the Apache-2.0 license inherited from spring-boot-starter-parent -->
     <licenses>
