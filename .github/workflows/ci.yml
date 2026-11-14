@@ -109,9 +109,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # No .env in CI: the stack starts with the dummy defaults, external services are reported DOWN
+      # .env from .env.example (dummy values only): since 1.4 the backend needs an explicit LLM provider and model.
+      # External services are reported DOWN.
       - name: Start the stack
-        run: docker compose up -d --build --wait --wait-timeout 180
+        run: |
+          cp .env.example .env
+          docker compose up -d --build --wait --wait-timeout 180
       - name: Backend health
         run: curl -fsS http://localhost:8080/api/v1/health && echo
       - name: Frontend and API proxy
