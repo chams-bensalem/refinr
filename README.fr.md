@@ -13,7 +13,7 @@ Epics · User Stories · Sous-tâches · Critères d'acceptation · Story points
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
 ![Ollama](https://img.shields.io/badge/Ollama-local-000000?logo=ollama&logoColor=white)
-![Gemini](https://img.shields.io/badge/Gemini-2.5%20Flash-4285F4?logo=googlegemini&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini-3.6%20Flash-4285F4?logo=googlegemini&logoColor=white)
 ![Jira](https://img.shields.io/badge/Jira-Cloud-0052CC?logo=jira&logoColor=white)
 ![Confluence](https://img.shields.io/badge/Confluence-Cloud-172B4D?logo=confluence&logoColor=white)
 ![BookStack](https://img.shields.io/badge/BookStack-v26-0288D1?logo=bookstack&logoColor=white)
@@ -455,6 +455,40 @@ refinr.llm.verdict.max-output-tokens=4096
 
 Voir `.env.example` pour la liste complète (`CONFLUENCE_TOKEN`, `JIRA_TOKEN`, `LLM_ANALYSIS_API_KEY`,
 `LLM_VERDICT_API_KEY`…). Les mêmes noms peuvent être fournis comme variables d'environnement.
+
+#### Par fournisseur IA
+
+À renseigner dans `.env`. `LLM_ANALYSIS_*` pilote l'analyse ; les mêmes clés en `LLM_VERDICT_*` configurent un
+fournisseur de verdict distinct, optionnel (`LLM_VERDICT_PROVIDER` vide = l'appel d'analyse produit aussi le verdict).
+
+```bash
+# Ollama (défaut ; sans clé). En Docker : http://host.docker.internal:11434/v1, ou http://ollama:11434/v1 avec --profile ollama
+LLM_ANALYSIS_PROVIDER=openai-compatible
+LLM_ANALYSIS_BASE_URL=http://localhost:11434/v1
+LLM_ANALYSIS_MODEL=qwen3:8b
+LLM_ANALYSIS_REASONING_EFFORT=none   # empêche qwen3 de « réfléchir » au-delà du délai
+
+# Google Gemini (base URL vide = URL officielle)
+LLM_ANALYSIS_PROVIDER=google
+LLM_ANALYSIS_BASE_URL=
+LLM_ANALYSIS_MODEL=gemini-3.6-flash
+LLM_ANALYSIS_API_KEY=your-gemini-api-key
+
+# Anthropic (base URL vide = URL officielle ; pas encore testé contre l'API réelle)
+LLM_ANALYSIS_PROVIDER=anthropic
+LLM_ANALYSIS_BASE_URL=
+LLM_ANALYSIS_MODEL=your-claude-model
+LLM_ANALYSIS_API_KEY=your-anthropic-api-key
+
+# Toute API compatible OpenAI : OpenAI, DeepSeek, Mistral, Groq, OpenRouter, LiteLLM, vLLM (base URL obligatoire, avec /v1)
+LLM_ANALYSIS_PROVIDER=openai-compatible
+LLM_ANALYSIS_BASE_URL=https://api.openai.com/v1
+LLM_ANALYSIS_MODEL=your-model
+LLM_ANALYSIS_API_KEY=your-api-key
+LLM_ANALYSIS_REASONING_EFFORT=
+# Les modèles de raisonnement d'OpenAI refusent temperature et max_tokens :
+#   LLM_ANALYSIS_TEMPERATURE=   LLM_ANALYSIS_MAX_TOKENS_PARAM=max_completion_tokens
+```
 
 #### Migration depuis l'ancienne configuration IA
 
