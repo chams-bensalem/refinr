@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * API OpenAI Chat Completions et compatibles (OpenAI, DeepSeek, Mistral, Groq, OpenRouter, Ollama {@code /v1},
@@ -79,8 +80,27 @@ public class OpenAiCompatibleLlmClient extends LlmClient {
             case JSON_OBJECT -> body.put("response_format", Map.of("type", "json_object"));
             case NONE -> { }
         }
-        body.putAll(settings.extraBody());
         return body;
+    }
+
+    private static final Set<String> RESERVED = Set.of("model", "messages", "response_format", "max_tokens",
+            "max_completion_tokens", "temperature", "stream");
+
+    @Override
+    protected Set<String> reservedPaths() {
+        return RESERVED;
+    }
+
+    @Override
+    protected String temperaturePath() {
+        return "temperature";
+    }
+
+    /** {@code error.param} : nom du parametre refuse (OpenAI et la plupart des API compatibles). */
+    @Override
+    protected List<String> rejectedFields(JsonNode errorBody) {
+        String param = errorBody.path("error").path("param").asString("");
+        return param.isBlank() ? List.of() : List.of(param);
     }
 
     @Override

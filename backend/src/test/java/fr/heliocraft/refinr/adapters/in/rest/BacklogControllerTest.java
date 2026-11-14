@@ -5,6 +5,7 @@ package fr.heliocraft.refinr.adapters.in.rest;
 
 import fr.heliocraft.refinr.adapters.out.confluence.ConfluenceIds;
 import fr.heliocraft.refinr.adapters.out.jira.JiraProjectKeys;
+import fr.heliocraft.refinr.adapters.out.llm.ExtraBody;
 import fr.heliocraft.refinr.adapters.out.llm.JsonMode;
 import fr.heliocraft.refinr.adapters.out.llm.LlmBacklogGenerator;
 import fr.heliocraft.refinr.adapters.out.llm.LlmClient;
@@ -1013,7 +1014,7 @@ class BacklogControllerTest {
     private static LlmClient llmClient(MockWebServer server, String marker) {
         return LlmClients.create(new LlmSettings("analysis", LlmProvider.OPENAI_COMPATIBLE, server.url("/v1").toString(),
                 "test-model", "fake-test-key-" + marker, Duration.ofSeconds(2), 1000, null, JsonMode.JSON_SCHEMA,
-                MaxTokensParam.MAX_TOKENS, Map.of(), RetryPolicy.none()));
+                MaxTokensParam.MAX_TOKENS, ExtraBody.NONE, RetryPolicy.none()));
     }
 
     private static MockResponse modelAnswer(String text) {

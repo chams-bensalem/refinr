@@ -4,6 +4,7 @@
 package fr.heliocraft.refinr.config;
 
 import fr.heliocraft.refinr.adapters.out.llm.CachingReadinessAssessor;
+import fr.heliocraft.refinr.adapters.out.llm.ExtraBody;
 import fr.heliocraft.refinr.adapters.out.llm.JsonMode;
 import fr.heliocraft.refinr.adapters.out.llm.LlmBacklogGenerator;
 import fr.heliocraft.refinr.adapters.out.llm.LlmClient;
@@ -67,9 +68,9 @@ public class LlmConfiguration {
     public LlmConfiguration(LlmProperties properties, ConfigurableEnvironment environment) {
         LegacyLlmProperties.rejectIn(environment);
         this.properties = properties;
-        this.analysisClient = LlmClients.create(analysisSettings(properties.analysis()));
+        this.analysisClient = createClient("analysis", analysisSettings(properties.analysis()));
         this.verdictClient = properties.verdict().isConfigured()
-                ? LlmClients.create(verdictSettings(properties.verdict()))
+                ? createClient("verdict", verdictSettings(properties.verdict()))
                 : analysisClient;
         log.info("LLM analysis: {}", analysisClient.settings().describe());
         log.info("LLM readiness verdict: {}", properties.verdict().isConfigured()
@@ -110,6 +111,15 @@ public class LlmConfiguration {
         return new LlmHealthCheck(analysisClient, verdictClient == analysisClient ? null : verdictClient);
     }
 
+    /** Client du role ; un extra-body qui viserait un champ gere par Refinr est refuse ici, au demarrage. */
+    static LlmClient createClient(String name, LlmSettings settings) {
+        try {
+            return LlmClients.create(settings);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Invalid refinr.llm." + name + " configuration: " + e.getMessage(), e);
+        }
+    }
+
     static LlmSettings analysisSettings(LlmProperties.Role role) {
         String baseUrl = blankToNull(role.baseUrl());
         String model = blankToNull(role.model());
@@ -145,7 +155,7 @@ public class LlmConfiguration {
                     temperature(role.temperature(), temperature),
                     JsonMode.fromId(role.jsonMode()),
                     MaxTokensParam.fromId(role.maxTokensParam()),
-                    extraBody(role.extraBody()),
+                    ExtraBody.of(extraBody(role.extraBody())),
                     new RetryPolicy(
                             role.maxRetries() != null ? role.maxRetries() : DEFAULT_MAX_RETRIES,
                             role.retryBaseDelay() != null ? role.retryBaseDelay() : DEFAULT_RETRY_BASE_DELAY,
@@ -176,7 +186,10 @@ public class LlmConfiguration {
         }
     }
 
-    /** Valeurs ecrites en JSON (true, 1, {"a":1}) ; sinon chaines. Valeur vide = propriete non envoyee. */
+    /**
+     * Valeurs ecrites en JSON (true, 1, {"a":1}) ; sinon chaines. Valeur vide = propriete non envoyee. Les cles sont
+     * des chemins pointes, fusionnes dans le corps par {@link ExtraBody}.
+     */
     static Map<String, Object> extraBody(Map<String, String> raw) {
         Map<String, Object> body = new LinkedHashMap<>();
         if (raw == null) {

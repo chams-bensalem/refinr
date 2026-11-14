@@ -14,7 +14,7 @@ import java.util.Set;
 
 /**
  * API Messages d'Anthropic, sans streaming : sortie structuree par {@code output_config.format} (json_schema).
- * Aucune temperature envoyee (refusee par les modeles Claude recents) ; {@code stop_reason: max_tokens} = troncature.
+ * Temperature envoyee seulement si elle est configuree ; {@code stop_reason: max_tokens} = troncature.
  */
 public class AnthropicLlmClient extends LlmClient {
 
@@ -50,10 +50,27 @@ public class AnthropicLlmClient extends LlmClient {
             messages.add(Map.of("role", turn.role() == LlmRequest.Role.USER ? "user" : "assistant", "content", turn.text()));
         }
         body.put("messages", messages);
+        if (settings.temperature() != null) {
+            body.put("temperature", settings.temperature());
+        }
         if (request.schema() != null) {
             body.put("output_config", Map.of("format", Map.of("type", "json_schema", "schema", supportedSchema(request.schema()))));
         }
         return body;
+    }
+
+    // output_config.effort reste permis a cote du format gere par Refinr
+    private static final Set<String> RESERVED = Set.of("model", "max_tokens", "system", "messages",
+            "output_config.format", "temperature", "stream");
+
+    @Override
+    protected Set<String> reservedPaths() {
+        return RESERVED;
+    }
+
+    @Override
+    protected String temperaturePath() {
+        return "temperature";
     }
 
     // Contraintes refusees (HTTP 400) par les sorties structurees d'Anthropic ; elles restent verifiees localement

@@ -194,6 +194,53 @@ class LlmConfigurationTest {
         assertEquals(Map.of(), LlmConfiguration.extraBody(Map.of("reasoning_effort", "")));
     }
 
+    private static LlmProperties.Role withExtraBody(String provider, Map<String, String> extraBody) {
+        return new LlmProperties.Role(provider, "http://localhost:11434/v1", "m", "k", null, null, null, null, null,
+                extraBody, null, null, null, null, null);
+    }
+
+    @Test
+    @DisplayName("extra-body aimed at a field managed by Refinr: startup refused, key and role named")
+    void reservedExtraBodyIsRefusedAtStartup() {
+        IllegalStateException error = assertThrows(IllegalStateException.class, () -> LlmConfiguration.createClient("analysis",
+                LlmConfiguration.analysisSettings(withExtraBody("google", Map.of("generationConfig.maxOutputTokens", "10")))));
+        assertEquals("Invalid refinr.llm.analysis configuration: extra-body key 'generationConfig.maxOutputTokens' overrides"
+                + " the field 'generationConfig.maxOutputTokens' managed by Refinr", error.getMessage());
+
+        IllegalStateException overlap = assertThrows(IllegalStateException.class, () -> LlmConfiguration.verdictSettings(
+                withExtraBody("openai-compatible", new java.util.TreeMap<>(Map.of("a", "1", "a.b", "2")))));
+        assertEquals("Invalid refinr.llm.verdict configuration: extra-body keys 'a' and 'a.b' overlap: keep only one of them",
+                overlap.getMessage());
+
+        assertDoesNotThrow(() -> LlmConfiguration.createClient("analysis", LlmConfiguration.analysisSettings(
+                withExtraBody("google", Map.of("generationConfig.thinkingConfig.thinkingLevel", "low")))));
+    }
+
+    private static Map<String, String> boundExtraBody(Map<String, Object> environment) {
+        StandardEnvironment env = new StandardEnvironment();
+        // Meme source (et meme nom) que les vraies variables d'environnement, pour avoir le meme mappage Spring
+        env.getPropertySources().replace(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                new SystemEnvironmentPropertySource(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME, environment));
+        return Binder.get(env).bind("refinr.llm", LlmProperties.class).get().analysis().extraBody();
+    }
+
+    @Test
+    @DisplayName("Docker (.env as environment variables): the dotted form keeps a camelCase key, the upper-case form loses it")
+    void extraBodyFromEnvironmentVariables() {
+        // Forme documentee : nom de propriete pointe, tel quel dans .env (compose env_file le transmet intact)
+        assertEquals(Map.of("generationConfig.thinkingConfig.thinkingLevel", "low"), boundExtraBody(Map.of(
+                "refinr.llm.analysis.extra-body.generationConfig.thinkingConfig.thinkingLevel", "low")));
+        assertEquals(Map.of("generationConfig.thinkingConfig.thinkingLevel", "low"), boundExtraBody(Map.of(
+                "refinr.llm.analysis.extra-body[generationConfig.thinkingConfig.thinkingLevel]", "low")));
+        assertEquals(Map.of("reasoning_effort", "none"), boundExtraBody(Map.of(
+                "refinr.llm.analysis.extra-body.reasoning_effort", "none")));
+        // Forme en majuscules, deconseillee : casse perdue, et _ change en . (donc un chemin imbrique)
+        assertEquals(Map.of("generationconfig.thinkingconfig.thinkinglevel", "low"), boundExtraBody(Map.of(
+                "REFINR_LLM_ANALYSIS_EXTRABODY_GENERATIONCONFIG_THINKINGCONFIG_THINKINGLEVEL", "low")));
+        assertEquals(Map.of("reasoning.effort", "none"), boundExtraBody(Map.of(
+                "REFINR_LLM_ANALYSIS_EXTRABODY_REASONING_EFFORT", "none")));
+    }
+
     @Test
     @DisplayName("Legacy keys in a configuration file are refused with the mapping, never with their values")
     void legacyKeysAreRefused() {

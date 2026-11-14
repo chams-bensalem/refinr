@@ -26,6 +26,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -34,7 +35,8 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Contrat commun aux trois clients, sur un serveur HTTP simule : succes (requete au format du fournisseur, schema
  * envoye), 401 sans nouvel essai, 429 + Retry-After puis succes, 5xx epuise, delai depasse sans nouvel essai,
- * sortie tronquee sans nouvel essai, et aucun secret dans les messages d'erreur.
+ * sortie tronquee sans nouvel essai, aucun secret dans les messages d'erreur ; parametres optionnels (#38) envoyes
+ * seulement s'ils sont configures, extra-body reserve refuse, 400 sur un parametre refuse.
  * <p>
  * Non-fuite (issue #29) : un marqueur unique est place dans le prompt, la sortie du modele, le corps des reponses
  * d'erreur et une cle factice ; sur chaque chemin d'echec, il n'apparait ni dans les logs captures, ni dans la trace
@@ -75,8 +77,145 @@ abstract class AbstractLlmClientTest {
         server.shutdown();
     }
 
+    /** URL de base du fournisseur sur le serveur simule. */
+    protected String baseUrl() {
+        return server.url("/").toString();
+    }
+
     protected LlmClient client() {
-        return LlmClients.create(LlmTestSettings.of(provider(), server.url("/").toString()));
+        return LlmClients.create(LlmTestSettings.of(provider(), baseUrl()));
+    }
+
+    /** Client avec des parametres optionnels (temperature null = non envoyee). */
+    protected LlmClient client(Double temperature, Map<String, Object> extraBody) {
+        return LlmClients.create(LlmTestSettings.of(provider(), baseUrl(), temperature, ExtraBody.of(extraBody)));
+    }
+
+    // --- Parametres optionnels (#38) ---
+
+    /** Chemin pointe de la temperature dans le corps du fournisseur. */
+    abstract String temperaturePath();
+
+    /** Exemple d'extra-body documente pour ce fournisseur (chemin pointe -> valeur deja typee). */
+    abstract Map<String, Object> extraBodyExample();
+
+    /** Cles d'extra-body qui viseraient un champ gere par Refinr : toutes refusees au demarrage. */
+    abstract List<String> reservedKeys();
+
+    private static JsonNode at(JsonNode body, String path) {
+        JsonNode node = body;
+        for (String segment : path.split("\\.")) {
+            node = node.path(segment);
+        }
+        return node;
+    }
+
+    /** Toutes les cles des objets du corps, a toute profondeur. */
+    private static void collectKeys(JsonNode node, List<String> keys) {
+        if (node.isObject()) {
+            node.properties().forEach(field -> {
+                keys.add(field.getKey());
+                collectKeys(field.getValue(), keys);
+            });
+        } else if (node.isArray()) {
+            node.forEach(child -> collectKeys(child, keys));
+        }
+    }
+
+    private JsonNode sentBody() throws InterruptedException {
+        return json.readTree(server.takeRequest().getBody().readUtf8());
+    }
+
+    @Test
+    @DisplayName("Nothing optional configured: neither temperature nor any thinking / reasoning parameter is sent")
+    void noOptionalParameterByDefault() throws Exception {
+        server.enqueue(success("{}"));
+
+        client().complete(request());
+
+        List<String> keys = new java.util.ArrayList<>();
+        collectKeys(sentBody(), keys);
+        for (String key : keys) {
+            String lower = key.toLowerCase(java.util.Locale.ROOT);
+            assertFalse(lower.equals("temperature") || lower.contains("thinking") || lower.contains("reasoning")
+                    || lower.contains("effort"), "optional parameter sent without configuration: " + key);
+        }
+    }
+
+    @Test
+    @DisplayName("Configured temperature: sent as is, where the provider expects it")
+    void configuredTemperatureIsSent() throws Exception {
+        server.enqueue(success("{}"));
+
+        client(0.7, Map.of()).complete(request());
+
+        assertEquals(0.7, at(sentBody(), temperaturePath()).asDouble(-1));
+    }
+
+    @Test
+    @DisplayName("Documented extra-body example: sent as is, at the expected place, managed fields untouched")
+    void extraBodyExampleIsSent() throws Exception {
+        server.enqueue(success("{}"));
+
+        client(null, extraBodyExample()).complete(request());
+
+        RecordedRequest recorded = server.takeRequest();
+        JsonNode body = json.readTree(recorded.getBody().readUtf8());
+        extraBodyExample().forEach((path, value) -> assertEquals(json.valueToTree(value), at(body, path), path));
+        assertRequestFormat(recorded, body);
+    }
+
+    @Test
+    @DisplayName("Nested extra-body path: merged into an object, sibling keys kept")
+    void nestedExtraBodyIsMerged() throws Exception {
+        server.enqueue(success("{}"));
+
+        client(null, Map.of("refinrTest.nested.flag", true, "refinrTest.other", "x")).complete(request());
+
+        JsonNode body = sentBody();
+        assertTrue(at(body, "refinrTest.nested.flag").asBoolean(false), body.toString());
+        assertEquals("x", at(body, "refinrTest.other").asString());
+    }
+
+    @Test
+    @DisplayName("extra-body aimed at a field managed by Refinr: refused when the client is created, key named")
+    void reservedExtraBodyIsRefused() {
+        for (String key : reservedKeys()) {
+            IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                    () -> client(null, Map.of(key, "x")), key);
+            assertTrue(error.getMessage().startsWith("extra-body key '" + key + "' overrides the field '"), error.getMessage());
+        }
+        assertEquals(0, server.getRequestCount());
+    }
+
+    @Test
+    @DisplayName("HTTP 400 without structured field: the sent optional parameters are listed, nothing from the body")
+    void badRequestWithoutFieldListsSentParameters(CapturedOutput output) {
+        String marker = marker();
+        server.enqueue(new MockResponse().setResponseCode(400).addHeader("Content-Type", "application/json")
+                .setBody("{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"temperature " + marker + "\"}}"));
+        LlmClient client = client(0.7, extraBodyExample());
+
+        LlmException error = assertThrows(LlmException.class, () -> client.complete(request()));
+
+        assertEquals("The LLM provider " + client.settings().describe() + " rejected the request (HTTP 400); "
+                + "sent optional parameters: " + sentOptionalParameters(), error.getMessage());
+        assertNoLeak(marker, output, error);
+    }
+
+    @Test
+    @DisplayName("HTTP 400 with no optional parameter sent: message unchanged")
+    void badRequestWithoutOptionalParameterIsUnchanged() {
+        server.enqueue(new MockResponse().setResponseCode(400).setBody("{\"error\":{\"message\":\"bad\"}}"));
+
+        LlmException error = assertThrows(LlmException.class, () -> client().complete(request()));
+
+        assertEquals("The " + provider().id() + " LLM provider rejected the request (HTTP 400)", error.getMessage());
+    }
+
+    protected String sentOptionalParameters() {
+        return String.join(", ", java.util.stream.Stream.concat(java.util.stream.Stream.of("temperature"),
+                extraBodyExample().keySet().stream()).toList());
     }
 
     protected static LlmRequest request() {
@@ -282,7 +421,7 @@ abstract class AbstractLlmClientTest {
     }
     // --- Non-fuite du contenu (issue #29) ---
 
-    private static String marker() {
+    protected static String marker() {
         return "LEAK-MARKER-" + UUID.randomUUID();
     }
 
@@ -305,7 +444,7 @@ abstract class AbstractLlmClientTest {
                 .generate("# Spec confidentielle " + marker + "\nGestion des stocks " + marker));
     }
 
-    private static void assertNoLeak(String marker, CapturedOutput output, Throwable error) {
+    protected static void assertNoLeak(String marker, CapturedOutput output, Throwable error) {
         assertFalse(output.getAll().contains(marker), "marker in the logs:\n" + output.getAll());
         if (error != null) {
             StringWriter trace = new StringWriter();

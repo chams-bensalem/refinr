@@ -25,8 +25,11 @@ import java.net.ConnectException;
 import java.net.UnknownHostException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -39,6 +42,11 @@ import java.util.concurrent.ThreadLocalRandom;
  * Les messages d'erreur et les logs ne contiennent ni URL, ni cle, ni corps de reponse, ni texte du modele : seulement
  * le fournisseur, le modele, le statut HTTP et une categorie d'erreur. Les {@link LlmException} levees ici n'ont
  * jamais de cause (les exceptions de WebClient et de Jackson portent l'URL, les en-tetes ou des extraits du corps).
+ * <p>
+ * Parametres optionnels (temperature, {@link ExtraBody}) : envoyes seulement s'ils sont configures ; aucune valeur ni
+ * logique fondee sur le nom du modele. Sur un HTTP 400, le message nomme le parametre optionnel refuse quand le
+ * fournisseur le designe par un champ structure ({@link #rejectedFields}), sinon liste les parametres optionnels
+ * envoyes ; il ne cite que nos propres noms de cles, jamais le texte du fournisseur.
  */
 public abstract class LlmClient {
 
@@ -51,6 +59,8 @@ public abstract class LlmClient {
     private final WebClient webClient;
 
     protected LlmClient(LlmSettings settings) {
+        // Refuse au demarrage un extra-body qui ecraserait un champ gere par Refinr
+        settings.extraBody().checkReserved(reservedPaths());
         this.settings = settings;
         this.webClient = WebClient.builder()
                 .baseUrl(settings.baseUrl())
@@ -71,8 +81,23 @@ public abstract class LlmClient {
     /** En-tetes d'authentification (et de version d'API) du fournisseur. */
     protected abstract Map<String, String> headers();
 
-    /** Corps de la requete de generation, dans le format du fournisseur. */
+    /** Corps de la requete de generation, dans le format du fournisseur (sans l'extra-body, ajoute ensuite). */
     protected abstract Map<String, Object> body(LlmRequest request);
+
+    /** Chemins pointes des champs geres par Refinr dans le corps : un extra-body ne peut pas les viser. */
+    protected abstract Set<String> reservedPaths();
+
+    /** Chemin pointe de la temperature dans le corps du fournisseur. */
+    protected abstract String temperaturePath();
+
+    /**
+     * Champs du corps que le fournisseur designe, dans un champ structure de sa reponse d'erreur, comme la cause d'un
+     * HTTP 400 (ex. {@code error.param}) ; vide s'il n'en designe aucun. Ces valeurs servent seulement a reconnaitre un
+     * parametre envoye par Refinr : elles ne sont jamais recopiees dans un message ni dans un log.
+     */
+    protected List<String> rejectedFields(JsonNode errorBody) {
+        return List.of();
+    }
 
     /**
      * Texte produit, extrait de la reponse du fournisseur.
@@ -124,7 +149,7 @@ public abstract class LlmClient {
 
     /** Envoie la requete et renvoie le texte du modele. */
     public String complete(LlmRequest request) {
-        String payload = mapper.writeValueAsString(body(request));
+        String payload = mapper.writeValueAsString(settings.extraBody().applyTo(body(request)));
         int attempts = settings.retry().maxRetries() + 1;
         for (int attempt = 1; ; attempt++) {
             try {
@@ -135,9 +160,11 @@ public abstract class LlmClient {
                 int status = e.getStatusCode().value();
                 if (!isRetryable(status) || attempt >= attempts) {
                     // Jamais le corps : certains fournisseurs y recopient une partie de la cle refusee
+                    String errorBody = e.getResponseBodyAsString();
                     log.warn("LLM {} call failed: HTTP {} ({}), error type: {}", settings.role(), status,
-                            settings.describe(), errorType(e.getResponseBodyAsString()));
-                    throw new LlmException(Reason.UNAVAILABLE, failureMessage(status));
+                            settings.describe(), errorType(errorBody));
+                    throw new LlmException(Reason.UNAVAILABLE,
+                            status == 400 ? badRequestMessage(errorBody) : failureMessage(status));
                 }
                 Duration delay = retryDelay(attempt, e.getHeaders().getFirst(HttpHeaders.RETRY_AFTER));
                 log.warn("LLM {} busy (HTTP {}), new attempt in {} ms", settings.role(), status, delay.toMillis());
@@ -212,6 +239,45 @@ public abstract class LlmClient {
                     ? provider + " is unavailable (HTTP " + status + ")"
                     : provider + " rejected the request (HTTP " + status + ")";
         };
+    }
+
+    /** Parametres optionnels envoyes : nom montre a l'utilisateur -> chemin dans le corps, dans l'ordre d'envoi. */
+    Map<String, String> optionalParameters() {
+        Map<String, String> sent = new LinkedHashMap<>();
+        if (settings.temperature() != null) {
+            sent.put("temperature", temperaturePath());
+        }
+        settings.extraBody().paths().forEach(path -> sent.put(path, path));
+        return sent;
+    }
+
+    /**
+     * HTTP 400 : parametre optionnel designe par le fournisseur (champ structure), sinon liste des parametres optionnels
+     * envoyes ; sans parametre optionnel, message inchange. Seuls nos noms de cles apparaissent.
+     */
+    private String badRequestMessage(String errorBody) {
+        Map<String, String> sent = optionalParameters();
+        if (sent.isEmpty()) {
+            return failureMessage(400);
+        }
+        List<String> fields;
+        try {
+            fields = rejectedFields(mapper.readTree(errorBody == null || errorBody.isBlank() ? "{}" : errorBody));
+        } catch (RuntimeException ignored) {
+            fields = List.of();  // Corps non JSON : aucun champ structure
+        }
+        List<String> rejected = new ArrayList<>();
+        for (Map.Entry<String, String> parameter : sent.entrySet()) {
+            if (fields.stream().anyMatch(field -> ExtraBody.overlaps(field, parameter.getValue()))) {
+                rejected.add(parameter.getKey());
+            }
+        }
+        String provider = "The LLM provider " + settings.describe();
+        if (!rejected.isEmpty()) {
+            return provider + " rejected the optional parameter " + String.join(", ", rejected)
+                    + " (HTTP 400): remove it from the configuration or check the provider documentation";
+        }
+        return provider + " rejected the request (HTTP 400); sent optional parameters: " + String.join(", ", sent.keySet());
     }
 
     private LlmException unreachableOrTimeout(RuntimeException e) {

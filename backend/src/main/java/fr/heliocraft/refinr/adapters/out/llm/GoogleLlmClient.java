@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * API Gemini (Google AI Studio) : sortie JSON native ({@code responseMimeType} + {@code responseJsonSchema}),
@@ -57,6 +58,36 @@ public class GoogleLlmClient extends LlmClient {
         }
         body.put("generationConfig", generation);
         return body;
+    }
+
+    private static final Set<String> RESERVED = Set.of("systemInstruction", "contents", "generationConfig.maxOutputTokens",
+            "generationConfig.responseMimeType", "generationConfig.responseJsonSchema", "generationConfig.temperature");
+
+    @Override
+    protected Set<String> reservedPaths() {
+        return RESERVED;
+    }
+
+    @Override
+    protected String temperaturePath() {
+        return "generationConfig.temperature";
+    }
+
+    /** {@code error.details[]} de type {@code google.rpc.BadRequest} : {@code fieldViolations[].field}. */
+    @Override
+    protected List<String> rejectedFields(JsonNode errorBody) {
+        List<String> fields = new ArrayList<>();
+        for (JsonNode detail : errorBody.path("error").path("details")) {
+            if (detail.path("@type").asString("").endsWith("google.rpc.BadRequest")) {
+                for (JsonNode violation : detail.path("fieldViolations")) {
+                    String field = violation.path("field").asString("");
+                    if (!field.isBlank()) {
+                        fields.add(field);
+                    }
+                }
+            }
+        }
+        return fields;
     }
 
     @Override
