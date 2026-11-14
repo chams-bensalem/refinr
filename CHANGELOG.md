@@ -36,6 +36,20 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   `response-too-large`, `connection-refused`, `unknown-host`, `tls`, `io`…) ; une story sans verdict ou un ticket non
   créé est désigné par sa position (`story 3/12`, `story 1.2`), plus par son titre ; la réévaluation ne logue plus le
   résumé de la story.
+- Les erreurs et les logs des gestionnaires de tickets (Jira, OpenProject) ne contiennent plus le contenu des tickets
+  (titre, description, labels, priorité), le corps des réponses du gestionnaire, d'URL ni de secret (#33). Les logs
+  ne gardent que l'opération, le statut HTTP, les champs en cause (Jira) ou les codes et attributs (OpenProject), et
+  la position du ticket dans le backlog ; les exceptions des adaptateurs ne portent plus de cause (ni URL, ni
+  en-têtes, ni corps de réponse, ni message Jackson dans une trace). La raison renvoyée au client dans `failed[]`
+  garde, comme avant, les messages de validation du gestionnaire.
+- Format des lignes de log concernées modifié : `Creating Jira Epic` / `Creating OpenProject story under epic 12`
+  (INFO, sans titre) ; `Jira rejected the epic (HTTP 400) [fields: labels; 1 error message]` et
+  `OpenProject rejected the epic: HTTP 422 PropertyConstraintViolation on subject` (ERROR, sans corps ni messages
+  du gestionnaire) ; `Unknown OpenProject priority` (WARN) ne cite plus la valeur.
+- Une réponse 2xx illisible du gestionnaire à la création n'est plus une erreur inattendue (trace complète citant le
+  corps reçu) : raison `Jira returned an unreadable response for the epic (it may have been created)` (de même pour
+  OpenProject) au lieu de `Unexpected error`. À la réévaluation, les erreurs de lecture ou de mise à jour d'un ticket
+  Jira ne citent plus le corps de la réponse (réponse REST inchangée : `500`).
 
 ### Migration
 - Facultatif : recopier les lignes `refinr.document.max-content-chars` et `refinr.http.max-body-bytes` de

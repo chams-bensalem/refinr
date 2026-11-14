@@ -100,8 +100,9 @@ public class CreateBacklogService implements CreateBacklog {
             created.add(new CreatedIssue(type, title, key, issueTracker.issueUrl(key)));
             return key;
         } catch (IssueTrackerException e) {
+            // Message sur dans les logs ; le client recoit en plus les erreurs de validation du gestionnaire
             log.error("Failed to create {} {}: {}", type, position, e.getMessage(), e);
-            failed.add(new FailedIssue(type, title, e.getMessage()));
+            failed.add(new FailedIssue(type, title, e.clientMessage()));
         } catch (RuntimeException e) {
             // Message brut jamais renvoye au client : il reste dans les logs
             log.error("Unexpected error creating {} {}", type, position, e);

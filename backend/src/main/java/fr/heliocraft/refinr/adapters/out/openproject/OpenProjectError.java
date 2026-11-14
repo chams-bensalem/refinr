@@ -71,8 +71,11 @@ record OpenProjectError(int status, List<String> codes, List<String> attributes,
                 && attributes.stream().anyMatch(a -> a.equals("type") || a.startsWith("customField"));
     }
 
-    /** Resume sur : statut, codes, attributs et messages d'OpenProject (tronques), jamais d'URL ni de cle. */
-    String summary() {
+    /**
+     * Resume sur, pour les logs et les traces : statut, codes et attributs, jamais les messages d'OpenProject (ils
+     * peuvent citer le contenu envoye), ni d'URL ni de cle.
+     */
+    String safeSummary() {
         StringBuilder text = new StringBuilder("HTTP ").append(status);
         if (!codes.isEmpty()) {
             text.append(' ').append(String.join(", ", codes));
@@ -80,6 +83,12 @@ record OpenProjectError(int status, List<String> codes, List<String> attributes,
         if (!attributes.isEmpty()) {
             text.append(" on ").append(String.join(", ", attributes));
         }
+        return text.length() > MAX_DETAILS ? text.substring(0, MAX_DETAILS) + "..." : text.toString();
+    }
+
+    /** Resume pour le client : {@link #safeSummary()} et les messages d'OpenProject (tronques). */
+    String summary() {
+        StringBuilder text = new StringBuilder(safeSummary());
         if (!messages.isEmpty()) {
             text.append(": ").append(String.join("; ", messages));
         }

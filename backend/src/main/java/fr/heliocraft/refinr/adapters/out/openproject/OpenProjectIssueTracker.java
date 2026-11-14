@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.codec.DecodingException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.resilience.annotation.Retryable;
@@ -150,7 +151,8 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
     @Override
     public String createEpic(Epic epic, String project) {
         String target = project(project);
-        log.info("Creating OpenProject epic: {}", epic.getName());
+        // Titres et descriptions (sortie du modele) jamais dans les logs : CreateBacklog cite la position
+        log.info("Creating OpenProject epic");
         ProjectSetup setup = setup(target);
         Map<String, Object> links = baseLinks(target, setup.typeHref(epicType));
         putPriority(links, setup, epic.getPriority());
@@ -160,7 +162,7 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
     @Override
     public String createStory(Story story, String epicKey, String project) {
         String target = project(project);
-        log.info("Creating OpenProject story: {} under epic {}", story.getTitle(), epicKey);
+        log.info("Creating OpenProject story under epic {}", epicKey);
         ProjectSetup setup = setup(target);
         Map<String, Object> links = baseLinks(target, setup.typeHref(storyType));
         putParent(links, epicKey);
@@ -177,7 +179,7 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
     @Override
     public String createSubtask(Task task, String storyKey, String project) {
         String target = project(project);
-        log.info("Creating OpenProject task: {} under story {}", task.getTitle(), storyKey);
+        log.info("Creating OpenProject task under story {}", storyKey);
         ProjectSetup setup = setup(target);
         Map<String, Object> links = baseLinks(target, setup.typeHref(subtaskType));
         putParent(links, storyKey);
@@ -209,20 +211,22 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
             return key;
         } catch (WebClientResponseException e) {
             OpenProjectError error = OpenProjectError.of(e);
-            log.error("OpenProject rejected the {}: {}", kind, error.summary());
+            log.error("OpenProject rejected the {}: {}", kind, error.safeSummary());
+            String safe = "OpenProject rejected the " + kind + " (" + error.safeSummary() + ")";
+            String client = "OpenProject rejected the " + kind + " (" + error.summary() + ")";
             if (error.invalidatesProjectSetup()) {
                 // Type ou champ modifie cote admin depuis la resolution : la requete suivante re-resout (pas de relance)
                 setups.remove(project);
-                throw new IssueTrackerException("OpenProject rejected the " + kind + " (" + error.summary() + "). "
-                        + setupHint(project), e);
+                throw new IssueTrackerException(safe + ". " + setupHint(project), client + ". " + setupHint(project));
             }
-            throw new IssueTrackerException("OpenProject rejected the " + kind + " (" + error.summary() + ")", e);
+            throw new IssueTrackerException(safe, client);
         } catch (WebClientRequestException e) {
             log.error("OpenProject unreachable while creating {}: {}", kind, e.getClass().getSimpleName());
-            throw new IssueTrackerException("OpenProject unreachable", e);
+            throw new IssueTrackerException("OpenProject unreachable");
         } catch (RuntimeException e) {
             throw timeoutOr(e, "OpenProject did not answer within " + timeout.toSeconds()
-                    + "s while creating the " + kind + " (it may have been created)");
+                    + "s while creating the " + kind + " (it may have been created)",
+                    "OpenProject returned an unreadable response for the " + kind + " (it may have been created)");
         }
     }
 
@@ -292,11 +296,11 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
                 log.error("OpenProject answered 404 when commenting work package {}", key);
                 throw new IssueTrackerException("OpenProject could not comment work package " + key + " (HTTP 404): "
                         + "check that it exists and that the Refinr account has the add_work_package_comments "
-                        + "permission in its project", e);
+                        + "permission in its project");
             }
             throw failure("comment work package " + key, e);
         } catch (WebClientRequestException e) {
-            throw new IssueTrackerException("OpenProject unreachable", e);
+            throw new IssueTrackerException("OpenProject unreachable");
         } catch (RuntimeException e) {
             throw timeoutOr(e, "OpenProject did not answer within " + timeout.toSeconds() + "s while commenting");
         }
@@ -321,11 +325,12 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
                 // Champ ou options recrees cote admin : la reevaluation suivante re-resout (pas de relance)
                 setups.remove(current.projectId());
                 IssueTrackerException failure = failure("update the verdict of work package " + key, e);
-                throw new IssueTrackerException(failure.getMessage() + ". " + setupHint(current.projectId()), e);
+                String hint = ". " + setupHint(current.projectId());
+                throw new IssueTrackerException(failure.getMessage() + hint, failure.clientMessage() + hint);
             }
             throw e;
         } catch (WebClientRequestException e) {
-            throw new IssueTrackerException("OpenProject unreachable", e);
+            throw new IssueTrackerException("OpenProject unreachable");
         } catch (RuntimeException e) {
             throw timeoutOr(e, "OpenProject did not answer within " + timeout.toSeconds() + "s while updating");
         }
@@ -342,7 +347,7 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
         } catch (WebClientResponseException e) {
             throw failure("read work package " + key, e);
         } catch (WebClientRequestException e) {
-            throw new IssueTrackerException("OpenProject unreachable", e);
+            throw new IssueTrackerException("OpenProject unreachable");
         } catch (RuntimeException e) {
             throw timeoutOr(e, "OpenProject did not answer within " + timeout.toSeconds() + "s while reading");
         }
@@ -443,7 +448,7 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
         } catch (WebClientResponseException e) {
             throw failure(action, e);
         } catch (WebClientRequestException e) {
-            throw new IssueTrackerException("OpenProject unreachable", e);
+            throw new IssueTrackerException("OpenProject unreachable");
         } catch (RuntimeException e) {
             throw timeoutOr(e, "OpenProject did not answer within " + timeout.toSeconds() + "s");
         }
@@ -507,7 +512,7 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
             href = setup.priorities().get(PRIORITY_ALIASES.get(name).toLowerCase(Locale.ROOT));
         }
         if (href == null) {
-            log.warn("Unknown OpenProject priority '{}': the project default applies", priority);
+            log.warn("Unknown OpenProject priority (not among the project's priorities): the project default applies");
             return;
         }
         links.put("priority", Map.of("href", href));
@@ -532,18 +537,31 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
 
     private static IssueTrackerException failure(String action, WebClientResponseException e) {
         OpenProjectError error = OpenProjectError.of(e);
-        log.error("OpenProject could not {}: {}", action, error.summary());
-        return new IssueTrackerException("OpenProject could not " + action + " (" + error.summary() + ")", e);
+        log.error("OpenProject could not {}: {}", action, error.safeSummary());
+        return new IssueTrackerException("OpenProject could not " + action + " (" + error.safeSummary() + ")",
+                "OpenProject could not " + action + " (" + error.summary() + ")");
     }
 
     private static RuntimeException timeoutOr(RuntimeException e, String timeoutMessage) {
+        return timeoutOr(e, timeoutMessage, "OpenProject returned an unreadable response");
+    }
+
+    /**
+     * Delai depasse ou reponse 2xx illisible (le message de Jackson cite le corps recu) -> {@link IssueTrackerException}
+     * sans cause ; toute autre erreur est rendue telle quelle (erreur inattendue, tracee par l'appelant).
+     */
+    private static RuntimeException timeoutOr(RuntimeException e, String timeoutMessage, String unreadableMessage) {
         if (e instanceof IssueTrackerException) {
             return e;
         }
         for (Throwable t = e; t != null; t = t.getCause()) {
             if (t instanceof TimeoutException) {
                 log.error(timeoutMessage);
-                return new IssueTrackerException(timeoutMessage, e);
+                return new IssueTrackerException(timeoutMessage);
+            }
+            if (t instanceof DecodingException) {
+                log.error(unreadableMessage);
+                return new IssueTrackerException(unreadableMessage);
             }
         }
         return e;
