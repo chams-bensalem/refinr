@@ -74,6 +74,7 @@ Tried an untested provider? Please report back — see [CONTRIBUTING.md](CONTRIB
 - [Configuration](#-configuration)
 - [Running](#️-running)
 - [Usage](#-usage)
+- [Integrations](#-integrations)
 - [API reference](#-api-reference)
 - [Data model](#️-data-model)
 - [Tests](#-tests)
@@ -594,6 +595,25 @@ constraints; name external dependencies (access, API keys, mock-ups) explicitly 
 
 ---
 
+## 🧩 Integrations
+
+### Obsidian plugin
+
+[**Refinr for Obsidian**](https://github.com/chams-bensalem/refinr-obsidian) (separate repository, MIT) is a client
+of this REST API: it sends the active note of an Obsidian vault to your Refinr server, shows the backlog preview
+(Epic → Story → Sub-task with the `ai-ready` / `validation-necessaire` verdicts), creates the issues in the tracker
+configured on the server (Jira or OpenProject), records what was created in the note's frontmatter, and reassesses a
+story awaiting validation from the note. It contains no LLM or tracker logic: everything is done by Refinr.
+
+- **Requires Refinr 1.3.0 or later**: the plugin sends the note as text (`content`, frontmatter removed, embeds
+  expanded) to `analyze-preview`, and reads the text limit from `GET /api/v1/source` (`maxContentChars`).
+- **Desktop only** for now (Windows, macOS, Linux; Obsidian 1.13.0 or later): mobile has not been tested yet.
+- Refinr accepts only `localhost`, `127.0.0.1` and `[::1]` by default: to reach it through another address, add that
+  host name to `REFINR_ALLOWED_HOSTS`. The API key (`X-API-Key`) is kept in Obsidian's secret storage, never in the
+  vault.
+
+Installation, settings and usage: see the plugin's README.
+
 ## 📡 API reference
 
 Base URL: `http://localhost:8080/api/v1`
@@ -766,7 +786,8 @@ Docker and GitHub Actions updates weekly.
 - [x] **v1.2** — **BookStack** and **XWiki** as document sources (`source.provider`, new `DocumentSourcePort`
   adapters), neutral `documentId` and `/documents/search`.
 - [ ] **v1.3** — document provided as **text** (`content`, pasted text in the web UI) and an **Obsidian plugin**
-  (in progress: pasted text available).
+  (in progress: text input and pasted text available; Obsidian plugin in its own repository, see
+  [Integrations](#-integrations)).
 - [ ] File upload (Markdown, Word, PDF).
 - [ ] Administration console (sources and trackers configured from the UI, several sources per instance).
 - [ ] **Linear** and **GitHub Issues** as issue trackers.

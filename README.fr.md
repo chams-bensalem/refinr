@@ -82,6 +82,7 @@ Un retour sur un fournisseur non testé est bienvenu : voir [CONTRIBUTING.md](CO
 - [Configuration & connexion aux services](#-configuration--connexion-aux-services)
 - [Lancer l'application](#️-lancer-lapplication)
 - [Utilisation](#-utilisation)
+- [Intégrations](#-intégrations)
 - [Référence de l'API](#-référence-de-lapi)
 - [Modèle de données](#️-modèle-de-données)
 - [Tests](#-tests)
@@ -780,6 +781,28 @@ curl -s -X POST http://localhost:8080/api/v1/reassess-story \
 
 ---
 
+## 🧩 Intégrations
+
+### Plugin Obsidian
+
+[**Refinr for Obsidian**](https://github.com/chams-bensalem/refinr-obsidian) (dépôt séparé, MIT) est un client de
+cette API REST : il envoie la note active d'un coffre Obsidian à votre serveur Refinr, affiche l'aperçu du backlog
+(Epic → Story → Sub-task avec les verdicts `ai-ready` / `validation-necessaire`), crée les tickets dans le gestionnaire
+configuré sur le serveur (Jira ou OpenProject), consigne ce qui a été créé dans le frontmatter de la note et réévalue
+depuis la note une story en attente de validation. Il ne contient aucune logique d'IA ni de gestionnaire de tickets :
+tout est fait par Refinr.
+
+- **Refinr 1.3.0 ou plus récent requis** : le plugin envoie la note en texte (`content`, frontmatter retiré,
+  inclusions développées) à `analyze-preview`, et lit la limite de taille sur `GET /api/v1/source`
+  (`maxContentChars`).
+- **Desktop uniquement** pour l'instant (Windows, macOS, Linux ; Obsidian 1.13.0 ou plus récent) : le mobile n'a pas
+  encore été testé.
+- Refinr n'accepte par défaut que `localhost`, `127.0.0.1` et `[::1]` : pour l'atteindre par une autre adresse,
+  ajouter ce nom d'hôte à `REFINR_ALLOWED_HOSTS`. La clé d'API (`X-API-Key`) est rangée dans le stockage de secrets
+  d'Obsidian, jamais dans le coffre.
+
+Installation, réglages et utilisation : voir le README du plugin.
+
 ## 📡 Référence de l'API
 
 Base URL : `http://localhost:8080/api/v1`
@@ -986,7 +1009,8 @@ Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour 
 - [x] **v1.2** : **BookStack** et **XWiki** comme sources documentaires (`source.provider`, nouveaux adaptateurs de
   `DocumentSourcePort`), `documentId` et `/documents/search` neutres.
 - [ ] **v1.3** : document fourni en **texte** (`content`, texte collé dans l'interface web) et **plugin Obsidian**
-  (en cours : texte collé disponible).
+  (en cours : entrée texte et texte collé disponibles ; plugin Obsidian dans son propre dépôt, cf.
+  [Intégrations](#-intégrations)).
 - [ ] Envoi de fichier (Markdown, Word, PDF).
 - [ ] Console d'administration (sources et gestionnaires configurés depuis l'interface, plusieurs sources par instance).
 - [ ] **Linear** et **GitHub Issues** comme gestionnaires de tickets.

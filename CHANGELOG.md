@@ -12,17 +12,24 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   le titre est placé en tête du texte envoyé à l'IA (`# titre`). Pas de `documentUrl` dans ce mode ; les logs
   n'indiquent que la taille du texte.
 - `refinr.document.max-content-chars` (`DOCUMENT_MAX_CONTENT_CHARS`, défaut `200000` caractères Unicode, titre
-  compris) : au-delà, `413` avant tout appel à l'IA. `GET /api/v1/source` renvoie aussi cette limite
-  (`maxContentChars`, ajout rétrocompatible).
+  compris) : au-delà, `413` avant tout appel à l'IA, avec la limite dans le message (`The document exceeds the
+  maximum size of 200000 characters`). `GET /api/v1/source` renvoie aussi cette limite (`maxContentChars`, ajout
+  rétrocompatible).
 - Plafond du corps des requêtes côté backend, même sans le proxy du frontend : `refinr.http.max-body-bytes`
   (`HTTP_MAX_BODY_BYTES`, défaut `5242880` = 5 Mio, comme `client_max_body_size 5m`), appliqué au `Content-Length`
   comme aux corps `chunked` (lus au plus jusqu'à la limite) → `413`.
 - Interface web : choix **Confluence page** (ou BookStack / XWiki selon la source) / **Pasted text** dans *Analyze a spec* (zone de texte, titre optionnel,
   compteur de caractères avec la limite, message clair sur un `413`) ; aperçu et création inchangés ensuite.
+- README (anglais et français) : section **Integrations / Intégrations** présentant le plugin Obsidian
+  ([refinr-obsidian](https://github.com/chams-bensalem/refinr-obsidian), dépôt séparé), client de l'API REST qui
+  requiert Refinr 1.3.0 ; desktop uniquement pour l'instant.
 
 ### Changed
 - `title` envoyé sans `content` sur `analyze-preview` / `analyze-and-create` → `400`
   (`title is only accepted with content`) ; auparavant, ce champ inconnu était ignoré.
+- `content` envoyé avec un `documentId` ou un `confluencePageId` non vide → `400`
+  (`content cannot be combined with documentId or confluencePageId`) ; auparavant, `content` était ignoré et le
+  document de la source était lu.
 
 ### Security
 - Les messages d'erreur IA et les logs ne contiennent plus d'extraits de la sortie du modèle, du corps de réponse du
@@ -39,7 +46,10 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ### Migration
 - Facultatif : recopier les lignes `refinr.document.max-content-chars` et `refinr.http.max-body-bytes` de
-  `application-example.properties` dans `application.properties` (les valeurs par défaut s'appliquent sinon).
+  `application-example.properties` dans `application.properties`, et au besoin `DOCUMENT_MAX_CONTENT_CHARS` /
+  `HTTP_MAX_BODY_BYTES` dans `.env` (cf. `.env.example`) ; les valeurs par défaut s'appliquent sinon.
+- Clients de l'API : ne plus envoyer `title` sans `content`, ni `content` avec un identifiant de document (`400`
+  désormais) ; prévoir le `413` sur un texte ou un corps de requête trop grand.
 
 ## [1.2.0] - 2026-11-13
 
