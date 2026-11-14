@@ -532,7 +532,7 @@ ollama serve && ollama pull qwen3:8b                 # 1. local LLM (default pro
 (cd frontend && npm install && npm run dev)           # 3. UI  → http://localhost:3000 (Vite proxies /api)
 ```
 
-Production build: `(cd backend && mvn clean package && java -jar target/refinr-1.2.0.jar)` and
+Production build: `(cd backend && mvn clean package && java -jar target/refinr-1.3.0.jar)` and
 `(cd frontend && npm run build)` (output in `frontend/dist/`).
 
 ---
@@ -767,7 +767,7 @@ Docker and GitHub Actions updates weekly.
 
 ## 🗺️ Limitations & roadmap
 
-**Current limitations (v1.2)**
+**Current limitations (v1.3)**
 
 - Creation is not transactional: a failure midway leaves the issues already created (partial response
   `created` / `failed`; re-send only what failed).
@@ -786,7 +786,7 @@ Docker and GitHub Actions updates weekly.
 - [x] **v1.2** — **BookStack** and **XWiki** as document sources (`source.provider`, new `DocumentSourcePort`
   adapters), neutral `documentId` and `/documents/search`.
 - [ ] **v1.3** — document provided as **text** (`content`, pasted text in the web UI) and an **Obsidian plugin**
-  (in progress: text input and pasted text available; Obsidian plugin in its own repository, see
+  (text input shipped in 1.3.0; Obsidian plugin being published, in its own repository, see
   [Integrations](#-integrations)).
 - [ ] File upload (Markdown, Word, PDF).
 - [ ] Administration console (sources and trackers configured from the UI, several sources per instance).

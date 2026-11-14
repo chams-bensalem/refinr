@@ -683,7 +683,7 @@ curl localhost:8080/api/v1/health
 Build de production sans Docker :
 
 ```bash
-(cd backend && mvn clean package && java -jar target/refinr-1.2.0.jar)
+(cd backend && mvn clean package && java -jar target/refinr-1.3.0.jar)
 (cd frontend && npm run build)   # génère frontend/dist/
 ```
 
@@ -990,7 +990,7 @@ Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour 
 
 ## 🗺️ Limites connues & feuille de route
 
-**Limites actuelles (v1.2)**
+**Limites actuelles (v1.3)**
 
 - La création n'est pas transactionnelle : un échec en cours de route laisse les tickets déjà créés
   (réponse partielle `created` / `failed`, à relancer pour les seuls éléments en échec).
@@ -1009,7 +1009,7 @@ Les logs sont émis en **JSON** ; chaque requête porte un `correlationId` pour 
 - [x] **v1.2** : **BookStack** et **XWiki** comme sources documentaires (`source.provider`, nouveaux adaptateurs de
   `DocumentSourcePort`), `documentId` et `/documents/search` neutres.
 - [ ] **v1.3** : document fourni en **texte** (`content`, texte collé dans l'interface web) et **plugin Obsidian**
-  (en cours : entrée texte et texte collé disponibles ; plugin Obsidian dans son propre dépôt, cf.
+  (entrée texte livrée en 1.3.0 ; plugin Obsidian en cours de publication, dans son propre dépôt, cf.
   [Intégrations](#-intégrations)).
 - [ ] Envoi de fichier (Markdown, Word, PDF).
 - [ ] Console d'administration (sources et gestionnaires configurés depuis l'interface, plusieurs sources par instance).

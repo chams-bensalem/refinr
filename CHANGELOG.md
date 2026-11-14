@@ -5,6 +5,13 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-14
+
+Document fourni **en texte**, sans source documentaire : l'API (`content`, `title`) et l'interface web (**Pasted
+text**) l'acceptent, avec une limite de taille annoncée par `GET /api/v1/source`. C'est la version requise par le
+plugin **Refinr for Obsidian**. Les erreurs et les logs de l'IA et des gestionnaires de tickets ne contiennent plus de
+contenu des documents, de sortie du modèle ni de corps de réponse.
+
 ### Added
 - Document fourni **en texte** : `analyze-preview` et `analyze-and-create` acceptent `content` (Markdown ou texte
   brut) et un `title` optionnel, à la place de `documentId` / `confluencePageId`, quelle que soit la source configurée
@@ -225,7 +232,8 @@ Interface web et documentation ; API REST inchangée.
 - Licence AGPL-3.0-only (en-tête SPDX dans chaque fichier source), CLA, README en anglais et en français,
   `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`.
 
-[Unreleased]: https://github.com/chams-bensalem/refinr/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/chams-bensalem/refinr/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/chams-bensalem/refinr/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/chams-bensalem/refinr/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/chams-bensalem/refinr/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/chams-bensalem/refinr/compare/v1.0.0...v1.0.1
