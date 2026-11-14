@@ -30,16 +30,17 @@ class ConfigurationDefaultsTest {
     private static final Path[] READMES = {README, README_FR};
 
     @Test
-    @DisplayName("The default analysis provider (local Ollama, OpenAI-compatible API) is aligned everywhere")
-    void analysisDefaultsAreAligned() throws IOException {
-        // .env.example configure explicitement l'Ollama local, avec les memes valeurs que le defaut du code
-        assertEquals(LlmConfiguration.DEFAULT_PROVIDER, envExample("LLM_ANALYSIS_PROVIDER"));
-        assertEquals(LlmConfiguration.DEFAULT_BASE_URL, envExample("LLM_ANALYSIS_BASE_URL"));
-        assertEquals(LlmConfiguration.DEFAULT_MODEL, envExample("LLM_ANALYSIS_MODEL"));
-        // README : fournisseur par defaut, et preset Ollama decrit sur la meme ligne
-        assertEquals(LlmConfiguration.DEFAULT_PROVIDER, readmeTableDefault("refinr.llm.analysis.provider"));
-        for (String providerRow : readmeTableRows("refinr.llm.analysis.provider")) {
-            assertTrue(providerRow.contains(LlmConfiguration.DEFAULT_BASE_URL) && providerRow.contains(LlmConfiguration.DEFAULT_MODEL), providerRow);
+    @DisplayName("No default provider nor model: required in the README, explicit example in .env.example")
+    void noDefaultProviderNorModel() throws IOException {
+        // .env.example donne un exemple explicite (Ollama local) : ce n'est pas un defaut du code
+        for (String variable : new String[] {"LLM_ANALYSIS_PROVIDER", "LLM_ANALYSIS_BASE_URL", "LLM_ANALYSIS_MODEL"}) {
+            assertFalse(envExample(variable).isBlank(), variable);
+        }
+        for (String key : new String[] {"refinr.llm.analysis.provider", "refinr.llm.analysis.model"}) {
+            for (String row : readmeTableRows(key)) {
+                assertTrue(row.matches("^\\| `" + Pattern.quote(key) + "` \\| \\*\\((required|obligatoire)\\)\\* \\|.*"), row);
+                assertFalse(row.contains("qwen3"), "no model presented as a default: " + row);
+            }
         }
     }
 
@@ -68,13 +69,17 @@ class ConfigurationDefaultsTest {
     }
 
     @Test
-    @DisplayName("Temperature and max-tokens-param defaults are aligned between the code, the example config and the README")
+    @DisplayName("No default temperature anywhere (example config, .env.example, README); max-tokens-param aligned")
     void temperatureAndLimitParamAreAligned() throws IOException {
-        assertEquals(String.valueOf(LlmConfiguration.DEFAULT_ANALYSIS_TEMPERATURE), exampleDefault("refinr.llm.analysis.temperature"));
-        assertEquals(String.valueOf(LlmConfiguration.DEFAULT_VERDICT_TEMPERATURE), exampleDefault("refinr.llm.verdict.temperature"));
-        assertEquals(exampleDefault("refinr.llm.analysis.temperature"), readmeTableDefault("refinr.llm.analysis.temperature"));
+        assertNull(LlmConfiguration.temperature(null));
+        for (String key : new String[] {"refinr.llm.analysis.temperature", "refinr.llm.verdict.temperature"}) {
+            assertEquals("", exampleDefault(key), key);
+        }
+        for (String variable : new String[] {"LLM_ANALYSIS_TEMPERATURE", "LLM_VERDICT_TEMPERATURE"}) {
+            assertEquals("", envExample(variable), variable);
+        }
         for (String row : readmeTableRows("refinr.llm.analysis.temperature")) {
-            assertTrue(row.contains("`" + LlmConfiguration.DEFAULT_VERDICT_TEMPERATURE + "`"), row);
+            assertTrue(row.matches("^\\| `refinr\\.llm\\.analysis\\.temperature` \\| \\*\\((empty|vide)\\)\\* \\|.*"), row);
         }
         for (String key : new String[] {"refinr.llm.analysis.max-tokens-param", "refinr.llm.verdict.max-tokens-param"}) {
             assertEquals("max_tokens", exampleDefault(key), key);

@@ -84,6 +84,8 @@ services:
     image: ollama/ollama:0.40.16
     environment:
       OLLAMA_HOST: http://ollama:11434
+    # qwen3:8b: this profile's example model, pulled only when LLM_ANALYSIS_MODEL is unset (the backend has no default
+    # model and refuses to start without LLM_ANALYSIS_MODEL)
     entrypoint: [ollama, pull, "${LLM_ANALYSIS_MODEL:-qwen3:8b}"]
     restart: "no"
     depends_on:

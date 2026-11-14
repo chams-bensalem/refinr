@@ -30,13 +30,19 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
- * Cablage des fournisseurs de modele. Analyse : {@code refinr.llm.analysis.*} (defaut : Ollama local via son API
- * compatible OpenAI). Verdict : {@code refinr.llm.verdict.*}, optionnel ; sans fournisseur de verdict, le verdict
- * vient de l'analyse et create-jira / reassess-story utilisent le fournisseur d'analyse.
+ * Cablage des fournisseurs de modele. Analyse : {@code refinr.llm.analysis.*}, fournisseur et modele obligatoires.
+ * Verdict : {@code refinr.llm.verdict.*}, optionnel ; sans fournisseur de verdict, le verdict vient de l'analyse et
+ * create-jira / reassess-story utilisent le fournisseur d'analyse.
+ * <p>
+ * Aucune hypothese sur le modele : ni fournisseur, ni modele, ni temperature par defaut ; un parametre optionnel n'est
+ * envoye que s'il est configure.
  */
 @Configuration
 @EnableConfigurationProperties(LlmProperties.class)
@@ -44,16 +50,11 @@ public class LlmConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(LlmConfiguration.class);
 
-    // Defauts (memes valeurs dans application-example.properties, .env.example et le README)
-    static final String DEFAULT_PROVIDER = "openai-compatible";
-    static final String DEFAULT_BASE_URL = "http://localhost:11434/v1";
-    static final String DEFAULT_MODEL = "qwen3:8b";
+    // Defauts fonctionnels (memes valeurs dans application-example.properties et le README) ; aucun ne depend du modele
     static final Duration DEFAULT_ANALYSIS_TIMEOUT = Duration.ofSeconds(300);
     static final Duration DEFAULT_VERDICT_TIMEOUT = Duration.ofSeconds(90);
     static final int DEFAULT_ANALYSIS_MAX_OUTPUT_TOKENS = 32768;
     static final int DEFAULT_VERDICT_MAX_OUTPUT_TOKENS = 4096;
-    static final double DEFAULT_ANALYSIS_TEMPERATURE = 0.2;
-    static final double DEFAULT_VERDICT_TEMPERATURE = 0.1;
     static final int DEFAULT_MAX_RETRIES = 2;
     static final Duration DEFAULT_RETRY_BASE_DELAY = Duration.ofSeconds(2);
     static final double DEFAULT_RETRY_MULTIPLIER = 4;
@@ -111,48 +112,69 @@ public class LlmConfiguration {
         return new LlmHealthCheck(analysisClient, verdictClient == analysisClient ? null : verdictClient);
     }
 
+    static LlmSettings analysisSettings(LlmProperties.Role role) {
+        return settings("analysis", role, DEFAULT_ANALYSIS_TIMEOUT, DEFAULT_ANALYSIS_MAX_OUTPUT_TOKENS);
+    }
+
+    static LlmSettings verdictSettings(LlmProperties.Role role) {
+        return settings("verdict", role, DEFAULT_VERDICT_TIMEOUT, DEFAULT_VERDICT_MAX_OUTPUT_TOKENS);
+    }
+
     /** Client du role ; un extra-body qui viserait un champ gere par Refinr est refuse ici, au demarrage. */
     static LlmClient createClient(String name, LlmSettings settings) {
         try {
             return LlmClients.create(settings);
         } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("Invalid refinr.llm." + name + " configuration: " + e.getMessage(), e);
+            throw invalid(name, e);
         }
     }
 
-    static LlmSettings analysisSettings(LlmProperties.Role role) {
-        String baseUrl = blankToNull(role.baseUrl());
-        String model = blankToNull(role.model());
-        String provider = role.provider();
+    private static IllegalStateException invalid(String name, IllegalArgumentException e) {
+        return new IllegalStateException("Invalid refinr.llm." + name + " configuration: " + e.getMessage(), e);
+    }
+
+    /**
+     * Variables a renseigner pour un role actif : fournisseur, modele, et base-url quand le fournisseur n'a pas d'URL
+     * officielle (openai-compatible). Message sans aucune valeur configuree.
+     */
+    private static void requireProviderAndModel(String name, LlmProperties.Role role) {
+        String variable = "LLM_" + name.toUpperCase(Locale.ROOT) + "_";
+        List<String> missing = new ArrayList<>();
+        LlmProvider provider = null;
         if (!role.isConfigured()) {
-            // Aucun fournisseur : Ollama local (API compatible OpenAI), et son modele par defaut sur son URL par defaut.
-            // Un fournisseur choisi explicitement ne recoit jamais ces valeurs : google / anthropic gardent leur URL
-            // officielle quand base-url est vide, openai-compatible exige un base-url explicite.
-            provider = DEFAULT_PROVIDER;
-            baseUrl = baseUrl == null ? DEFAULT_BASE_URL : baseUrl;
-            model = model == null && baseUrl.equals(DEFAULT_BASE_URL) ? DEFAULT_MODEL : model;
+            missing.add(variable + "PROVIDER");
+        } else {
+            try {
+                provider = LlmProvider.fromId(role.provider());
+            } catch (IllegalArgumentException e) {
+                throw invalid(name, e);
+            }
         }
-        return settings("analysis", role, provider, baseUrl, model, DEFAULT_ANALYSIS_TIMEOUT,
-                DEFAULT_ANALYSIS_MAX_OUTPUT_TOKENS, DEFAULT_ANALYSIS_TEMPERATURE);
+        if (blankToNull(role.model()) == null) {
+            missing.add(variable + "MODEL");
+        }
+        if (provider != null && provider.defaultBaseUrl() == null && blankToNull(role.baseUrl()) == null) {
+            missing.add(variable + "BASE_URL");
+        }
+        if (!missing.isEmpty()) {
+            String baseUrlHint = provider == null ? " (and " + variable + "BASE_URL for " + LlmProvider.OPENAI_COMPATIBLE.id() + ")" : "";
+            throw new IllegalStateException("Invalid refinr.llm." + name + " configuration: set " + String.join(", ", missing)
+                    + baseUrlHint + " in .env, see the examples in .env.example");
+        }
     }
 
-    static LlmSettings verdictSettings(LlmProperties.Role role) {
-        return settings("verdict", role, role.provider(), blankToNull(role.baseUrl()), blankToNull(role.model()),
-                DEFAULT_VERDICT_TIMEOUT, DEFAULT_VERDICT_MAX_OUTPUT_TOKENS, DEFAULT_VERDICT_TEMPERATURE);
-    }
-
-    private static LlmSettings settings(String name, LlmProperties.Role role, String provider, String baseUrl,
-                                        String model, Duration timeout, int maxOutputTokens, double temperature) {
+    private static LlmSettings settings(String name, LlmProperties.Role role, Duration timeout, int maxOutputTokens) {
+        requireProviderAndModel(name, role);
         try {
             return new LlmSettings(
                     name,
-                    LlmProvider.fromId(provider),
-                    baseUrl,
-                    model,
+                    LlmProvider.fromId(role.provider()),
+                    blankToNull(role.baseUrl()),
+                    blankToNull(role.model()),
                     role.apiKey(),
                     role.timeout() != null ? role.timeout() : timeout,
                     role.maxOutputTokens() != null ? role.maxOutputTokens() : maxOutputTokens,
-                    temperature(role.temperature(), temperature),
+                    temperature(role.temperature()),
                     JsonMode.fromId(role.jsonMode()),
                     MaxTokensParam.fromId(role.maxTokensParam()),
                     ExtraBody.of(extraBody(role.extraBody())),
@@ -163,16 +185,13 @@ public class LlmConfiguration {
                             role.retryJitter() != null ? role.retryJitter() : DEFAULT_RETRY_JITTER,
                             role.retryMaxDelay() != null ? role.retryMaxDelay() : DEFAULT_RETRY_MAX_DELAY));
         } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("Invalid refinr.llm." + name + " configuration: " + e.getMessage(), e);
+            throw invalid(name, e);
         }
     }
 
-    /** Absente : defaut du role ; vide : non envoyee (defaut du fournisseur) ; sinon un nombre >= 0. */
-    static Double temperature(String configured, double roleDefault) {
-        if (configured == null) {
-            return roleDefault;
-        }
-        if (configured.isBlank()) {
+    /** Absente ou vide : non envoyee (defaut du fournisseur) ; sinon un nombre >= 0, envoye tel quel. */
+    static Double temperature(String configured) {
+        if (configured == null || configured.isBlank()) {
             return null;
         }
         try {

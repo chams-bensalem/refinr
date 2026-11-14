@@ -52,7 +52,7 @@ with `LLM_ANALYSIS_BASE_URL=http://ollama:11434/v1`. More in [Docker Compose](#d
 
 | Provider | `provider` | Status |
 |---|---|---|
-| Ollama (local, default `qwen3:8b`) | `openai-compatible` | ✅ tested against the real API |
+| Ollama (local, for example `qwen3:8b`) | `openai-compatible` | ✅ tested against the real API |
 | Google Gemini | `google` | ✅ tested against the real API (for example with `gemini-3.6-flash`) |
 | Anthropic Claude | `anthropic` | ⚠️ not tested against the real API (simulated HTTP server only) |
 | OpenAI | `openai-compatible` | ⚠️ not tested against the real API (simulated HTTP server only) |
@@ -245,7 +245,7 @@ LLM providers, retry, HTTP security, `correlationId`). Technical choices are rec
   OpenProject (see [OpenProject](#openproject)).
 - For `google`: a [Google AI Studio key](https://aistudio.google.com/apikey); for `anthropic` or a hosted
   `openai-compatible` service: that provider's key.
-- The default `qwen3:8b` needs about **8 GB of free RAM/VRAM**; on a smaller machine pick a lighter model or a hosted provider.
+- The example local model `qwen3:8b` needs about **8 GB of free RAM/VRAM**; on a smaller machine pick a lighter model or a hosted provider.
 
 ---
 
@@ -267,9 +267,11 @@ cp backend/src/main/resources/application-example.properties backend/src/main/re
 
 Set these in `.env`. `LLM_ANALYSIS_*` drives the analysis; the same keys with `LLM_VERDICT_*` configure an optional,
 separate verdict provider (empty `LLM_VERDICT_PROVIDER` = the analysis call also produces the verdict).
+**Provider and model are required** (there is no default provider nor model): without them, startup fails with a
+message naming the variables to set. The model names below are examples only.
 
 ```bash
-# Ollama (default; no key). In Docker: http://host.docker.internal:11434/v1, or http://ollama:11434/v1 with --profile ollama
+# Ollama (local, no key). In Docker: http://host.docker.internal:11434/v1, or http://ollama:11434/v1 with --profile ollama
 LLM_ANALYSIS_PROVIDER=openai-compatible
 LLM_ANALYSIS_BASE_URL=http://localhost:11434/v1
 LLM_ANALYSIS_MODEL=qwen3:8b
@@ -293,11 +295,46 @@ LLM_ANALYSIS_BASE_URL=https://api.openai.com/v1
 LLM_ANALYSIS_MODEL=your-openai-model
 LLM_ANALYSIS_API_KEY=your-api-key
 LLM_ANALYSIS_REASONING_EFFORT=
-# OpenAI reasoning models reject temperature and max_tokens:
-#   LLM_ANALYSIS_TEMPERATURE=   LLM_ANALYSIS_MAX_TOKENS_PARAM=max_completion_tokens
+# OpenAI reasoning models reject max_tokens:
+#   LLM_ANALYSIS_MAX_TOKENS_PARAM=max_completion_tokens
 ```
 
 On a slow machine (a few tokens/s), raise `LLM_ANALYSIS_TIMEOUT` (e.g. `30m`).
+
+### Generation parameters
+
+Refinr makes **no assumption about the model**: you choose the provider, the model and its version, and Refinr has no
+list of known models nor any behaviour based on a model name. Sampling and reasoning parameters are **sent only when
+you configure them**; otherwise the provider applies its own defaults.
+
+- **Temperature**: `LLM_ANALYSIS_TEMPERATURE` / `LLM_VERDICT_TEMPERATURE`, empty by default (not sent). When set, it
+  is sent as is to every provider, `anthropic` included; some recent models reject it.
+- **Provider-specific parameters** (`extra-body`): any field of the provider's request body, added by the three
+  clients. The key is a **dotted path**, merged as a nested object. Write the dotted property name in `.env` as is: it
+  works under Docker Compose (`env_file` keeps the name) and outside Docker. A JSON value keeps its type; an empty
+  value is not sent.
+
+  ```bash
+  # Examples only: check each parameter in your provider's documentation
+  # google
+  refinr.llm.analysis.extra-body.generationConfig.thinkingConfig.thinkingLevel=low
+  # anthropic
+  refinr.llm.analysis.extra-body.output_config.effort=low
+  refinr.llm.analysis.extra-body.thinking={"type":"adaptive"}
+  # openai-compatible (e.g. Ollama): LLM_ANALYSIS_REASONING_EFFORT=none, i.e.
+  refinr.llm.analysis.extra-body.reasoning_effort=none
+  ```
+
+  Use `refinr.llm.verdict.extra-body.` for a separate verdict provider. **Avoid the upper-case form**
+  (`REFINR_LLM_ANALYSIS_EXTRABODY_…`): Spring loses the case (`thinkinglevel`) and turns `_` into `.`
+  (`reasoning_effort` would become `reasoning.effort`).
+- A key that would override a field managed by Refinr is **refused at startup**, with the key named: the messages or
+  `contents` / `systemInstruction`, the JSON schema (`response_format`, `generationConfig.responseJsonSchema`,
+  `output_config.format`…), the output limit, `model`, `temperature` (use the dedicated setting) and `stream`.
+- A parameter the provider rejects (**HTTP 400**) gives a clear message naming the model: the parameter itself when
+  the provider designates it in a structured field (`error.param` for OpenAI-compatible APIs, `fieldViolations` for
+  Google), otherwise the list of optional parameters sent, so you know what to remove. The provider's error text is
+  never copied.
 
 #### Migrating from the pre-1.0 LLM configuration
 
@@ -480,14 +517,14 @@ How the backlog maps to OpenProject:
 | `openproject.readiness-field` | `Agent readiness` | List custom field holding the verdict (options `ai-ready` / `validation-necessaire`) |
 | `openproject.story-points-enabled` | `true` | Sends `storyPoints` on user stories only (Backlogs module) |
 | `openproject.priority-enabled` | `true` | Sends the priority (matched by name, `Medium` → `Normal`) |
-| `refinr.llm.analysis.provider` | `openai-compatible` | Analysis provider: `anthropic`, `google` or `openai-compatible`. Unset: local Ollama, i.e. `openai-compatible` + `http://localhost:11434/v1` + `qwen3:8b` |
-| `refinr.llm.analysis.base-url` | *(empty)* | API URL (with `/v1` for `openai-compatible`). Empty = official URL for `anthropic` / `google`; **required** for an explicit `openai-compatible` (startup fails otherwise) |
-| `refinr.llm.analysis.model` | *(empty)* | Analysis model (also used by the health check), required as soon as a provider is set |
+| `refinr.llm.analysis.provider` | *(required)* | Analysis provider: `anthropic`, `google` or `openai-compatible`. No default: startup fails and names `LLM_ANALYSIS_PROVIDER` / `LLM_ANALYSIS_MODEL` |
+| `refinr.llm.analysis.base-url` | *(empty)* | API URL (with `/v1` for `openai-compatible`). Empty = official URL for `anthropic` / `google`; **required** for `openai-compatible` (startup fails otherwise) |
+| `refinr.llm.analysis.model` | *(required)* | Analysis model (also used by the health check); no default model |
 | `refinr.llm.analysis.api-key` | *(empty)* | API key (required for `anthropic` and `google`) |
 | `refinr.llm.analysis.timeout` | `300s` | Maximum duration of an analysis call |
-| `refinr.llm.analysis.temperature` | `0.2` | Temperature (verdict: `0.1`). Empty = not sent, provider default (required for OpenAI reasoning models); never sent to `anthropic` |
+| `refinr.llm.analysis.temperature` | *(empty)* | Temperature (same for `refinr.llm.verdict.*`). Empty = not sent, provider default; otherwise sent as is to every provider (`0.2` / `0.1` before 1.4) |
 | `refinr.llm.analysis.max-tokens-param` | `max_tokens` | `openai-compatible`: name of the output limit parameter, `max_tokens`, `max_completion_tokens` (OpenAI reasoning models) or `none` (same for `refinr.llm.verdict.*`) |
-| `refinr.llm.analysis.extra-body.*` | *(empty)* | `openai-compatible`: properties added to the request body; `reasoning_effort` comes from `LLM_ANALYSIS_REASONING_EFFORT` (`none` for Ollama) |
+| `refinr.llm.analysis.extra-body.*` | *(empty)* | Provider-specific parameters added to the request body by every provider, dotted path = nested object (see [Generation parameters](#generation-parameters)); `reasoning_effort` comes from `LLM_ANALYSIS_REASONING_EFFORT` (`none` for Ollama) |
 | `refinr.llm.analysis.max-output-tokens` | `32768` | Output token limit (truncated output ⇒ explicit error) |
 | `refinr.llm.analysis.max-retries` | `2` | Retries on `429`, `5xx` and unreachable provider (same for `refinr.llm.verdict.*`) |
 | `refinr.llm.analysis.retry-base-delay` | `2s` | Delay before the first retry |
@@ -545,7 +582,7 @@ configured. The result is cached for `refinr.health.cache-ttl` (45 s); the detai
 ```bash
 cp .env.example .env
 docker compose up -d --build                      # backend + frontend
-docker compose --profile ollama up -d --build     # + a bundled Ollama, pulls LLM_ANALYSIS_MODEL on first start
+docker compose --profile ollama up -d --build     # + a bundled Ollama, pulls LLM_ANALYSIS_MODEL on first start (qwen3:8b if unset, the profile's example)
 curl localhost:8080/api/v1/health
 ```
 
@@ -575,7 +612,7 @@ Inside a container `localhost` is the container itself: an Ollama running on you
 ### Without Docker
 
 ```bash
-ollama serve && ollama pull qwen3:8b                 # 1. local LLM (default provider)
+ollama serve && ollama pull qwen3:8b                 # 1. local LLM (example model, set in .env)
 (cd backend && mvn spring-boot:run)                   # 2. API → http://localhost:8080
 (cd frontend && npm install && npm run dev)           # 3. UI  → http://localhost:3000 (Vite proxies /api)
 ```
@@ -814,6 +851,9 @@ Docker and GitHub Actions updates weekly.
 | `ai: DOWN — model qwen3:8b not found` | Model not pulled | `ollama pull qwen3:8b` |
 | `ai: DOWN — unreachable` | Ollama stopped, or wrong base URL | `ollama serve`; check `LLM_ANALYSIS_BASE_URL` (with `/v1`) |
 | `ai: DOWN — HTTP 401` | Provider key refused | Check `LLM_ANALYSIS_API_KEY` / `LLM_VERDICT_API_KEY` |
+| Startup refused: *set LLM_ANALYSIS_PROVIDER, LLM_ANALYSIS_MODEL…* | No provider or model configured (no default since 1.4) | Set the named variables in `.env` (examples in `.env.example`); the pre-1.4 local Ollama is `openai-compatible` + `http://localhost:11434/v1` + `qwen3:8b` |
+| Startup refused: *extra-body key '…' overrides the field '…'* | An `extra-body` key aims at a field Refinr manages | Remove it, or use the dedicated setting (e.g. `LLM_ANALYSIS_TEMPERATURE`) |
+| `502`: *rejected the optional parameter …* / *sent optional parameters: …* | The model rejects a temperature or `extra-body` parameter | Remove that parameter from `.env` |
 | Startup refused: *Obsolete LLM configuration* | Pre-1.0 keys (`ai.provider`, `GEMINI_API_KEY`…) | Rename them as the message says (see [Migrating from the pre-1.0 LLM configuration](#migrating-from-the-pre-10-llm-configuration)) |
 | `confluence: DOWN` / `401` | Invalid Atlassian token or e-mail | Regenerate the token, check `*_USERNAME` |
 | Startup refused: *Missing configuration for source.provider=…* / *Unknown source.provider* | A property of the chosen source is absent (local `application.properties` older than 1.2), or a typo | Copy the `source.provider` line and the `bookstack.*` / `xwiki.*` block from `application-example.properties` |
