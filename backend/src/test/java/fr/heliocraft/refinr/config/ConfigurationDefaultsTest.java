@@ -200,20 +200,15 @@ class ConfigurationDefaultsTest {
     }
 
     @Test
-    @DisplayName("One Gemini model everywhere it is mentioned: README (badge, examples) and .env.example")
-    void geminiModelIsAligned() throws IOException {
-        String model = "gemini-3.6-flash";
-        String badge = "badge/Gemini-" + model.substring("gemini-".length()).replace("-flash", "%20Flash") + "-";
+    @DisplayName("Google example model: read from .env.example, the same example cited by both READMEs")
+    void geminiExampleIsAligned() throws IOException {
+        Matcher google = Pattern.compile("(?m)^#\\s+google:.*\\bLLM_ANALYSIS_MODEL=(\\S+)")
+                .matcher(Files.readString(ENV_EXAMPLE));
+        assertTrue(google.find(), ".env.example should give a google example with LLM_ANALYSIS_MODEL");
+        String model = google.group(1);
         for (Path readme : READMES) {
-            String text = Files.readString(readme);
-            assertTrue(text.contains(badge), readme + " badge should show " + model);
-            assertEquals(1, Pattern.compile("badge/Gemini-").matcher(text).results().count(), readme + ": one Gemini badge");
-        }
-        for (Path file : new Path[] {README, README_FR, ENV_EXAMPLE}) {
-            Matcher mentioned = Pattern.compile("gemini-\\d[\\w.-]*").matcher(Files.readString(file));
-            while (mentioned.find()) {
-                assertEquals(model, mentioned.group(), "Gemini model mentioned in " + file);
-            }
+            assertTrue(Files.readString(readme).contains("LLM_ANALYSIS_MODEL=" + model),
+                    readme + " should cite the .env.example google model " + model);
         }
     }
 

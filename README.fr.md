@@ -12,8 +12,7 @@ Epics · User Stories · Sous-tâches · Critères d'acceptation · Story points
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1-6DB33F?logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
-![Ollama](https://img.shields.io/badge/Ollama-local-000000?logo=ollama&logoColor=white)
-![Gemini](https://img.shields.io/badge/Gemini-3.6%20Flash-4285F4?logo=googlegemini&logoColor=white)
+![LLM](https://img.shields.io/badge/LLM-anthropic%20%C2%B7%20google%20%C2%B7%20openai--compatible-blue)
 ![Jira](https://img.shields.io/badge/Jira-Cloud-0052CC?logo=jira&logoColor=white)
 ![Confluence](https://img.shields.io/badge/Confluence-Cloud-172B4D?logo=confluence&logoColor=white)
 ![BookStack](https://img.shields.io/badge/BookStack-v26-0288D1?logo=bookstack&logoColor=white)
@@ -57,7 +56,7 @@ Ollama inclus en option : `docker compose --profile ollama up -d --build`
 | Fournisseur | `provider` | Statut |
 |---|---|---|
 | Ollama (local, défaut : `qwen3:8b`) | `openai-compatible` | ✅ testé en réel |
-| Google Gemini (`gemini-3.6-flash`) | `google` | ✅ testé en réel |
+| Google Gemini | `google` | ✅ testé en réel (par exemple avec `gemini-3.6-flash`) |
 | Anthropic Claude | `anthropic` | ⚠️ non testé en réel (serveur HTTP simulé uniquement) |
 | OpenAI | `openai-compatible` | ⚠️ non testé en réel (serveur HTTP simulé uniquement) |
 | DeepSeek, Mistral, Groq, OpenRouter, LiteLLM, vLLM | `openai-compatible` | ⚠️ non testé en réel (même client que OpenAI / Ollama) |
@@ -468,7 +467,7 @@ LLM_ANALYSIS_BASE_URL=http://localhost:11434/v1
 LLM_ANALYSIS_MODEL=qwen3:8b
 LLM_ANALYSIS_REASONING_EFFORT=none   # empêche qwen3 de « réfléchir » au-delà du délai
 
-# Google Gemini (base URL vide = URL officielle)
+# Google Gemini (base URL vide = URL officielle ; le modèle est un exemple, tout modèle accessible avec votre clé convient)
 LLM_ANALYSIS_PROVIDER=google
 LLM_ANALYSIS_BASE_URL=
 LLM_ANALYSIS_MODEL=gemini-3.6-flash
@@ -1008,7 +1007,7 @@ Les appels HTTP externes sont simulés avec **OkHttp MockWebServer** : aucun acc
 | `502` *The AI provider is unavailable* | Fournisseur injoignable, clé refusée, quota épuisé ou délai dépassé (après les nouveaux essais) | Voir `GET /api/v1/health` et les logs (`correlationId`) |
 | `400` *The document is empty or contains no text to analyze* | Page vide, non publiée ou sans texte (images seules) | Publier le contenu de la page, puis relancer |
 | Toutes les stories en `validation-necessaire` | Fournisseur de verdict injoignable | Vérifier `LLM_VERDICT_BASE_URL` / `LLM_VERDICT_API_KEY` ou vider `LLM_VERDICT_PROVIDER` |
-| `ai: UP` mais chaque analyse échoue : *does not know the model or endpoint (HTTP 404)* | Modèle retiré pour la génération : le health Google ne fait que lire le modèle (`GET /v1beta/models/{modèle}`), qui peut encore répondre pour un modèle retiré | Passer `LLM_ANALYSIS_MODEL` à un modèle actuel (exemple par défaut : `gemini-3.6-flash`) |
+| `ai: UP` mais chaque analyse échoue : *does not know the model or endpoint (HTTP 404)* | Modèle retiré pour la génération : le health Google ne fait que lire le modèle (`GET /v1beta/models/{modèle}`), qui peut encore répondre pour un modèle retiré | Passer `LLM_ANALYSIS_MODEL` à un modèle actuel (par exemple `gemini-3.6-flash`) |
 | IA surchargée : *HTTP 503* | Fournisseur saturé (forte demande) | Réessayer quelques minutes plus tard |
 | Démarrage refusé : *Missing configuration for tracker.provider=…* | Propriété absente pour le gestionnaire choisi (`application.properties` local antérieur à la 1.1) | Recopier les lignes `tracker.provider` et `openproject.*` depuis `application-example.properties` |
 | `openproject: DOWN — openproject.project not set` / `HTTP 404` | Projet par défaut absent ou inconnu | Renseigner `OPENPROJECT_PROJECT` (identifiant ou id) et vérifier que le compte en est membre |

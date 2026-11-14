@@ -9,8 +9,7 @@
 ![Java](https://img.shields.io/badge/Java-25-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1-6DB33F?logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
-![Ollama](https://img.shields.io/badge/Ollama-local-000000?logo=ollama&logoColor=white)
-![Gemini](https://img.shields.io/badge/Gemini-3.6%20Flash-4285F4?logo=googlegemini&logoColor=white)
+![LLM](https://img.shields.io/badge/LLM-anthropic%20%C2%B7%20google%20%C2%B7%20openai--compatible-blue)
 ![Jira](https://img.shields.io/badge/Jira-Cloud-0052CC?logo=jira&logoColor=white)
 ![Confluence](https://img.shields.io/badge/Confluence-Cloud-172B4D?logo=confluence&logoColor=white)
 ![BookStack](https://img.shields.io/badge/BookStack-v26-0288D1?logo=bookstack&logoColor=white)
@@ -54,7 +53,7 @@ with `LLM_ANALYSIS_BASE_URL=http://ollama:11434/v1`. More in [Docker Compose](#d
 | Provider | `provider` | Status |
 |---|---|---|
 | Ollama (local, default `qwen3:8b`) | `openai-compatible` | ✅ tested against the real API |
-| Google Gemini (`gemini-3.6-flash`) | `google` | ✅ tested against the real API |
+| Google Gemini | `google` | ✅ tested against the real API (for example with `gemini-3.6-flash`) |
 | Anthropic Claude | `anthropic` | ⚠️ not tested against the real API (simulated HTTP server only) |
 | OpenAI | `openai-compatible` | ⚠️ not tested against the real API (simulated HTTP server only) |
 | DeepSeek, Mistral, Groq, OpenRouter, LiteLLM, vLLM | `openai-compatible` | ⚠️ not tested against the real API (same client as OpenAI / Ollama) |
@@ -269,7 +268,7 @@ LLM_ANALYSIS_BASE_URL=http://localhost:11434/v1
 LLM_ANALYSIS_MODEL=qwen3:8b
 LLM_ANALYSIS_REASONING_EFFORT=none   # keeps qwen3 from "thinking" past the timeout
 
-# Google Gemini (empty base URL = official endpoint)
+# Google Gemini (empty base URL = official endpoint; the model is an example, use any model your key can use)
 LLM_ANALYSIS_PROVIDER=google
 LLM_ANALYSIS_BASE_URL=
 LLM_ANALYSIS_MODEL=gemini-3.6-flash
@@ -750,7 +749,7 @@ Docker and GitHub Actions updates weekly.
 | `502` *did not produce a valid result* | Output breaks the schema even after repairs | Use a more capable model |
 | `502` *output was truncated* | Token limit reached | Raise `refinr.llm.analysis.max-output-tokens` |
 | `502` *The AI provider is unavailable* | Unreachable, key refused, quota or timeout (after retries) | See `GET /api/v1/health` and the logs (`correlationId`) |
-| `ai: UP` but every analysis fails with *does not know the model or endpoint (HTTP 404)* | Model retired for generation: the Google health check only reads the model (`GET /v1beta/models/{model}`), which can still answer for a retired model | Switch `LLM_ANALYSIS_MODEL` to a current model (default example: `gemini-3.6-flash`) |
+| `ai: UP` but every analysis fails with *does not know the model or endpoint (HTTP 404)* | Model retired for generation: the Google health check only reads the model (`GET /v1beta/models/{model}`), which can still answer for a retired model | Switch `LLM_ANALYSIS_MODEL` to a current model (for example `gemini-3.6-flash`) |
 | `ai` busy: *HTTP 503* | Provider overloaded (high demand) | Retry a few minutes later |
 | Startup refused: *Missing configuration for tracker.provider=…* | A property of the chosen tracker is absent (local `application.properties` older than 1.1) | Copy the `tracker.provider` and `openproject.*` lines from `application-example.properties` |
 | `openproject: DOWN — openproject.project not set` / `HTTP 404` | No or unknown default project | Set `OPENPROJECT_PROJECT` (identifier or id) and check the account is a member |
