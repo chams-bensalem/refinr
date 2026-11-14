@@ -424,9 +424,13 @@ class OpenProjectIssueTrackerTest {
             IssueTrackerException error = assertThrows(IssueTrackerException.class,
                     () -> tracker.createSubtask(task(), "999", null));
 
-            assertTrue(error.getMessage().contains("HTTP 422 MultipleErrors, PropertyConstraintViolation, "
-                    + "PropertyConstraintViolation on parent, subject"), error.getMessage());
-            assertTrue(error.getMessage().contains("Parent n'existe pas."), error.getMessage());
+            assertTrue(error.clientMessage().contains("HTTP 422 MultipleErrors, PropertyConstraintViolation, "
+                    + "PropertyConstraintViolation on parent, subject"), error.clientMessage());
+            assertTrue(error.clientMessage().contains("Parent n'existe pas."), error.clientMessage());
+            // Logs et traces : statut, codes et attributs, sans les messages d'OpenProject (#33)
+            assertEquals("OpenProject rejected the subtask (HTTP 422 MultipleErrors, PropertyConstraintViolation, "
+                    + "PropertyConstraintViolation on parent, subject)", error.getMessage());
+            assertNull(error.getCause());
         }
 
         @Test

@@ -24,6 +24,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.codec.DecodingException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
@@ -109,7 +110,8 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
     // dans la reponse partielle (crees / echoues) de CreateBacklog.
     @Override
     public String createEpic(Epic epic, String project) {
-        log.info("Creating Jira Epic: {}", epic.getName());
+        // Titres et descriptions (sortie du modele) jamais dans les logs : CreateBacklog cite la position
+        log.info("Creating Jira Epic");
 
         Map<String, Object> fields = new HashMap<>();
         fields.put("project", Map.of("key", projet(project)));
@@ -132,7 +134,7 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
     // dans la reponse partielle (crees / echoues) de CreateBacklog.
     @Override
     public String createStory(Story story, String epicKey, String project) {
-        log.info("Creating Jira Story: {} under Epic: {}", story.getTitle(), epicKey);
+        log.info("Creating Jira Story under Epic: {}", epicKey);
 
         String fullDescription = StoryMarkdown.description(story);
         String summary = story.getTitle();
@@ -173,7 +175,7 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
     // dans la reponse partielle (crees / echoues) de CreateBacklog.
     @Override
     public String createSubtask(Task task, String parentStoryKey, String project) {
-        log.info("Creating Jira Task: {} under Story: {}", task.getTitle(), parentStoryKey);
+        log.info("Creating Jira Task under Story: {}", parentStoryKey);
 
         Map<String, Object> fields = Map.of(
                 "project", Map.of("key", projet(project)),
@@ -190,8 +192,9 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
     }
 
     /**
-     * POST de creation d'un ticket, sans nouvel essai (non idempotent). Tout echec devient une
-     * {@link IssueTrackerException} au message sur : statut HTTP et erreurs de validation de Jira, jamais d'URL.
+     * POST de creation d'un ticket, sans nouvel essai (non idempotent). Tout echec connu devient une
+     * {@link IssueTrackerException} sans cause : message sur (statut HTTP, champs en cause) pour les logs, et message
+     * client complete des erreurs de validation de Jira (qui peuvent citer le contenu envoye).
      */
     private String createIssue(String kind, Map<String, Object> requestBody) {
         try {
@@ -208,33 +211,66 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
             log.info("{} created successfully: {}", kind, issueKey);
             return issueKey;
         } catch (WebClientResponseException e) {
-            log.error("Jira API Error creating {}: Status={}, Response={}", kind, e.getStatusCode(),
-                    e.getResponseBodyAsString());
-            String details = jiraErrors(e);
-            throw new IssueTrackerException("Jira rejected the " + kind + " (HTTP " + e.getStatusCode().value() + ")"
-                    + (details.isEmpty() ? "" : ": " + details), e);
+            JiraErrors errors = JiraErrors.of(e);
+            String message = "Jira rejected the " + kind + " (HTTP " + e.getStatusCode().value() + ")";
+            log.error("{}{}", message, errors.shape());
+            throw new IssueTrackerException(message + errors.shape(),
+                    message + (errors.details().isEmpty() ? "" : ": " + errors.details()));
         } catch (WebClientRequestException e) {
-            log.error("Jira unreachable while creating {}", kind, e);
-            throw new IssueTrackerException("Jira unreachable", e);
+            log.error("Jira unreachable while creating {}: {}", kind, e.getClass().getSimpleName());
+            throw new IssueTrackerException("Jira unreachable");
+        } catch (DecodingException e) {
+            // Reponse 2xx illisible : le message de Jackson cite le corps recu
+            String message = "Jira returned an unreadable response for the " + kind + " (it may have been created)";
+            log.error(message);
+            throw new IssueTrackerException(message);
         }
     }
 
-    /** errorMessages et errors (champ: message) du corps d'erreur Jira, joints ; vide si illisible. */
-    private static String jiraErrors(WebClientResponseException e) {
-        List<String> messages = new ArrayList<>();
-        try {
-            Map<?, ?> body = e.getResponseBodyAs(Map.class);
-            if (body != null && body.get("errorMessages") instanceof List<?> list) {
-                list.forEach(message -> messages.add(String.valueOf(message)));
+    /**
+     * Erreurs du corps de reponse de Jira.
+     *
+     * @param fields   champs en cause (cles de {@code errors}, ex. {@code labels}, {@code customfield_10016}) : surs
+     * @param messages nombre de {@code errorMessages}
+     * @param details  {@code errorMessages} et {@code errors} (champ: message), joints et tronques : peuvent citer le
+     *                 contenu envoye, reserves au client
+     */
+    record JiraErrors(List<String> fields, int messages, String details) {
+
+        static JiraErrors of(WebClientResponseException e) {
+            List<String> fields = new ArrayList<>();
+            List<String> texts = new ArrayList<>();
+            int messages = 0;
+            try {
+                Map<?, ?> body = e.getResponseBodyAs(Map.class);
+                if (body != null && body.get("errorMessages") instanceof List<?> list) {
+                    messages = list.size();
+                    list.forEach(message -> texts.add(String.valueOf(message)));
+                }
+                if (body != null && body.get("errors") instanceof Map<?, ?> errors) {
+                    errors.forEach((field, message) -> {
+                        fields.add(String.valueOf(field));
+                        texts.add(field + ": " + message);
+                    });
+                }
+            } catch (RuntimeException unreadable) {
+                return new JiraErrors(List.of(), 0, "");
             }
-            if (body != null && body.get("errors") instanceof Map<?, ?> errors) {
-                errors.forEach((field, message) -> messages.add(field + ": " + message));
-            }
-        } catch (RuntimeException unreadable) {
-            return "";
+            String joined = String.join("; ", texts);
+            return new JiraErrors(fields, messages, joined.length() > 500 ? joined.substring(0, 500) + "..." : joined);
         }
-        String joined = String.join("; ", messages);
-        return joined.length() > 500 ? joined.substring(0, 500) + "..." : joined;
+
+        /** Forme sure des erreurs : champs en cause et nombre de messages, jamais leur texte. */
+        String shape() {
+            List<String> parts = new ArrayList<>();
+            if (!fields.isEmpty()) {
+                parts.add("fields: " + String.join(", ", fields));
+            }
+            if (messages > 0) {
+                parts.add(messages + " error message" + (messages > 1 ? "s" : ""));
+            }
+            return parts.isEmpty() ? "" : " [" + String.join("; ", parts) + "]";
+        }
     }
 
     private String projet(String project) {
@@ -276,7 +312,13 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
                     adfToText(fields.get("description")).strip(), labels,
                     descriptionAdf != null ? new JiraAdfContent(descriptionAdf) : null);
         } catch (WebClientResponseException e) {
-            throw new RuntimeException("Failed to read issue " + issueKey + ": HTTP " + e.getStatusCode().value(), e);
+            // Sans cause : l'exception WebClient porte l'URL et le corps de la reponse
+            throw new RuntimeException("Failed to read issue " + issueKey + ": HTTP " + e.getStatusCode().value());
+        } catch (WebClientRequestException e) {
+            throw new RuntimeException("Failed to read issue " + issueKey + ": Jira unreachable ("
+                    + e.getClass().getSimpleName() + ")");
+        } catch (DecodingException e) {
+            throw new RuntimeException("Failed to read issue " + issueKey + ": unreadable Jira response");
         }
     }
 
@@ -313,7 +355,12 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
                     .bodyToMono(Void.class)
                     .block();
         } catch (WebClientResponseException e) {
-            throw new RuntimeException("Failed to update issue " + story.key() + ": " + e.getResponseBodyAsString(), e);
+            // Ni corps de reponse (il peut citer la description envoyee) ni cause
+            throw new RuntimeException("Failed to update issue " + story.key() + ": HTTP " + e.getStatusCode().value()
+                    + JiraErrors.of(e).shape());
+        } catch (WebClientRequestException e) {
+            throw new RuntimeException("Failed to update issue " + story.key() + ": Jira unreachable ("
+                    + e.getClass().getSimpleName() + ")");
         }
     }
 

@@ -506,8 +506,11 @@ class JiraIssueTrackerTest {
         var error = assertThrows(fr.heliocraft.refinr.application.port.out.IssueTrackerException.class,
             () -> jiraService.createEpic(epic));
 
+        // Client : statut et erreurs de Jira ; logs et traces : statut et forme des erreurs seulement (#33)
         assertEquals("Jira rejected the epic (HTTP 400): Bad project; priority: Field 'priority' cannot be set.",
-            error.getMessage());
+            error.clientMessage());
+        assertEquals("Jira rejected the epic (HTTP 400) [fields: priority; 1 error message]", error.getMessage());
+        assertNull(error.getCause());
     }
 
     @Test
