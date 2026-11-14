@@ -320,3 +320,27 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
   « pas de préfixe » ; cas intermédiaire de l'échelle (un epic par objectif ou module, au moins une story par règle
   métier ou étape de flux). Abandonnés : champ de couverture, réglage `refinr.backlog.*`, contrôle après coup. Mesure
   après G1 avec le même protocole, 4 exécutions par document, en `gemini-3.6-flash`.
+
+## Paramètres de génération (v1.4, G0, #38)
+
+- **Aucune hypothèse sur le modèle** : l'utilisateur choisit fournisseur, modèle et version ; le code n'a ni liste de
+  modèles connus, ni logique ou valeur par défaut fondée sur un nom de modèle, ni fournisseur ou modèle par défaut
+  (démarrage refusé, variables à renseigner nommées). Les paramètres d'échantillonnage et de réflexion ne sont envoyés
+  que s'ils sont configurés : un défaut choisi pour un modèle devient faux pour le suivant (ex. température ignorée par
+  Gemini 3.6, refusée par les modèles Claude récents).
+- **`extra-body` générique, appliqué par les trois clients** (`ExtraBody`, sans dépendance Spring) : clé en chemin
+  pointé fusionnée dans le corps, valeur JSON gardée typée ; plutôt qu'un réglage par paramètre (réflexion, effort…),
+  dont les noms et formes changent d'un fournisseur et d'une version à l'autre.
+- **Forme dans `.env`** (vérifié le 2026-11-14, Docker Compose v5.0.1, Spring Boot 4.1.2) : `env_file` transmet tel
+  quel un nom pointé (`refinr.llm.analysis.extra-body.generationConfig.thinkingConfig.thinkingLevel`) et Spring le lie
+  avec sa casse ; la même ligne marche hors Docker (`spring.config.import` du `.env`). La forme en majuscules
+  (`REFINR_LLM_ANALYSIS_EXTRABODY_…`) perd la casse et change `_` en `.` : déconseillée. Donc pas de variable dédiée
+  par rôle (elle serait liée au chemin d'un fournisseur) ; `LLM_*_REASONING_EFFORT` reste, pour la compatibilité.
+- **Chemins réservés**, refusés au démarrage (préfixe dans un sens ou dans l'autre, casse et `_` ignorés, car Google
+  accepte aussi `generation_config`) : champs gérés par Refinr (messages, `contents`, `systemInstruction`, schéma,
+  limite de sortie, `model`) + `temperature` (un seul réglage) + `stream` (réponse lue en une fois). Anthropic :
+  `output_config.format` seulement, et non tout `output_config` : `output_config.effort` est le réglage de profondeur
+  de réflexion des modèles Claude actuels (`thinking.budget_tokens` y est refusé), il doit rester accessible.
+- **HTTP 400** : on ne cite que nos propres noms de clés ; le champ structuré du fournisseur (`error.param`,
+  `google.rpc.BadRequest.fieldViolations[].field`) sert seulement à reconnaître un paramètre envoyé, jamais recopié
+  (règle #29). Statut REST inchangé (`502`).

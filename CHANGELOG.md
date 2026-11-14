@@ -5,6 +5,42 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ## [Unreleased]
 
+Refinr ne fait plus **aucune hypothèse sur le modèle** (#38) : ni fournisseur, ni modèle, ni température par défaut ;
+les paramètres de génération ne sont envoyés que s'ils sont configurés, et `extra-body` sert à tout paramètre propre à
+un fournisseur.
+
+### Added
+- `extra-body` appliqué par **les trois fournisseurs** (`google` et `anthropic` en plus d'`openai-compatible`), avec des
+  clés en **chemin pointé** fusionnées dans le corps (`generationConfig.thinkingConfig.thinkingLevel=low` → objet
+  imbriqué). Exemples documentés pour chaque fournisseur, à vérifier dans sa documentation. Sous Docker, la forme à
+  écrire dans `.env` est le nom de propriété pointé tel quel (`refinr.llm.analysis.extra-body.…=…`) ; la forme en
+  majuscules perd la casse.
+- HTTP `400` du fournisseur avec un paramètre optionnel envoyé : message qui nomme le modèle et le paramètre refusé
+  quand le fournisseur le désigne par un champ structuré (`error.param`, `fieldViolations`), sinon la liste des
+  paramètres optionnels envoyés. Statut REST inchangé (`502`) ; aucun extrait de la réponse du fournisseur.
+
+### Changed
+- **La température n'est plus envoyée par défaut** (analyse `0.2` et verdict `0.1` jusqu'en 1.3) : le fournisseur
+  applique sa propre valeur. Renseignée, elle est envoyée telle quelle à **tous** les fournisseurs, `anthropic` compris
+  (elle ne lui était jamais envoyée).
+- **Plus de fournisseur ni de modèle implicites** : sans `LLM_ANALYSIS_PROVIDER` et `LLM_ANALYSIS_MODEL` (et
+  `LLM_ANALYSIS_BASE_URL` pour `openai-compatible`), le démarrage échoue avec un message qui nomme les variables à
+  renseigner et renvoie à `.env.example` ; idem en `LLM_VERDICT_*` pour un fournisseur de verdict configuré.
+  Auparavant, l'absence de fournisseur donnait l'Ollama local (`http://localhost:11434/v1`, `qwen3:8b`).
+- Une clé `extra-body` qui viserait un champ géré par Refinr (messages, schéma, limite de sortie, `model`,
+  `temperature`, `stream`) est refusée au démarrage, avec la clé nommée ; auparavant, avec `openai-compatible`, elle
+  écrasait le champ. Une clé `extra-body` contenant un point est désormais un chemin imbriqué (elle était envoyée
+  comme une clé littérale).
+
+### Migration
+- Pour retrouver l'ancienne température, ajouter dans `.env` :
+  `LLM_ANALYSIS_TEMPERATURE=0.2` et `LLM_VERDICT_TEMPERATURE=0.1`.
+  Un `application.properties` local copié avant la 1.4 garde l'ancien défaut `0.2` / `0.1` tant qu'il n'est pas
+  recopié depuis `application-example.properties`.
+- Pour retrouver l'ancien Ollama local implicite, ajouter dans `.env` :
+  `LLM_ANALYSIS_PROVIDER=openai-compatible`, `LLM_ANALYSIS_BASE_URL=http://localhost:11434/v1` et
+  `LLM_ANALYSIS_MODEL=qwen3:8b` (déjà présentes dans `.env.example`).
+
 ## [1.3.0] - 2026-11-14
 
 Document fourni **en texte**, sans source documentaire : l'API (`content`, `title`) et l'interface web (**Pasted
