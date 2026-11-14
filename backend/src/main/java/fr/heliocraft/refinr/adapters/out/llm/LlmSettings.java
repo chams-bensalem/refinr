@@ -4,16 +4,16 @@
 package fr.heliocraft.refinr.adapters.out.llm;
 
 import java.time.Duration;
-import java.util.Map;
 
 /**
  * Parametres d'un fournisseur de modele pour un role (analyse ou verdict).
  *
  * @param role            nom du role, pour les logs et le health check (ex. "analysis", "verdict")
  * @param maxOutputTokens limite de tokens de sortie ; 0 = ne pas l'envoyer (openai-compatible uniquement)
- * @param temperature     null = non envoyee, valeur par defaut du fournisseur (jamais envoyee a Anthropic)
+ * @param temperature     null = non envoyee, valeur par defaut du fournisseur ; sinon envoyee telle quelle a tous les
+ *                        fournisseurs
  * @param maxTokensParam  openai-compatible : nom du parametre de limite (max_tokens, max_completion_tokens, ou aucun)
- * @param extraBody       proprietes ajoutees telles quelles au corps de la requete (openai-compatible), ex. {@code think: false}
+ * @param extraBody       parametres propres au fournisseur, fusionnes dans le corps de la requete par les trois clients
  * @param baseUrl         vide = URL officielle (anthropic, google) ; obligatoire pour openai-compatible
  * @param retry           nouveaux essais sur 429, 5xx, 529 et connexion refusee (jamais apres un delai depasse)
  */
@@ -28,7 +28,7 @@ public record LlmSettings(
         Double temperature,
         JsonMode jsonMode,
         MaxTokensParam maxTokensParam,
-        Map<String, Object> extraBody,
+        ExtraBody extraBody,
         RetryPolicy retry) {
 
     public LlmSettings {
@@ -54,7 +54,7 @@ public record LlmSettings(
         apiKey = apiKey == null ? "" : apiKey;
         jsonMode = jsonMode == null ? JsonMode.JSON_SCHEMA : jsonMode;
         maxTokensParam = maxTokensParam == null ? MaxTokensParam.MAX_TOKENS : maxTokensParam;
-        extraBody = extraBody == null ? Map.of() : Map.copyOf(extraBody);
+        extraBody = extraBody == null ? ExtraBody.NONE : extraBody;
         retry = retry == null ? RetryPolicy.none() : retry;
     }
 

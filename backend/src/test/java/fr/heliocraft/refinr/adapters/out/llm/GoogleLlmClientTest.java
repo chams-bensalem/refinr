@@ -10,9 +10,12 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.StringNode;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.*;
 
-class GoogleLlmClientTest extends AbstractLlmClientTest {
+class GoogleLlmClientTest extends AbstractStructuredErrorLlmClientTest {
 
     @Override
     LlmProvider provider() {
@@ -56,7 +59,33 @@ class GoogleLlmClientTest extends AbstractLlmClientTest {
         assertEquals("application/json", generation.path("responseMimeType").asString());
         assertTrue(generation.path("responseJsonSchema").path("properties").has("aiReady"));
         assertEquals(1000, generation.path("maxOutputTokens").asInt());
-        assertEquals(0.2, generation.path("temperature").asDouble());
+    }
+
+    @Override
+    String temperaturePath() {
+        return "generationConfig.temperature";
+    }
+
+    @Override
+    Map<String, Object> extraBodyExample() {
+        return Map.of("generationConfig.thinkingConfig.thinkingLevel", "low");
+    }
+
+    @Override
+    List<String> reservedKeys() {
+        return List.of("systemInstruction", "contents", "generationConfig", "generationConfig.maxOutputTokens",
+                "generationConfig.responseMimeType", "generationConfig.responseJsonSchema", "generationConfig.temperature",
+                "generation_config.temperature");
+    }
+
+    /** google.rpc.BadRequest : Google designe le champ en snake_case (generation_config.thinking_config...). */
+    @Override
+    MockResponse badRequestNaming(String field, String message) {
+        String snake = field.replaceAll("([a-z0-9])([A-Z])", "$1_$2").toLowerCase(java.util.Locale.ROOT);
+        return new MockResponse().setResponseCode(400).addHeader("Content-Type", "application/json")
+                .setBody("{\"error\":{\"code\":400,\"status\":\"INVALID_ARGUMENT\",\"message\":" + StringNode.valueOf(message)
+                        + ",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.BadRequest\",\"fieldViolations\":[{\"field\":"
+                        + StringNode.valueOf(snake) + ",\"description\":" + StringNode.valueOf(message) + "}]}]}}");
     }
 
     @Test

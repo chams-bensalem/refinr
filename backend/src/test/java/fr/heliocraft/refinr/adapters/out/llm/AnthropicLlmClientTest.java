@@ -10,6 +10,10 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.StringNode;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class AnthropicLlmClientTest extends AbstractLlmClientTest {
@@ -57,8 +61,27 @@ class AnthropicLlmClientTest extends AbstractLlmClientTest {
         assertEquals("user prompt", body.path("messages").path(0).path("content").asString());
         assertEquals("json_schema", body.path("output_config").path("format").path("type").asString());
         assertTrue(body.path("output_config").path("format").path("schema").path("properties").has("aiReady"));
-        assertFalse(body.has("temperature"), "no temperature for Claude models");
         assertFalse(body.has("stream"), "no streaming");
+    }
+
+    @Override
+    String temperaturePath() {
+        return "temperature";
+    }
+
+    /** Objet JSON (thinking) et chemin fusionne a cote du format gere par Refinr (output_config.effort). */
+    @Override
+    Map<String, Object> extraBodyExample() {
+        Map<String, Object> example = new LinkedHashMap<>();
+        example.put("output_config.effort", "low");
+        example.put("thinking", Map.of("type", "adaptive"));
+        return example;
+    }
+
+    @Override
+    List<String> reservedKeys() {
+        return List.of("model", "max_tokens", "system", "messages", "output_config", "output_config.format",
+                "output_config.format.schema", "temperature", "stream");
     }
 
     @Test

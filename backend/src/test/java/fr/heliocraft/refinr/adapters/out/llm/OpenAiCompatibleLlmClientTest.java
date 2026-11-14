@@ -11,11 +11,12 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.StringNode;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class OpenAiCompatibleLlmClientTest extends AbstractLlmClientTest {
+class OpenAiCompatibleLlmClientTest extends AbstractStructuredErrorLlmClientTest {
 
     @Override
     LlmProvider provider() {
@@ -50,9 +51,33 @@ class OpenAiCompatibleLlmClientTest extends AbstractLlmClientTest {
     }
 
     @Override
-    protected LlmClient client() {
+    protected String baseUrl() {
         // base-url avec la version de l'API, comme http://localhost:11434/v1
-        return LlmClients.create(LlmTestSettings.of(provider(), server.url("/v1").toString()));
+        return server.url("/v1").toString();
+    }
+
+    @Override
+    String temperaturePath() {
+        return "temperature";
+    }
+
+    @Override
+    Map<String, Object> extraBodyExample() {
+        return Map.of("reasoning_effort", "none");
+    }
+
+    @Override
+    List<String> reservedKeys() {
+        return List.of("model", "messages", "messages.0", "response_format", "response_format.type", "max_tokens",
+                "max_completion_tokens", "temperature", "stream");
+    }
+
+    /** error.param : nom du parametre refuse (OpenAI, Ollama, vLLM, LiteLLM...). */
+    @Override
+    MockResponse badRequestNaming(String field, String message) {
+        return new MockResponse().setResponseCode(400).addHeader("Content-Type", "application/json")
+                .setBody("{\"error\":{\"type\":\"invalid_request_error\",\"message\":" + StringNode.valueOf(message)
+                        + ",\"param\":" + StringNode.valueOf(field) + ",\"code\":null}}");
     }
 
     @Override
@@ -77,11 +102,11 @@ class OpenAiCompatibleLlmClientTest extends AbstractLlmClientTest {
                              Double temperature, MaxTokensParam maxTokensParam) {
         return LlmClients.create(new LlmSettings("verdict", LlmProvider.OPENAI_COMPATIBLE, server.url("/v1").toString(),
                 "deepseek-chat", apiKey, Duration.ofSeconds(2), maxOutputTokens, temperature, mode, maxTokensParam,
-                extraBody, RetryPolicy.none()));
+                ExtraBody.of(extraBody), RetryPolicy.none()));
     }
 
     @Test
-    @DisplayName("Default request: temperature and max_tokens sent (unchanged defaults)")
+    @DisplayName("Configured temperature and max_tokens: both sent")
     void defaultTemperatureAndMaxTokens() throws Exception {
         server.enqueue(success("{}"));
 
