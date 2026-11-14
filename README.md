@@ -125,8 +125,15 @@ Tried an untested provider? Please report back — see [CONTRIBUTING.md](CONTRIB
 - 🧾 **Partial results instead of duplicates**: issue creation is never retried; a failure is reported in
   `created` / `failed` (`207` or `502`) and the remaining issues are still created.
 
+**Web UI**
+- 🏠 **Analyze** page: page ID of the active source (label and help follow it) or pasted text, preview Epics >
+  Stories > Sub-tasks with each story's verdict and reason, creation on confirmation; **Results** page with the
+  counters, the created issues and, after a partial creation, the items not created with their reason.
+- 🟢 Health indicators of the services in the header.
+
 **Operations**
-- 🩺 Health check per outbound port (the active document source, the active tracker, each LLM provider), cached 45 s, never exposing a key or URL.
+- 🩺 Health check per outbound port (the active document source, the active tracker, each LLM provider, whose key and
+  model are checked with a free read), cached 45 s, never exposing a key or URL.
 - 📊 Structured JSON logs with a `correlationId` per request; error responses never echo raw exception messages.
 - 🐳 Multi-arch (`amd64` / `arm64`) non-root images, read-only containers, ports bound to `127.0.0.1`, CORS allowlist,
   optional `X-API-Key`, DNS rebinding protection.
@@ -274,25 +281,42 @@ LLM_ANALYSIS_BASE_URL=
 LLM_ANALYSIS_MODEL=gemini-3.6-flash
 LLM_ANALYSIS_API_KEY=your-gemini-api-key
 
-# Anthropic (empty base URL = official endpoint; not tested against the real API yet)
+# Anthropic (empty base URL = official endpoint; the model is an example; not tested against the real API yet)
 LLM_ANALYSIS_PROVIDER=anthropic
 LLM_ANALYSIS_BASE_URL=
-LLM_ANALYSIS_MODEL=your-claude-model
+LLM_ANALYSIS_MODEL=claude-opus-5-5
 LLM_ANALYSIS_API_KEY=your-anthropic-api-key
 
 # Any OpenAI-compatible API: OpenAI, DeepSeek, Mistral, Groq, OpenRouter, LiteLLM, vLLM (base URL required, with /v1)
 LLM_ANALYSIS_PROVIDER=openai-compatible
 LLM_ANALYSIS_BASE_URL=https://api.openai.com/v1
-LLM_ANALYSIS_MODEL=your-model
+LLM_ANALYSIS_MODEL=your-openai-model
 LLM_ANALYSIS_API_KEY=your-api-key
 LLM_ANALYSIS_REASONING_EFFORT=
 # OpenAI reasoning models reject temperature and max_tokens:
 #   LLM_ANALYSIS_TEMPERATURE=   LLM_ANALYSIS_MAX_TOKENS_PARAM=max_completion_tokens
 ```
 
-On a slow machine (a few tokens/s), raise `LLM_ANALYSIS_TIMEOUT` (e.g. `30m`). Configuration keys from before v1.0
-(`ai.provider`, `GEMINI_API_KEY`, `OLLAMA_*`…) are **refused at startup** with the mapping to apply — see the
-[migration table in the French README](README.fr.md#migration-depuis-lancienne-configuration-ia).
+On a slow machine (a few tokens/s), raise `LLM_ANALYSIS_TIMEOUT` (e.g. `30m`).
+
+#### Migrating from the pre-1.0 LLM configuration
+
+Older keys are **refused at startup** (the message lists the mapping, never the values):
+
+| Old key (`.env` / property) | New key |
+|---|---|
+| `AI_PROVIDER=ollama` / `ai.provider` | `LLM_ANALYSIS_PROVIDER=openai-compatible` |
+| `AI_PROVIDER=gemini` | `LLM_ANALYSIS_PROVIDER=google` |
+| `OLLAMA_BASE_URL` / `ollama.base-url` | `LLM_ANALYSIS_BASE_URL` **with `/v1`** (e.g. `http://localhost:11434/v1`) |
+| `OLLAMA_MODEL`, `GEMINI_MODEL` | `LLM_ANALYSIS_MODEL` |
+| `GEMINI_API_KEY` / `gemini.api-key` | `LLM_ANALYSIS_API_KEY` (or `LLM_VERDICT_API_KEY`) |
+| `AI_VERDICT_PROVIDER=litellm` | `LLM_VERDICT_PROVIDER=openai-compatible` |
+| `AI_VERDICT_BASE_URL` | `LLM_VERDICT_BASE_URL` **with `/v1`** (e.g. `http://localhost:4000/v1`) |
+| `AI_VERDICT_MODEL`, `AI_VERDICT_API_KEY` | `LLM_VERDICT_MODEL`, `LLM_VERDICT_API_KEY` |
+| `ai.verdict.timeout-seconds=90` | `refinr.llm.verdict.timeout=90s` |
+
+**System** environment variables are not checked (a `GEMINI_API_KEY` may serve other tools): only the configuration
+files and `.env` are.
 
 ### Jira
 
@@ -487,6 +511,31 @@ How the backlog maps to OpenProject:
 `.env.example` lists every environment variable. The frontend needs none: it reads the API base URL at page load
 from `/config.js` (`REFINR_API_BASE_URL` in the Docker image, default `/api/v1`, same origin).
 
+### Check the connection
+
+Once the backend is running:
+
+```bash
+curl -s http://localhost:8080/api/v1/health | jq
+```
+
+```json
+{
+  "status": "UP",
+  "services": {
+    "confluence": { "status": "UP" },
+    "jira":       { "status": "UP" },
+    "ai":         { "status": "UP", "provider": "openai-compatible", "model": "qwen3:8b" }
+  }
+}
+```
+
+The source key is the active one (`confluence`, `bookstack` or `xwiki`), and so is the tracker key (`jira` or
+`openproject`). `DEGRADED` means at least one service is `DOWN`; the `error` field gives a short cause with no
+sensitive data: `HTTP 401` (invalid token), `HTTP 404` (unknown project), `unreachable`, `timeout`,
+`model qwen3:8b not found` (Ollama model not pulled)… `aiVerdict` appears when a separate verdict provider is
+configured. The result is cached for `refinr.health.cache-ttl` (45 s); the details are in the backend logs.
+
 ---
 
 ## ▶️ Running
@@ -538,22 +587,30 @@ Production build: `(cd backend && mvn clean package && java -jar target/refinr-1
 
 ## 🧭 Usage
 
-**Find the page ID**: see [Document sources](#document-sources) for each tool (Confluence: the number in the URL;
-BookStack: the number of the permalink; XWiki: the page reference), or search by title, in the whole source or in
-one space / book:
+### Find the page ID
+
+See [Document sources](#document-sources) for each tool (Confluence: the number in the URL; BookStack: the number of
+the permalink; XWiki: the page reference), or search by title, in the whole source or in one space / book:
 
 ```bash
 curl -G "http://localhost:8080/api/v1/documents/search" --data-urlencode "title=spec" --data-urlencode "space=SPACE"
 # { "success": true, "results": [ { "id": "123456789", "title": "My spec", "url": "https://your-site.atlassian.net/wiki/..." } ] }
 ```
 
-**Web UI**: open <http://localhost:3000>, check the health indicators in the header are green, open **Analyze a spec**,
-choose **Confluence page** (or **BookStack page** / **XWiki page**, after the active source) and paste the page ID, or choose **Pasted text** and paste the spec itself (Markdown or plain
-text, optional title; a counter shows the size against the limit), then click **Preview**. Review the Epics > Stories > Sub-tasks and the `ai-ready` /
-`validation-necessaire` badge (with its reason) of each story, then click **Create in Jira** (or OpenProject) — nothing is created
-before that — and read the summary on **Results**.
+### Web UI
 
-**API — preview, edit, then create** (recommended):
+1. Open <http://localhost:3000> and check that the health indicators in the header are **green**.
+2. Open **Analyze a spec**.
+3. Choose **Confluence page** (or **BookStack page** / **XWiki page**, after the active source) and paste the page ID,
+   or choose **Pasted text** and paste the spec itself (Markdown or plain text, optional title; a counter shows the
+   size against the limit). Click **Preview**: nothing is created yet; for a page, the preview links to it.
+4. Review the Epics > Stories > Sub-tasks and, for each story, the `ai-ready` / `validation-necessaire` badge and its
+   reason.
+5. Click **Create in Jira** (or OpenProject; the server recomputes the verdict on this content), then read the summary
+   on **Results**.
+
+### API: preview, edit, then create (recommended)
+
 
 ```bash
 # 1. Preview the structure without creating anything
@@ -569,15 +626,17 @@ jq '.epics' preview.json | curl -s -X POST "http://localhost:8080/api/v1/create-
 
 Or in one step: `POST /api/v1/analyze-and-create` with `{"documentId": "123456789", "projectKey": "DEMO"}`.
 
-**API — document provided as text** (any configured source; nothing is read from it): send `content` (Markdown or
-plain text) and an optional `title` instead of `documentId`, on `analyze-preview` or `analyze-and-create`:
+### API: document provided as text
+
+Whatever the configured source (nothing is read from it): send `content` (Markdown or plain text) and an optional
+`title` instead of `documentId`, on `analyze-preview` or `analyze-and-create`:
 
 ```bash
 jq -n --rawfile content spec.md '{title: "Inventory management", content: $content}' |
   curl -s -X POST http://localhost:8080/api/v1/analyze-preview -H "Content-Type: application/json" -d @-
 ```
 
-**Unblock a `validation-necessaire` story**:
+### Unblock a `validation-necessaire` story
 
 ```bash
 curl -s -X POST http://localhost:8080/api/v1/reassess-story -H "Content-Type: application/json" \
@@ -585,12 +644,17 @@ curl -s -X POST http://localhost:8080/api/v1/reassess-story -H "Content-Type: ap
 # { "success": true, "issueKey": "PROJ-42", "aiReady": true, "aiReadyReason": "Scope and criteria are now complete." }
 ```
 
-**Feed your coding agent**: query Jira with `labels = "ai-ready"`; in OpenProject, filter the work packages on
-*Agent readiness* = `ai-ready` (and save the query for your agent).
+### Feed your coding agent
 
-**Tips**: structure the page by module (each becomes an Epic); state user roles, business rules and technical
-constraints; name external dependencies (access, API keys, mock-ups) explicitly — otherwise stories end up
-`validation-necessaire`; run `analyze-preview` on a new document before any bulk creation.
+Query Jira with `labels = "ai-ready"`; in OpenProject, filter the work packages on *Agent readiness* = `ai-ready` (and
+save the query for your agent).
+
+### Tips for a good result
+
+- Structure the page by **module / feature** (clear headings): each module becomes an Epic.
+- State the **user roles**, **business rules** and **technical constraints** (stack, APIs, security).
+- Name external dependencies explicitly (access, API keys, mock-ups): otherwise stories end up `validation-necessaire`.
+- Run `analyze-preview` on a new document before any bulk creation.
 
 ---
 
@@ -656,6 +720,9 @@ Base URL: `http://localhost:8080/api/v1`
 | `413` | Text longer than `refinr.document.max-content-chars`, or body over `refinr.http.max-body-bytes` (nothing created, no LLM call) | `false` |
 | `502` | No issue could be created, unusable LLM output (invalid after repairs, or truncated), or LLM provider unavailable | `false` |
 
+A failure does not stop the creation: the item is listed in `failed` (with a reason: HTTP status and the tracker's
+validation errors), so are its children (`Not created: parent … failed`), and the next items are still created.
+
 ```json
 {
   "success": false,
@@ -672,10 +739,19 @@ Base URL: `http://localhost:8080/api/v1`
 }
 ```
 
-**Retries**: document source reads (Confluence `429`, `500`; BookStack and XWiki `429`, `5xx`: 2 retries, 1 s then 2 s) and LLM calls (`429`, `5xx`, unreachable:
-2 retries, `Retry-After` first, capped at 30 s, never after a timeout) are retried. **Jira issue creation is never
-retried** — a `POST` is not idempotent and a retry after a server-side success would duplicate the issue; failures
-go to `failed` and you re-send only those.
+**Retries** — reads and LLM calls only; **issue creation is never retried** (a `POST` is not idempotent and a retry
+after a server-side success would duplicate the issue; failures go to `failed` and you re-send only those):
+
+| Call | Retried | Details |
+|---|---|---|
+| Confluence page read | ✅ on HTTP `429` and `500` | 2 retries, after 1 s then 2 s (`503` and other errors: no retry) |
+| BookStack / XWiki read and search | ✅ on HTTP `429` and `5xx` | 2 retries, after 1 s then 2 s; 30 s timeout per call |
+| LLM calls (analysis, verdict, reassessment), every provider | ✅ on HTTP `429`, `5xx` (including Gemini `503` and Anthropic `529`) and unreachable provider | 2 retries, `Retry-After` first (capped at 30 s), otherwise 2 s then 8 s ± 20 % (`refinr.llm.*.max-retries`, `retry-base-delay`, `retry-multiplier`, `retry-jitter`, `retry-max-delay`); never after a timeout (300 s analysis, 90 s verdict) nor on another `4xx` (`401`: key refused) |
+| Invalid LLM output (unreadable JSON or schema violation) | ✅ repair **with the list of errors** | `refinr.llm.max-repair-attempts` (2) attempts, then `502` (`create-jira`: `validation-necessaire`) |
+| Truncated LLM output (token limit) | ❌ | Explicit `502`: raise `max-output-tokens` |
+| Confluence search | ❌ | |
+| **Issue creation** (Epic, Story, Sub-task) | ❌ | Partial response (`created` / `failed`, `207` or `502`) |
+| Jira read / update (`reassess-story`), health check | ❌ | |
 
 ---
 
@@ -720,6 +796,10 @@ cd frontend && npm run lint && npm run build
 scripts/check-spdx.sh                      # every source file carries the AGPL-3.0-only SPDX header
 ```
 
+Compilation and tests always run on a **JDK 25** (`maven-toolchains-plugin`, goal `select-jdk-toolchain`), even when
+Maven itself runs on another JDK: the JDK 25 is found automatically (`JAVA_HOME`, `JAVA25_HOME`-style variables,
+`~/.m2/toolchains.xml`, usual install folders); without one, the build fails explicitly.
+
 External HTTP calls are simulated with OkHttp MockWebServer: no network access or token needed. CI
 (`.github/workflows/ci.yml`) runs on every PR: backend tests on JDK 25, frontend lint + build, SPDX headers, gitleaks
 over the full history, multi-arch image builds and a `docker compose up` smoke test. Dependabot proposes Maven, npm,
@@ -734,7 +814,7 @@ Docker and GitHub Actions updates weekly.
 | `ai: DOWN — model qwen3:8b not found` | Model not pulled | `ollama pull qwen3:8b` |
 | `ai: DOWN — unreachable` | Ollama stopped, or wrong base URL | `ollama serve`; check `LLM_ANALYSIS_BASE_URL` (with `/v1`) |
 | `ai: DOWN — HTTP 401` | Provider key refused | Check `LLM_ANALYSIS_API_KEY` / `LLM_VERDICT_API_KEY` |
-| Startup refused: *Obsolete LLM configuration* | Pre-1.0 keys (`ai.provider`, `GEMINI_API_KEY`…) | Rename them as the message says |
+| Startup refused: *Obsolete LLM configuration* | Pre-1.0 keys (`ai.provider`, `GEMINI_API_KEY`…) | Rename them as the message says (see [Migrating from the pre-1.0 LLM configuration](#migrating-from-the-pre-10-llm-configuration)) |
 | `confluence: DOWN` / `401` | Invalid Atlassian token or e-mail | Regenerate the token, check `*_USERNAME` |
 | Startup refused: *Missing configuration for source.provider=…* / *Unknown source.provider* | A property of the chosen source is absent (local `application.properties` older than 1.2), or a typo | Copy the `source.provider` line and the `bookstack.*` / `xwiki.*` block from `application-example.properties` |
 | `bookstack: DOWN — HTTP 401` / `HTTP 403` | Wrong token, or the role lacks *Access system API* | Check `BOOKSTACK_TOKEN_ID` / `BOOKSTACK_TOKEN_SECRET` and the role |

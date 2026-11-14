@@ -200,16 +200,56 @@ class ConfigurationDefaultsTest {
     }
 
     @Test
-    @DisplayName("Google example model: read from .env.example, the same example cited by both READMEs")
-    void geminiExampleIsAligned() throws IOException {
-        Matcher google = Pattern.compile("(?m)^#\\s+google:.*\\bLLM_ANALYSIS_MODEL=(\\S+)")
+    @DisplayName("Provider examples: every provider has an example in .env.example, and both READMEs cite the same model")
+    void providerExamplesAreAligned() throws IOException {
+        // Lignes d'exemple de .env.example, reperees par le fournisseur (jamais par la forme du nom du modele)
+        Matcher example = Pattern.compile(
+                "(?m)^#\\s+[\\w-]+:\\s.*\\bLLM_ANALYSIS_PROVIDER=(\\S+).*\\bLLM_ANALYSIS_MODEL=(\\S+)")
                 .matcher(Files.readString(ENV_EXAMPLE));
-        assertTrue(google.find(), ".env.example should give a google example with LLM_ANALYSIS_MODEL");
-        String model = google.group(1);
-        for (Path readme : READMES) {
-            assertTrue(Files.readString(readme).contains("LLM_ANALYSIS_MODEL=" + model),
-                    readme + " should cite the .env.example google model " + model);
+        java.util.Map<String, String> modelByProvider = new java.util.LinkedHashMap<>();
+        while (example.find()) {
+            modelByProvider.put(example.group(1), example.group(2));
         }
+        for (fr.heliocraft.refinr.adapters.out.llm.LlmProvider provider
+                : fr.heliocraft.refinr.adapters.out.llm.LlmProvider.values()) {
+            assertTrue(modelByProvider.containsKey(provider.id()),
+                    ".env.example should give an example for provider " + provider.id());
+        }
+        for (var entry : modelByProvider.entrySet()) {
+            for (Path readme : READMES) {
+                assertTrue(Files.readString(readme).contains("LLM_ANALYSIS_MODEL=" + entry.getValue()),
+                        readme + " should cite the .env.example " + entry.getKey() + " model " + entry.getValue());
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("README EN and FR have the same sections: same heading levels in order, same emoji on level-2 headings")
+    void readmesHaveTheSameSections() throws IOException {
+        List<String> english = sections(README);
+        List<String> french = sections(README_FR);
+        assertFalse(english.isEmpty(), "no heading found in " + README);
+        assertEquals(english, french, "README.fr.md must follow the sections of README.md (the reference)");
+    }
+
+    /** Titres hors blocs de code : niveau, plus l'emoji de tete pour les titres de niveau 2. */
+    static List<String> sections(Path readme) throws IOException {
+        Pattern heading = Pattern.compile("^(#{1,6})\\s+(\\S.*)$");
+        List<String> sections = new ArrayList<>();
+        boolean inCode = false;
+        for (String line : Files.readAllLines(readme)) {
+            if (line.startsWith("```")) {
+                inCode = !inCode;
+                continue;
+            }
+            Matcher m = heading.matcher(line);
+            if (!inCode && m.matches()) {
+                String title = m.group(2);
+                String emoji = m.group(1).length() == 2 ? title.substring(0, title.offsetByCodePoints(0, 1)) : "";
+                sections.add(m.group(1) + " " + emoji);
+            }
+        }
+        return sections;
     }
 
     /** Ligne de la propriete dans le tableau de chaque README (anglais puis francais). */
