@@ -203,8 +203,11 @@ class ConfigurationDefaultsTest {
     @DisplayName("One Gemini model everywhere it is mentioned: README (badge, examples) and .env.example")
     void geminiModelIsAligned() throws IOException {
         String model = "gemini-3.6-flash";
+        String badge = "badge/Gemini-" + model.substring("gemini-".length()).replace("-flash", "%20Flash") + "-";
         for (Path readme : READMES) {
-            assertTrue(Files.readString(readme).contains("badge/Gemini-2.5%20Flash-"), readme + " badge should show " + model);
+            String text = Files.readString(readme);
+            assertTrue(text.contains(badge), readme + " badge should show " + model);
+            assertEquals(1, Pattern.compile("badge/Gemini-").matcher(text).results().count(), readme + ": one Gemini badge");
         }
         for (Path file : new Path[] {README, README_FR, ENV_EXAMPLE}) {
             Matcher mentioned = Pattern.compile("gemini-\\d[\\w.-]*").matcher(Files.readString(file));

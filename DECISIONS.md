@@ -281,3 +281,42 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
 - **Comptage en points de code** (`codePointCount`) : un emoji compte pour un caractère, comme pour un utilisateur ; pas de normalisation Unicode.
 - **`hasUsefulText` inchangé** : vérifié sur du Markdown riche (titres, listes, tableau, bloc de code avec `<` / `>`) ; un Markdown sans lettre ni chiffre (`#`, `-`, `|---|`, clôtures de code vides) reste refusé.
 - **Plafond du corps HTTP côté backend : `refinr.http.max-body-bytes` = 5 242 880 octets (5 Mio, `HTTP_MAX_BODY_BYTES`)**, aligné sur `client_max_body_size 5m` de nginx, pour un backend joint sans le proxy : filtre servlet (après hôte et CORS, avant la clé d'API : refus sans lire le corps) → `413` JSON si `Content-Length` dépasse ; corps sans `Content-Length` (`chunked`) lu au plus jusqu'à la limite + 1 octet, `413` au-delà, sinon rejoué depuis la mémoire (au plus 5 Mio par requête). Appliqué à tous les chemins (sur-ensemble de `/api/**`, aucun contournement par encodage du chemin). Valeur ≤ 0 → échec au démarrage. Corps jamais journalisé.
+
+## Granularité du backlog (v1.4) — mesure de référence M0 (#28)
+
+- **Protocole** : programme jetable (non commité) qui n'appelle que `LlmBacklogGenerator.generate` (aucun verdict),
+  réglages de production sauf `max-retries=0` (une requête par appel de génération, réparations comprises dans le
+  compte) ; plafond de 40 requêtes par jour calendaire (compteur daté) ; arrêt sur `400` / `401` / `403` / `404` /
+  `429` et après 2 échecs consécutifs `503` ou délai dépassé ; délai d'analyse 300 s, 32 768 jetons, pause de 15 s.
+  Documents envoyés tels quels à chaque exécution : BookStack page 4 (CDC des stocks en Markdown, cas de #28), XWiki
+  `CDC-GestionDesStocks` (même spec, autre format), une spec moyenne de notes de frais rédigée pour la mesure (mode
+  texte, 1 989 caractères ; les spikes n'ont pas d'autre spec moyenne, la page congés ne fait que 97 caractères), un
+  besoin court d'un paragraphe (attendu : 1 Epic).
+- **Pas d'axe température pour Gemini** : `temperature`, `top_p` et `top_k` sont ignorés par Gemini 3.6 et suivants
+  (doc Google, #38) ; 0.2 reste envoyé (configuration de production), noté dans les relevés.
+- **Ollama `gpt-oss-20b-32k` : validation du protocole seulement** (un essai par appel, compteur exact, délai dépassé
+  bien classé, CSV) ; mesures non exploitables : machine en manque de mémoire (swap plein, 4,2 jetons/s), 2 générations
+  sur 3 au-delà de 600 s. La seule réussie (page congés) produit un epic « Epic: Congés ».
+- **Diagnostic 3.6 / 3.8 (2026-11-14)** : `gemini-3.8-flash` a échoué sur ses 10 premiers appels (5 × `503`, 5 × délai
+  de 300 s, aucun `429`) ; même besoin court, 2 minutes d'écart : `gemini-3.6-flash` OK en 28 s, `gemini-3.8-flash`
+  `503` après 107 s. Clé et format de requête hors de cause → mesure en 3.6, modèle par défaut documenté inchangé
+  (`gemini-3.6-flash`), 3.8 retestée en G0 avec `thinking_level=low` (#38).
+- **Mesure `gemini-3.6-flash`** (2026-11-14, 16:45–16:57 CET) : 6 exécutions par document prévues, série arrêtée au
+  premier `429` (16e requête) ; 15 exécutions réussies, 0 réparation. Requêtes Gemini du jour : 29 sur le plafond
+  de 40 (3.8 : 11, diagnostic : 2, mesure 3.6 : 16).
+
+  | document | ok | epics min / méd. / max | stories min / méd. / max | tâches min / méd. / max | exécutions à epics préfixés |
+  |---|---|---|---|---|---|
+  | **BookStack page 4 (cas #28)** | 4/4 | 3 / 3,5 / 4 | 4 / 4,5 / 6 | 8 / 9 / 14 | 1/4 |
+  | XWiki, même spec | 4/4 | 1 / 2 / 2 | 4 / 4 / 6 | 5 / 9 / 11 | 1/4 |
+  | notes de frais (spec rédigée) | 4/4 | 3 / 4 / 4 | 11 / 11,5 / 12 | 12 / 13,5 / 22 | 3/4 |
+  | besoin court | 3/3 (+1 `429`) | 1 / 1 / 1 | 2 / 3 / 3 | 4 / 6 / 6 | 1/3 |
+
+- **Conclusion** : l'effondrement de #28 (1 Epic / 1 Story sur la page 4) n'est reproduit sur aucune exécution en 3.6 ;
+  variabilité modérée (epic « API REST » présent une exécution sur deux sur la page 4 ; XWiki plus condensé que
+  BookStack pour la même spec, jusqu'à 1 epic / 4 stories) ; besoin court toujours à 1 epic ; préfixe « Epic: » sur
+  6 exécutions sur 15, toujours sur tous les epics de l'exécution, jamais sur les stories ni les tâches.
+- **Suite retenue (G1 allégée)** : normalisation des préfixes côté serveur + exemple du prompt sans préfixe + consigne
+  « pas de préfixe » ; cas intermédiaire de l'échelle (un epic par objectif ou module, au moins une story par règle
+  métier ou étape de flux). Abandonnés : champ de couverture, réglage `refinr.backlog.*`, contrôle après coup. Mesure
+  après G1 avec le même protocole, 4 exécutions par document, en `gemini-3.6-flash`.
