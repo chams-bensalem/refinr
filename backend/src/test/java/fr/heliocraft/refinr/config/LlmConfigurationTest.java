@@ -26,10 +26,45 @@ class LlmConfigurationTest {
         return new LlmProperties.Role(provider, baseUrl, model, apiKey, null, null, null, null, null, null, null, null, null, null, null);
     }
 
+    private static final String SEE_EXAMPLES = " in .env, see the examples in .env.example";
+
     @Test
-    @DisplayName("Without configuration, the analysis uses the local Ollama through its OpenAI-compatible API")
-    void defaultAnalysisIsLocalOllama() {
-        LlmSettings settings = LlmConfiguration.analysisSettings(LlmProperties.Role.EMPTY);
+    @DisplayName("No provider nor model by default: startup refused, the variables to set are named")
+    void analysisWithoutProviderOrModelIsRefused() {
+        IllegalStateException nothing = assertThrows(IllegalStateException.class,
+                () -> LlmConfiguration.analysisSettings(LlmProperties.Role.EMPTY));
+        assertEquals("Invalid refinr.llm.analysis configuration: set LLM_ANALYSIS_PROVIDER, LLM_ANALYSIS_MODEL"
+                + " (and LLM_ANALYSIS_BASE_URL for openai-compatible)" + SEE_EXAMPLES, nothing.getMessage());
+
+        IllegalStateException modelOnly = assertThrows(IllegalStateException.class,
+                () -> LlmConfiguration.analysisSettings(role(null, null, "qwen3:8b", "")));
+        assertEquals("Invalid refinr.llm.analysis configuration: set LLM_ANALYSIS_PROVIDER"
+                + " (and LLM_ANALYSIS_BASE_URL for openai-compatible)" + SEE_EXAMPLES, modelOnly.getMessage());
+
+        IllegalStateException googleWithoutModel = assertThrows(IllegalStateException.class,
+                () -> LlmConfiguration.analysisSettings(role("google", null, " ", "secret-key-value")));
+        assertEquals("Invalid refinr.llm.analysis configuration: set LLM_ANALYSIS_MODEL" + SEE_EXAMPLES,
+                googleWithoutModel.getMessage());
+        assertFalse(googleWithoutModel.getMessage().contains("secret-key-value"));
+
+        IllegalStateException openAiWithoutModelNorUrl = assertThrows(IllegalStateException.class,
+                () -> LlmConfiguration.analysisSettings(role("openai-compatible", "", null, "")));
+        assertEquals("Invalid refinr.llm.analysis configuration: set LLM_ANALYSIS_MODEL, LLM_ANALYSIS_BASE_URL" + SEE_EXAMPLES,
+                openAiWithoutModelNorUrl.getMessage());
+    }
+
+    @Test
+    @DisplayName("A configured verdict provider needs its own model: LLM_VERDICT_MODEL named")
+    void verdictWithoutModelIsRefused() {
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+                () -> LlmConfiguration.verdictSettings(role("anthropic", null, null, "k")));
+        assertEquals("Invalid refinr.llm.verdict configuration: set LLM_VERDICT_MODEL" + SEE_EXAMPLES, error.getMessage());
+    }
+
+    @Test
+    @DisplayName("Explicit local Ollama (the pre-1.4 default, now written in .env): accepted as is, nothing optional added")
+    void explicitOllama() {
+        LlmSettings settings = LlmConfiguration.analysisSettings(role("openai-compatible", "http://localhost:11434/v1", "qwen3:8b", ""));
 
         assertEquals(LlmProvider.OPENAI_COMPATIBLE, settings.provider());
         assertEquals("http://localhost:11434/v1", settings.baseUrl());
@@ -37,6 +72,8 @@ class LlmConfigurationTest {
         assertEquals(Duration.ofSeconds(300), settings.timeout());
         assertEquals(32768, settings.maxOutputTokens());
         assertEquals(JsonMode.JSON_SCHEMA, settings.jsonMode());
+        assertNull(settings.temperature());
+        assertTrue(settings.extraBody().isEmpty());
     }
 
     @Test
@@ -58,13 +95,9 @@ class LlmConfigurationTest {
         LlmSettings google = LlmConfiguration.analysisSettings(role("google", null, "gemini-3.6-flash", "k"));
         assertEquals("https://generativelanguage.googleapis.com", google.baseUrl());
 
-        IllegalStateException googleWithoutModel = assertThrows(IllegalStateException.class,
-                () -> LlmConfiguration.analysisSettings(role("google", null, null, "k")));
-        assertTrue(googleWithoutModel.getMessage().contains("model is required"), googleWithoutModel.getMessage());
-
         IllegalStateException openAiWithoutUrl = assertThrows(IllegalStateException.class,
                 () -> LlmConfiguration.analysisSettings(role("openai-compatible", "", "qwen3:8b", "")));
-        assertEquals("Invalid refinr.llm.analysis configuration: base-url is required for the openai-compatible provider (analysis)",
+        assertEquals("Invalid refinr.llm.analysis configuration: set LLM_ANALYSIS_BASE_URL" + SEE_EXAMPLES,
                 openAiWithoutUrl.getMessage());
 
         // base-url explicite vers Ollama : accepte, mais le modele reste a choisir
@@ -77,7 +110,7 @@ class LlmConfigurationTest {
     @Test
     @DisplayName("Retry defaults: 2 retries, 2 s then 8 s (x4) with 20 % jitter, capped at 30 s")
     void retryDefaults() {
-        var retry = LlmConfiguration.analysisSettings(LlmProperties.Role.EMPTY).retry();
+        var retry = LlmConfiguration.analysisSettings(role("google", null, "gemini-3.6-flash", "k")).retry();
 
         assertEquals(2, retry.maxRetries());
         assertEquals(Duration.ofSeconds(2), retry.baseDelay());
@@ -110,10 +143,10 @@ class LlmConfigurationTest {
     }
 
     @Test
-    @DisplayName("temperature: absent = role default (0.2 / 0.1, unchanged), empty = not sent, otherwise the number")
+    @DisplayName("temperature: absent or empty = not sent (provider default, since 1.4), otherwise the number")
     void temperatureIsConfigurable() {
-        assertEquals(0.2, LlmConfiguration.analysisSettings(openAi(null, null)).temperature());
-        assertEquals(0.1, LlmConfiguration.verdictSettings(openAi(null, null)).temperature());
+        assertNull(LlmConfiguration.analysisSettings(openAi(null, null)).temperature());
+        assertNull(LlmConfiguration.verdictSettings(openAi(null, null)).temperature());
         assertNull(LlmConfiguration.analysisSettings(openAi("", null)).temperature());
         assertNull(LlmConfiguration.verdictSettings(openAi("  ", null)).temperature());
         assertEquals(1.0, LlmConfiguration.analysisSettings(openAi("1", null)).temperature());
@@ -140,19 +173,22 @@ class LlmConfigurationTest {
     }
 
     @Test
-    @DisplayName("Spring binding: an empty LLM_ANALYSIS_TEMPERATURE reaches the code as empty (not sent), an absent one as null (default)")
+    @DisplayName("Spring binding: an empty or absent LLM_ANALYSIS_TEMPERATURE is not sent")
     void emptyTemperatureBindsAsEmpty() {
         LlmProperties empty = new Binder(new MapConfigurationPropertySource(Map.of(
+                "refinr.llm.analysis.provider", "openai-compatible", "refinr.llm.analysis.base-url", "http://localhost:11434/v1",
+                "refinr.llm.analysis.model", "m",
                 "refinr.llm.analysis.temperature", "", "refinr.llm.analysis.max-tokens-param", "max_completion_tokens")))
                 .bind("refinr.llm", LlmProperties.class).get();
         assertEquals("", empty.analysis().temperature());
         assertEquals("max_completion_tokens", empty.analysis().maxTokensParam());
         assertNull(LlmConfiguration.analysisSettings(empty.analysis()).temperature());
 
-        LlmProperties absent = new Binder(new MapConfigurationPropertySource(Map.of("refinr.llm.analysis.model", "m")))
+        LlmProperties absent = new Binder(new MapConfigurationPropertySource(Map.of("refinr.llm.analysis.provider", "google",
+                "refinr.llm.analysis.model", "m", "refinr.llm.analysis.api-key", "k")))
                 .bind("refinr.llm", LlmProperties.class).get();
         assertNull(absent.analysis().temperature());
-        assertEquals(0.2, LlmConfiguration.analysisSettings(absent.analysis()).temperature());
+        assertNull(LlmConfiguration.analysisSettings(absent.analysis()).temperature());
     }
 
     @Test
@@ -168,11 +204,11 @@ class LlmConfigurationTest {
 
         IllegalStateException noUrl = assertThrows(IllegalStateException.class,
                 () -> LlmConfiguration.verdictSettings(role("openai-compatible", "", "m", "")));
-        assertTrue(noUrl.getMessage().contains("base-url is required"), noUrl.getMessage());
+        assertTrue(noUrl.getMessage().contains("set LLM_VERDICT_BASE_URL"), noUrl.getMessage());
 
         IllegalStateException noModel = assertThrows(IllegalStateException.class,
                 () -> LlmConfiguration.analysisSettings(role("anthropic", null, "", "k")));
-        assertTrue(noModel.getMessage().contains("model is required"), noModel.getMessage());
+        assertTrue(noModel.getMessage().contains("set LLM_ANALYSIS_MODEL"), noModel.getMessage());
     }
 
     @Test

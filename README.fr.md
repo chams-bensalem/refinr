@@ -52,7 +52,7 @@ avec `LLM_ANALYSIS_BASE_URL=http://ollama:11434/v1`. Détails : [Avec Docker Com
 
 | Fournisseur | `provider` | Statut |
 |---|---|---|
-| Ollama (local, défaut : `qwen3:8b`) | `openai-compatible` | ✅ testé en réel |
+| Ollama (local, par exemple `qwen3:8b`) | `openai-compatible` | ✅ testé en réel |
 | Google Gemini | `google` | ✅ testé en réel (par exemple avec `gemini-3.6-flash`) |
 | Anthropic Claude | `anthropic` | ⚠️ non testé en réel (serveur HTTP simulé uniquement) |
 | OpenAI | `openai-compatible` | ⚠️ non testé en réel (serveur HTTP simulé uniquement) |
@@ -251,7 +251,7 @@ essais, sécurité HTTP, `correlationId`). Les choix techniques sont consignés 
   création de tickets) ou OpenProject (cf. [OpenProject](#openproject)).
 - Pour `google` : une [clé Google AI Studio](https://aistudio.google.com/apikey) ; pour `anthropic` ou un service
   `openai-compatible` hébergé : la clé de ce fournisseur.
-- Le modèle par défaut `qwen3:8b` demande environ **8 Go de RAM/VRAM libres** ; sur une machine plus modeste, choisissez
+- Le modèle local d'exemple `qwen3:8b` demande environ **8 Go de RAM/VRAM libres** ; sur une machine plus modeste, choisissez
   un modèle plus léger ou un fournisseur hébergé.
 
 ---
@@ -274,9 +274,11 @@ cp backend/src/main/resources/application-example.properties backend/src/main/re
 
 À renseigner dans `.env`. `LLM_ANALYSIS_*` pilote l'analyse ; les mêmes clés en `LLM_VERDICT_*` configurent un
 fournisseur de verdict distinct, optionnel (`LLM_VERDICT_PROVIDER` vide = l'appel d'analyse produit aussi le verdict).
+**Fournisseur et modèle sont obligatoires** (aucun fournisseur ni modèle par défaut) : sans eux, le démarrage échoue avec
+un message qui nomme les variables à renseigner. Les noms de modèles ci-dessous ne sont que des exemples.
 
 ```bash
-# Ollama (défaut ; sans clé). En Docker : http://host.docker.internal:11434/v1, ou http://ollama:11434/v1 avec --profile ollama
+# Ollama (local, sans clé). En Docker : http://host.docker.internal:11434/v1, ou http://ollama:11434/v1 avec --profile ollama
 LLM_ANALYSIS_PROVIDER=openai-compatible
 LLM_ANALYSIS_BASE_URL=http://localhost:11434/v1
 LLM_ANALYSIS_MODEL=qwen3:8b
@@ -300,11 +302,46 @@ LLM_ANALYSIS_BASE_URL=https://api.openai.com/v1
 LLM_ANALYSIS_MODEL=your-openai-model
 LLM_ANALYSIS_API_KEY=your-api-key
 LLM_ANALYSIS_REASONING_EFFORT=
-# Les modèles de raisonnement d'OpenAI refusent temperature et max_tokens :
-#   LLM_ANALYSIS_TEMPERATURE=   LLM_ANALYSIS_MAX_TOKENS_PARAM=max_completion_tokens
+# Les modèles de raisonnement d'OpenAI refusent max_tokens :
+#   LLM_ANALYSIS_MAX_TOKENS_PARAM=max_completion_tokens
 ```
 
 Sur une machine lente (quelques tokens/s), augmentez `LLM_ANALYSIS_TIMEOUT` (ex. `30m`).
+
+### Paramètres de génération
+
+Refinr ne fait **aucune hypothèse sur le modèle** : vous choisissez le fournisseur, le modèle et sa version, et Refinr
+n'a ni liste de modèles connus ni comportement fondé sur un nom de modèle. Les paramètres d'échantillonnage et de
+réflexion ne sont **envoyés que s'ils sont configurés** ; sinon le fournisseur applique ses propres valeurs par défaut.
+
+- **Température** : `LLM_ANALYSIS_TEMPERATURE` / `LLM_VERDICT_TEMPERATURE`, vides par défaut (non envoyée). Renseignée,
+  elle est envoyée telle quelle à tous les fournisseurs, `anthropic` compris ; certains modèles récents la refusent.
+- **Paramètres propres au fournisseur** (`extra-body`) : n'importe quel champ du corps de la requête du fournisseur,
+  ajouté par les trois clients. La clé est un **chemin pointé**, fusionné comme un objet imbriqué. Écrivez le nom de
+  propriété pointé tel quel dans `.env` : cela marche sous Docker Compose (`env_file` garde le nom) comme hors Docker.
+  Une valeur JSON garde son type ; une valeur vide n'est pas envoyée.
+
+  ```bash
+  # Exemples seulement : vérifiez chaque paramètre dans la documentation de votre fournisseur
+  # google
+  refinr.llm.analysis.extra-body.generationConfig.thinkingConfig.thinkingLevel=low
+  # anthropic
+  refinr.llm.analysis.extra-body.output_config.effort=low
+  refinr.llm.analysis.extra-body.thinking={"type":"adaptive"}
+  # openai-compatible (ex. Ollama) : LLM_ANALYSIS_REASONING_EFFORT=none, soit
+  refinr.llm.analysis.extra-body.reasoning_effort=none
+  ```
+
+  `refinr.llm.verdict.extra-body.` pour un fournisseur de verdict distinct. **Évitez la forme en majuscules**
+  (`REFINR_LLM_ANALYSIS_EXTRABODY_…`) : Spring perd la casse (`thinkinglevel`) et change `_` en `.`
+  (`reasoning_effort` deviendrait `reasoning.effort`).
+- Une clé qui écraserait un champ géré par Refinr est **refusée au démarrage**, avec la clé nommée : les messages ou
+  `contents` / `systemInstruction`, le schéma JSON (`response_format`, `generationConfig.responseJsonSchema`,
+  `output_config.format`…), la limite de sortie, `model`, `temperature` (utilisez le réglage dédié) et `stream`.
+- Un paramètre refusé par le fournisseur (**HTTP 400**) donne un message clair qui nomme le modèle : le paramètre
+  lui-même quand le fournisseur le désigne par un champ structuré (`error.param` pour les API compatibles OpenAI,
+  `fieldViolations` pour Google), sinon la liste des paramètres optionnels envoyés, pour savoir quoi retirer. Le texte
+  d'erreur du fournisseur n'est jamais recopié.
 
 #### Migration depuis l'ancienne configuration IA
 
@@ -491,14 +528,14 @@ Correspondance avec OpenProject :
 | `openproject.readiness-field` | `Agent readiness` | Champ personnalisé de type liste qui porte le verdict (options `ai-ready` / `validation-necessaire`) |
 | `openproject.story-points-enabled` | `true` | Envoie `storyPoints` sur les User stories uniquement (module Backlogs) |
 | `openproject.priority-enabled` | `true` | Envoie la priorité (par nom, `Medium` → `Normal`) |
-| `refinr.llm.analysis.provider` | `openai-compatible` | Fournisseur de l'analyse : `anthropic`, `google` ou `openai-compatible`. Non renseigné : Ollama local, soit `openai-compatible` + `http://localhost:11434/v1` + `qwen3:8b` |
-| `refinr.llm.analysis.base-url` | *(vide)* | URL de l'API (avec `/v1` pour `openai-compatible`). Vide = URL officielle pour `anthropic` / `google` ; **obligatoire** pour `openai-compatible` choisi explicitement (sinon échec au démarrage) |
-| `refinr.llm.analysis.model` | *(vide)* | Modèle de l'analyse (et du health check), obligatoire dès qu'un fournisseur est choisi |
+| `refinr.llm.analysis.provider` | *(obligatoire)* | Fournisseur de l'analyse : `anthropic`, `google` ou `openai-compatible`. Aucun défaut : le démarrage échoue et nomme `LLM_ANALYSIS_PROVIDER` / `LLM_ANALYSIS_MODEL` |
+| `refinr.llm.analysis.base-url` | *(vide)* | URL de l'API (avec `/v1` pour `openai-compatible`). Vide = URL officielle pour `anthropic` / `google` ; **obligatoire** pour `openai-compatible` (sinon échec au démarrage) |
+| `refinr.llm.analysis.model` | *(obligatoire)* | Modèle de l'analyse (et du health check) ; aucun modèle par défaut |
 | `refinr.llm.analysis.api-key` | *(vide)* | Clé API (obligatoire pour `anthropic` et `google`) |
 | `refinr.llm.analysis.timeout` | `300s` | Délai maximal par appel d'analyse |
-| `refinr.llm.analysis.temperature` | `0.2` | Température (verdict : `0.1`). Vide = non envoyée, défaut du fournisseur (obligatoire pour les modèles OpenAI à raisonnement) ; jamais envoyée à `anthropic` |
+| `refinr.llm.analysis.temperature` | *(vide)* | Température (idem `refinr.llm.verdict.*`). Vide = non envoyée, défaut du fournisseur ; sinon envoyée telle quelle à tous les fournisseurs (`0.2` / `0.1` avant la 1.4) |
 | `refinr.llm.analysis.max-tokens-param` | `max_tokens` | `openai-compatible` : nom du paramètre de limite de sortie, `max_tokens`, `max_completion_tokens` (modèles OpenAI à raisonnement) ou `none` (idem `refinr.llm.verdict.*`) |
-| `refinr.llm.analysis.extra-body.*` | *(vide)* | `openai-compatible` : propriétés ajoutées au corps de la requête ; `reasoning_effort` vient de `LLM_ANALYSIS_REASONING_EFFORT` (`none` pour Ollama) |
+| `refinr.llm.analysis.extra-body.*` | *(vide)* | Paramètres propres au fournisseur, ajoutés au corps de la requête par tous les fournisseurs, chemin pointé = objet imbriqué (voir [Paramètres de génération](#paramètres-de-génération)) ; `reasoning_effort` vient de `LLM_ANALYSIS_REASONING_EFFORT` (`none` pour Ollama) |
 | `refinr.llm.analysis.max-output-tokens` | `32768` | Limite de tokens de sortie (sortie tronquée ⇒ erreur explicite) |
 | `refinr.llm.analysis.max-retries` | `2` | Nouveaux essais sur `429`, `5xx` et fournisseur injoignable (idem `refinr.llm.verdict.*`) |
 | `refinr.llm.analysis.retry-base-delay` | `2s` | Délai avant le 1ᵉʳ nouvel essai |
@@ -557,7 +594,7 @@ les logs du backend.
 ```bash
 cp .env.example .env
 docker compose up -d --build                      # backend + frontend
-docker compose --profile ollama up -d --build     # + un Ollama inclus, qui télécharge LLM_ANALYSIS_MODEL au premier démarrage
+docker compose --profile ollama up -d --build     # + un Ollama inclus, qui télécharge LLM_ANALYSIS_MODEL au premier démarrage (qwen3:8b si non renseigné, l'exemple du profil)
 curl localhost:8080/api/v1/health
 ```
 
@@ -587,7 +624,7 @@ Dans un conteneur, `localhost` désigne le conteneur lui-même : un Ollama lanc�
 ### Sans Docker
 
 ```bash
-ollama serve && ollama pull qwen3:8b                 # 1. LLM local (fournisseur par défaut)
+ollama serve && ollama pull qwen3:8b                 # 1. LLM local (modèle d'exemple, à renseigner dans .env)
 (cd backend && mvn spring-boot:run)                   # 2. API → http://localhost:8080
 (cd frontend && npm install && npm run dev)           # 3. UI  → http://localhost:3000 (Vite proxifie /api)
 ```
@@ -837,6 +874,9 @@ semaine les mises à jour Maven, npm, Docker et GitHub Actions.
 | `ai: DOWN — model qwen3:8b not found` | Modèle non téléchargé | `ollama pull qwen3:8b` |
 | `ai: DOWN — unreachable` | Ollama arrêté, ou mauvaise base URL | `ollama serve` ; vérifier `LLM_ANALYSIS_BASE_URL` (avec `/v1`) |
 | `ai: DOWN — HTTP 401` | Clé du fournisseur refusée | Vérifier `LLM_ANALYSIS_API_KEY` / `LLM_VERDICT_API_KEY` |
+| Démarrage refusé : *set LLM_ANALYSIS_PROVIDER, LLM_ANALYSIS_MODEL…* | Aucun fournisseur ou modèle configuré (plus de défaut depuis la 1.4) | Renseigner les variables nommées dans `.env` (exemples dans `.env.example`) ; l'Ollama local d'avant la 1.4 = `openai-compatible` + `http://localhost:11434/v1` + `qwen3:8b` |
+| Démarrage refusé : *extra-body key '…' overrides the field '…'* | Une clé `extra-body` vise un champ géré par Refinr | La retirer, ou utiliser le réglage dédié (ex. `LLM_ANALYSIS_TEMPERATURE`) |
+| `502` : *rejected the optional parameter …* / *sent optional parameters: …* | Le modèle refuse une température ou un paramètre `extra-body` | Retirer ce paramètre de `.env` |
 | Démarrage refusé : *Obsolete LLM configuration* | Clés antérieures à la 1.0 (`ai.provider`, `GEMINI_API_KEY`…) | Les renommer selon le message (voir [Migration depuis l'ancienne configuration IA](#migration-depuis-lancienne-configuration-ia)) |
 | `confluence: DOWN` / `401` | Token ou e-mail Atlassian invalide | Régénérer le token, vérifier `*_USERNAME` |
 | Démarrage refusé : *Missing configuration for source.provider=…* / *Unknown source.provider* | Propriété absente pour la source choisie (`application.properties` local antérieur à la 1.2), ou faute de frappe | Recopier la ligne `source.provider` et le bloc `bookstack.*` / `xwiki.*` depuis `application-example.properties` |
