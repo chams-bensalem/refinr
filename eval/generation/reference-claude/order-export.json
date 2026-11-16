@@ -1,0 +1,37 @@
+{
+  "epics": [
+    {
+      "name": "Order export",
+      "description": "Let customers download their paid orders as a CSV file from their account page.",
+      "priority": "Medium",
+      "labels": ["backend", "frontend"],
+      "stories": [
+        {
+          "asA": "customer",
+          "iWant": "to export my paid orders as a CSV file",
+          "soThat": "I have a record of my purchases",
+          "title": "Export paid orders to CSV",
+          "description": "From the account page, the customer downloads a CSV file with one row per paid order: order number, date, total amount including VAT. Cancelled orders are excluded. The file is named orders-YYYY-MM-DD.csv. Open point from the spec: the delimiter (comma or semicolon) and the file encoding are not decided.",
+          "acceptanceCriteria": [
+            "Given a signed-in customer with paid and cancelled orders, When they request the export from their account page, Then they download a CSV file with one row per paid order and no cancelled order",
+            "Given the exported file, When the customer opens it, Then each row contains the order number, the date and the total amount including VAT",
+            "Given an export made on 16 November 2026, When the file is downloaded, Then it is named orders-2026-11-16.csv",
+            "Given a signed-in customer with no paid order, When they request the export, Then they download a file containing only the header row"
+          ],
+          "estimatedStoryPoints": 3,
+          "priority": "Medium",
+          "labels": ["backend", "frontend"],
+          "dependencies": [],
+          "aiReady": false,
+          "aiReadyReason": "Which delimiter (comma or semicolon) and which encoding should the CSV file use?",
+          "tasks": [
+            { "title": "Select the customer's paid orders", "description": "Query the signed-in customer's paid orders, excluding cancelled ones.", "estimatedHours": 2, "labels": ["backend", "database"] },
+            { "title": "Generate the CSV file", "description": "Write the header and one row per order (number, date, total including VAT) and name the file orders-YYYY-MM-DD.csv. Depends on the missing decision: delimiter and encoding.", "estimatedHours": 3, "labels": ["backend"] },
+            { "title": "Add the export action to the account page", "description": "Download button that triggers the export for the signed-in customer.", "estimatedHours": 2, "labels": ["frontend"] },
+            { "title": "Test the acceptance criteria", "description": "Tests for the exclusion of cancelled orders, the columns, the file name and the no-order case.", "estimatedHours": 2, "labels": ["test"] }
+          ]
+        }
+      ]
+    }
+  ]
+}

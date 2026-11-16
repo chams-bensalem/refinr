@@ -1,0 +1,434 @@
+{
+  "epics": [
+    {
+      "name": "Réservation des salles",
+      "description": "Permettre aux salariés du siège de consulter le planning des 12 salles et de réserver, annuler et confirmer leurs réservations en libre-service.",
+      "priority": "High",
+      "labels": [
+        "backend",
+        "frontend"
+      ],
+      "stories": [
+        {
+          "asA": "salarié",
+          "iWant": "voir le planning des salles sur une journée",
+          "soThat": "je trouve une salle libre",
+          "title": "Consulter le planning journalier des salles",
+          "description": "Le salarié connecté affiche, pour une date donnée, l'occupation de chaque salle par tranches de 30 minutes.",
+          "acceptanceCriteria": [
+            "Given un salarié connecté, When il ouvre le planning d'une date, Then il voit chaque salle avec ses tranches de 30 minutes, libres ou occupées",
+            "Given une salle réservée de 10h00 à 11h00, When le salarié consulte le planning du jour, Then les tranches 10h00 et 10h30 de cette salle apparaissent occupées"
+          ],
+          "estimatedStoryPoints": 3,
+          "priority": "High",
+          "labels": [
+            "frontend",
+            "backend"
+          ],
+          "dependencies": [],
+          "aiReady": false,
+          "aiReadyReason": "Quelle plage horaire le planning doit-il couvrir chaque jour (heure de début et de fin) ?",
+          "tasks": [
+            {
+              "title": "Exposer l'occupation des salles pour une date",
+              "description": "Retourner, pour chaque salle, les tranches de 30 minutes occupées de la date demandée.",
+              "estimatedHours": 3,
+              "labels": [
+                "backend",
+                "api"
+              ]
+            },
+            {
+              "title": "Afficher la grille du planning",
+              "description": "Grille salles × tranches de 30 minutes avec distinction libre / occupé.",
+              "estimatedHours": 4,
+              "labels": [
+                "frontend"
+              ]
+            },
+            {
+              "title": "Tester l'affichage de l'occupation",
+              "description": "Tests des critères d'acceptation, dont une réservation à cheval sur deux tranches.",
+              "estimatedHours": 2,
+              "labels": [
+                "test"
+              ]
+            }
+          ]
+        },
+        {
+          "asA": "salarié",
+          "iWant": "réserver une salle libre",
+          "soThat": "j'organise une réunion sans passer par l'accueil",
+          "title": "Réserver une salle libre",
+          "description": "Le salarié réserve une salle libre pour une durée de 30 minutes à 4 heures, au plus 30 jours à l'avance. Deux réservations d'une même salle ne peuvent pas se chevaucher.",
+          "acceptanceCriteria": [
+            "Given une salle libre de 14h00 à 15h00, When un salarié la réserve sur ce créneau, Then la réservation est enregistrée et le créneau apparaît occupé",
+            "Given une réservation existante de 14h00 à 15h00, When un salarié tente de réserver la même salle de 14h30 à 15h30, Then la réservation est refusée pour cause de chevauchement",
+            "Given un salarié, When il demande une durée de moins de 30 minutes ou de plus de 4 heures, Then la réservation est refusée",
+            "Given un salarié, When il demande un créneau situé à plus de 30 jours, Then la réservation est refusée"
+          ],
+          "estimatedStoryPoints": 5,
+          "priority": "High",
+          "labels": [
+            "backend",
+            "frontend"
+          ],
+          "dependencies": [
+            "Consulter le planning journalier des salles"
+          ],
+          "aiReady": true,
+          "aiReadyReason": "Les durées, l'horizon de réservation et la règle de non-chevauchement sont définis et vérifiables.",
+          "tasks": [
+            {
+              "title": "Modéliser les réservations",
+              "description": "Entité réservation (salle, salarié, début, fin, état) avec contrainte de non-chevauchement par salle.",
+              "estimatedHours": 3,
+              "labels": [
+                "backend",
+                "database"
+              ]
+            },
+            {
+              "title": "Implémenter la création de réservation",
+              "description": "Validation de la durée (30 min à 4 h), de l'horizon (30 jours) et du chevauchement, y compris en cas de demandes simultanées.",
+              "estimatedHours": 5,
+              "labels": [
+                "backend",
+                "api"
+              ]
+            },
+            {
+              "title": "Ajouter le formulaire de réservation",
+              "description": "Sélection d'une salle et d'un créneau depuis le planning, affichage des refus.",
+              "estimatedHours": 4,
+              "labels": [
+                "frontend"
+              ]
+            },
+            {
+              "title": "Tester les règles de réservation",
+              "description": "Tests des quatre critères, dont deux demandes concurrentes sur le même créneau.",
+              "estimatedHours": 3,
+              "labels": [
+                "test"
+              ]
+            }
+          ]
+        },
+        {
+          "asA": "salarié",
+          "iWant": "annuler ma réservation",
+          "soThat": "la salle soit disponible pour d'autres",
+          "title": "Annuler sa propre réservation",
+          "description": "Le salarié annule une de ses réservations tant qu'elle n'a pas commencé.",
+          "acceptanceCriteria": [
+            "Given une réservation du salarié qui n'a pas commencé, When il l'annule, Then la réservation est supprimée et le créneau redevient libre",
+            "Given une réservation déjà commencée, When le salarié tente de l'annuler, Then l'annulation est refusée",
+            "Given la réservation d'un autre salarié, When un salarié tente de l'annuler, Then l'annulation est refusée"
+          ],
+          "estimatedStoryPoints": 2,
+          "priority": "Medium",
+          "labels": [
+            "backend",
+            "frontend"
+          ],
+          "dependencies": [
+            "Réserver une salle libre"
+          ],
+          "aiReady": true,
+          "aiReadyReason": "L'auteur autorisé et la limite temporelle de l'annulation sont explicites.",
+          "tasks": [
+            {
+              "title": "Implémenter l'annulation",
+              "description": "Vérifier le propriétaire et que la réservation n'a pas commencé, puis libérer le créneau.",
+              "estimatedHours": 2,
+              "labels": [
+                "backend",
+                "api"
+              ]
+            },
+            {
+              "title": "Ajouter l'action d'annulation",
+              "description": "Action disponible sur les réservations à venir du salarié.",
+              "estimatedHours": 2,
+              "labels": [
+                "frontend"
+              ]
+            },
+            {
+              "title": "Tester l'annulation",
+              "description": "Tests des trois critères.",
+              "estimatedHours": 1,
+              "labels": [
+                "test"
+              ]
+            }
+          ]
+        },
+        {
+          "asA": "salarié",
+          "iWant": "confirmer ma présence au début de ma réservation",
+          "soThat": "ma salle ne soit pas libérée",
+          "title": "Confirmer sa réservation et libérer automatiquement les réservations non confirmées",
+          "description": "Une réservation non confirmée (check-in) dans les 15 minutes suivant son début est libérée automatiquement. La spec ne dit pas comment le salarié confirme (depuis l'application, sur un écran devant la salle, par un QR code).",
+          "acceptanceCriteria": [
+            "Given une réservation commençant à 10h00, When le salarié la confirme à 10h10, Then la réservation est conservée",
+            "Given une réservation commençant à 10h00 non confirmée, When il est 10h15, Then la réservation est libérée et le créneau redevient libre"
+          ],
+          "estimatedStoryPoints": 5,
+          "priority": "Medium",
+          "labels": [
+            "backend",
+            "frontend"
+          ],
+          "dependencies": [
+            "Réserver une salle libre"
+          ],
+          "aiReady": false,
+          "aiReadyReason": "Comment le salarié confirme-t-il sa présence : depuis l'application, sur un écran devant la salle ou par un autre moyen ?",
+          "tasks": [
+            {
+              "title": "Enregistrer la confirmation de présence",
+              "description": "Marquer la réservation comme confirmée, selon le moyen de confirmation qui sera retenu.",
+              "estimatedHours": 3,
+              "labels": [
+                "backend",
+                "api"
+              ]
+            },
+            {
+              "title": "Libérer les réservations non confirmées",
+              "description": "Traitement périodique qui libère les réservations non confirmées 15 minutes après leur début.",
+              "estimatedHours": 3,
+              "labels": [
+                "backend"
+              ]
+            },
+            {
+              "title": "Tester la confirmation et la libération",
+              "description": "Tests des deux critères avec une horloge contrôlée.",
+              "estimatedHours": 2,
+              "labels": [
+                "test"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "description": "Prévenir le salarié de sa réservation et de sa libération automatique.",
+      "priority": "Medium",
+      "labels": [
+        "backend"
+      ],
+      "stories": [
+        {
+          "asA": "salarié",
+          "iWant": "être prévenu de ma réservation et de sa libération automatique",
+          "soThat": "je sache où en est ma salle",
+          "title": "Notifier la réservation et la libération automatique",
+          "description": "Le salarié reçoit une notification lors de sa réservation et lors de la libération automatique d'une réservation non confirmée. Le canal (e-mail, Teams ou les deux) n'est pas choisi.",
+          "acceptanceCriteria": [
+            "Given un salarié qui vient de réserver, When la réservation est enregistrée, Then il reçoit une notification de réservation",
+            "Given une réservation libérée automatiquement, When la libération a lieu, Then le salarié reçoit une notification de libération"
+          ],
+          "estimatedStoryPoints": 3,
+          "priority": "Medium",
+          "labels": [
+            "backend",
+            "integration"
+          ],
+          "dependencies": [
+            "Réserver une salle libre",
+            "Confirmer sa réservation et libérer automatiquement les réservations non confirmées"
+          ],
+          "aiReady": false,
+          "aiReadyReason": "Les notifications doivent-elles partir par e-mail, par Teams ou par les deux ?",
+          "tasks": [
+            {
+              "title": "Déclencher les notifications",
+              "description": "Émettre une notification à la réservation et à la libération automatique.",
+              "estimatedHours": 2,
+              "labels": [
+                "backend"
+              ]
+            },
+            {
+              "title": "Envoyer par le canal retenu",
+              "description": "Brancher l'envoi sur le canal qui sera choisi (e-mail et/ou Teams).",
+              "estimatedHours": 4,
+              "labels": [
+                "backend",
+                "integration"
+              ]
+            },
+            {
+              "title": "Tester les notifications",
+              "description": "Tests des deux déclencheurs.",
+              "estimatedHours": 2,
+              "labels": [
+                "test"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Administration des salles",
+      "description": "Permettre à l'accueil (rôle gestionnaire) de gérer les salles et de suivre leur occupation.",
+      "priority": "Medium",
+      "labels": [
+        "backend",
+        "frontend"
+      ],
+      "stories": [
+        {
+          "asA": "gestionnaire",
+          "iWant": "gérer la liste des salles",
+          "soThat": "le planning reflète les salles réelles",
+          "title": "Gérer la liste des salles",
+          "description": "Le gestionnaire crée et modifie des salles, avec leur nom, leur capacité et leurs équipements.",
+          "acceptanceCriteria": [
+            "Given un gestionnaire, When il crée une salle avec un nom, une capacité et des équipements, Then la salle apparaît dans le planning",
+            "Given un gestionnaire, When il modifie la capacité d'une salle, Then la nouvelle capacité est affichée",
+            "Given un salarié sans rôle gestionnaire, When il tente de modifier une salle, Then l'action est refusée"
+          ],
+          "estimatedStoryPoints": 3,
+          "priority": "Medium",
+          "labels": [
+            "backend",
+            "frontend",
+            "security"
+          ],
+          "dependencies": [],
+          "aiReady": true,
+          "aiReadyReason": "Les attributs d'une salle et le rôle autorisé sont définis, et chaque critère est vérifiable.",
+          "tasks": [
+            {
+              "title": "Implémenter la gestion des salles",
+              "description": "Création, modification et suppression d'une salle, réservées au rôle gestionnaire.",
+              "estimatedHours": 3,
+              "labels": [
+                "backend",
+                "api",
+                "security"
+              ]
+            },
+            {
+              "title": "Ajouter l'écran de gestion des salles",
+              "description": "Liste et formulaire nom, capacité, équipements.",
+              "estimatedHours": 3,
+              "labels": [
+                "frontend"
+              ]
+            },
+            {
+              "title": "Tester la gestion des salles",
+              "description": "Tests des trois critères.",
+              "estimatedHours": 2,
+              "labels": [
+                "test"
+              ]
+            }
+          ]
+        },
+        {
+          "asA": "gestionnaire",
+          "iWant": "suivre l'occupation des salles",
+          "soThat": "j'adapte l'offre de salles",
+          "title": "Tableau de bord de l'occupation des salles",
+          "description": "Le gestionnaire dispose d'un tableau de bord sur l'occupation des salles. La spec le qualifie d'« intuitif » sans préciser les indicateurs ni la période.",
+          "acceptanceCriteria": [
+            "Given un gestionnaire, When il ouvre le tableau de bord, Then il voit les indicateurs d'occupation qui seront définis"
+          ],
+          "estimatedStoryPoints": 5,
+          "priority": "Low",
+          "labels": [
+            "frontend",
+            "backend"
+          ],
+          "dependencies": [
+            "Réserver une salle libre"
+          ],
+          "aiReady": false,
+          "aiReadyReason": "Quels indicateurs d'occupation et sur quelle période le tableau de bord doit-il afficher ?",
+          "tasks": [
+            {
+              "title": "Calculer les indicateurs d'occupation",
+              "description": "Agrégats d'occupation selon les indicateurs qui seront définis.",
+              "estimatedHours": 4,
+              "labels": [
+                "backend"
+              ]
+            },
+            {
+              "title": "Afficher le tableau de bord",
+              "description": "Écran réservé au gestionnaire présentant les indicateurs.",
+              "estimatedHours": 4,
+              "labels": [
+                "frontend"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Intégration Outlook",
+      "description": "Faire apparaître les réservations dans l'agenda Outlook des salariés.",
+      "priority": "Medium",
+      "labels": [
+        "integration"
+      ],
+      "stories": [
+        {
+          "asA": "salarié",
+          "iWant": "retrouver mes réservations dans mon agenda Outlook",
+          "soThat": "je n'aie pas à les reporter à la main",
+          "title": "Synchroniser les réservations avec l'agenda Outlook",
+          "description": "Chaque réservation apparaît dans l'agenda Outlook du salarié. La spec ne précise ni le mode d'intégration (invitation e-mail, API Microsoft 365), ni l'accès au tenant, ni le traitement des annulations et libérations.",
+          "acceptanceCriteria": [
+            "Given un salarié qui réserve une salle, When la réservation est enregistrée, Then elle apparaît dans son agenda Outlook",
+            "Given une réservation annulée ou libérée, When l'annulation ou la libération a lieu, Then l'événement disparaît de son agenda Outlook"
+          ],
+          "estimatedStoryPoints": 8,
+          "priority": "Medium",
+          "labels": [
+            "integration",
+            "backend",
+            "security"
+          ],
+          "dependencies": [
+            "Réserver une salle libre"
+          ],
+          "aiReady": false,
+          "aiReadyReason": "Par quel moyen et avec quels accès l'outil doit-il écrire dans les agendas Outlook (invitation e-mail ou API Microsoft 365 avec un accès au tenant) ?",
+          "tasks": [
+            {
+              "title": "Créer l'événement d'agenda à la réservation",
+              "description": "Publier la réservation dans l'agenda du salarié par le mode d'intégration qui sera retenu.",
+              "estimatedHours": 6,
+              "labels": [
+                "integration",
+                "backend"
+              ]
+            },
+            {
+              "title": "Répercuter annulations et libérations",
+              "description": "Supprimer ou mettre à jour l'événement d'agenda correspondant.",
+              "estimatedHours": 3,
+              "labels": [
+                "integration",
+                "backend"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+provider,model,max_input_tokens,input_usd_per_mtok,output_usd_per_mtok,checked_on,source
+anthropic,claude-haiku-5-5,100000,0.10,0.50,2026-11-16,https://platform.claude.com/docs/en/about-claude/pricing
+anthropic,claude-haiku-5-5,,0.50,2.50,2026-11-16,https://platform.claude.com/docs/en/about-claude/pricing
+anthropic,claude-sonnet-5-5,,2,10,2026-11-16,https://platform.claude.com/docs/en/about-claude/pricing
+anthropic,claude-opus-5-5,,4,20,2026-11-16,https://platform.claude.com/docs/en/about-claude/pricing

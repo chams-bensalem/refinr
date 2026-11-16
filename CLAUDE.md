@@ -19,6 +19,7 @@ crée Epic → Story → Subtask dans Jira avec un verdict `ai-ready` / `validat
 - Stack Docker : `docker compose up -d --build` puis `curl localhost:8080/api/v1/health` (profil `--profile ollama` optionnel)
 - JDK : Maven sélectionne un JDK 25 par Toolchains (`select-jdk-toolchain`), quel que soit le JDK qui lance `mvn`
 - CI : `.github/workflows/ci.yml` (tests, lint/build, en-têtes SPDX, gitleaks, images multi-arch, smoke compose) ; Dependabot : `.github/dependabot.yml`
+- Mesure du verdict (hors CI, `run` appelle le modèle) : `scripts/eval-verdict.sh check|describe|estimate|run|summarize`, jeu `eval/verdict/` (voir son README)
 - Mettre cette section à jour en cas de changement d'outillage.
 
 ## Architecture (hexagonale)
