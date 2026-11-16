@@ -373,3 +373,6 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
   (toujours sur tous les epics de l'exécution, jamais sur les stories ni les tâches) : sujet de G1, pas de G0.
   Sans paramètre optionnel, la page 4 donne 3–4 epics / 6–8 stories, au moins autant qu'en M0 (température 0.2
   envoyée mais ignorée).
+- **Décision (mainteneur, 2026-11-16)** : `thinkingLevel=low` n'est pas recommandé. Il reste dans la documentation
+  comme simple exemple de syntaxe Google (« à vérifier dans la doc du fournisseur »), comme aujourd'hui. Sans
+  paramètre optionnel, c'est le fournisseur qui choisit : c'est le comportement par défaut.
