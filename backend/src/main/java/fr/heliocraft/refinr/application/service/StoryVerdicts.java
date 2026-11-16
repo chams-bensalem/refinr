@@ -3,6 +3,8 @@
 
 package fr.heliocraft.refinr.application.service;
 
+import java.util.function.Function;
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Readiness;
@@ -21,7 +23,8 @@ final class StoryVerdicts {
 
     private StoryVerdicts() {}
 
-    static void apply(List<Epic> epics, ReadinessAssessorPort assessor) {
+    /** @param languageOf langue de sortie de chaque story (la meme pour toutes apres une analyse) */
+    static void apply(List<Epic> epics, ReadinessAssessorPort assessor, Function<Story, Language> languageOf) {
         List<Story> stories = new ArrayList<>();
         for (Epic epic : epics) {
             if (epic.getStories() != null) {
@@ -34,7 +37,7 @@ final class StoryVerdicts {
         List<Readiness> verdicts = null;
         String failure = "no verdict";
         try {
-            verdicts = assessor.assess(stories);
+            verdicts = assessor.assess(stories, stories.stream().map(languageOf).toList());
         } catch (RuntimeException e) {
             failure = e.getClass().getSimpleName();
             log.warn("Readiness verdicts unavailable for {} stories: {}", stories.size(), failure);

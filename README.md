@@ -535,6 +535,7 @@ How the backlog maps to OpenProject:
 | `refinr.llm.verdict.provider` | *(empty)* | Dedicated `ai-ready` verdict provider; empty = the analysis one |
 | `refinr.llm.verdict.timeout` | `90s` | Maximum duration of a verdict call |
 | `refinr.llm.verdict.max-output-tokens` | `4096` | Verdict output token limit |
+| `refinr.llm.output-language` | `auto` | Output language of the backlog and of the verdict reasons: `auto` (French / English detection, French by default) or an ISO 639-1 code (`fr`, `en`, `de`…); a request's `language` field takes precedence |
 | `refinr.llm.verdict.batch-size` | `10` | Stories judged per verdict call (`1` = one call per story) |
 | `refinr.llm.verdict.cache.ttl` | `24h` | Lifetime of cached successful verdicts (`0s` = no cache) |
 | `refinr.llm.verdict.cache.max-entries` | `1000` | Maximum size of the verdict cache (LRU) |
@@ -718,11 +719,21 @@ Installation, settings and usage: see the plugin's README.
 
 Base URL: `http://localhost:8080/api/v1`
 
+**Output language.** `analyze-preview`, `analyze-and-create` and `reassess-story` accept an optional `"language"` field
+in their JSON body, `create-jira` an optional `language` query parameter: an ISO 639-1 code (`fr`, `en`, `de`…, case
+ignored). Any other value (`xx`, `fr-FR`, an empty string, free text) gets `400` with
+`"language must be an ISO 639-1 code (e.g. fr, en)"`; the value is never echoed nor copied into a prompt (only the
+language name is). Priority: the request, then `refinr.llm.output-language`, then French / English detection of the
+document (or of each story for `create-jira`, of the title and description for `reassess-story`), French by default.
+Only French and English have a native prompt and are measured (`eval/verdict/`); other languages go through the
+English prompt and are supported without being measured. Refinr's own lines in the issues and the
+`validation-necessaire` label stay unchanged.
+
 | Method | Endpoint | Body / parameters | Description |
 |---|---|---|---|
 | `POST` | `/analyze-and-create` | `{ "documentId": "…", "projectKey": "PROJ" }` or `{ "content": "…", "title": "…", "projectKey": "PROJ" }` *(documentId: page ID or XWiki reference of the active source; content: the document itself, Markdown or plain text, title optional; projectKey optional: project of the active tracker — Jira key `^[A-Z][A-Z0-9]{1,9}$`, or OpenProject identifier `^[a-z0-9_-]{1,100}$` / numeric id)* | Reads (or takes the text), analyzes and creates the whole hierarchy in the active tracker |
 | `POST` | `/analyze-preview` | `{ "documentId": "…" }` or `{ "content": "…", "title": "…" }` | Analyzes without creating issues; `documentUrl` (link to the page) added when known, never for a text |
-| `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optional, same format)* | Creates a generated structure; the server recomputes the verdict (client `aiReady` / `aiReadyReason` ignored) |
+| `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optional, same format)* · `&language=de` *(optional)* | Creates a generated structure; the server recomputes the verdict (client `aiReady` / `aiReadyReason` ignored) |
 | `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Reassesses a `validation-necessaire` story (`409` if it is not one) |
 | `GET` | `/documents/search` | `?title=…&space=…` *(space optional: Confluence space key, BookStack book ID or slug, XWiki space reference)* | Title search in the active source, 25 results at most: `{ success, results: [{ id, title, url }] }` |
 | `GET` | `/source` | — | Active document source and text limit: `{ "name": "Confluence", "maxContentChars": 200000 }` (`"BookStack"` or `"XWiki"`; used by the web UI) |

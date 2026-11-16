@@ -144,6 +144,18 @@ class HttpSecurityConfigurationTest {
         }
 
         @Test
+        @DisplayName("X-API-Key unchanged with a language: missing key and invalid language give 401, never 400, no use case called")
+        void apiKeyIsCheckedBeforeTheLanguage() throws Exception {
+            mockMvc.perform(post("/api/v1/analyze-preview").contentType("application/json")
+                            .content("{\"content\":\"# Spec\",\"language\":\"xx\"}"))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.error").value("Missing or invalid API key"));
+            mockMvc.perform(post("/api/v1/create-jira").param("language", "xx").contentType("application/json").content("[]"))
+                    .andExpect(status().isUnauthorized());
+            org.mockito.Mockito.verifyNoInteractions(previewBacklog, createEditedBacklog);
+        }
+
+        @Test
         @DisplayName("Wrong key: 401")
         void wrongKeyIsRejected() throws Exception {
             mockMvc.perform(get(SEARCH).header("X-API-Key", "test-api-key-12"))
@@ -183,7 +195,7 @@ class HttpSecurityConfigurationTest {
         @Test
         @DisplayName("Text input (content) is protected like the other endpoints: 401 without or with a wrong key, 200 with it")
         void textInputRequiresTheKey() throws Exception {
-            when(previewBacklog.previewText(null, "Gestion des stocks")).thenReturn(List.of());
+            when(previewBacklog.previewText(null, "Gestion des stocks", null)).thenReturn(List.of());
             String body = "{\"content\":\"Gestion des stocks\"}";
             for (String uri : List.of("/api/v1/analyze-preview", "/api/v1/analyze-and-create")) {
                 mockMvc.perform(post(uri).contentType(MediaType.APPLICATION_JSON).content(body))
@@ -197,7 +209,7 @@ class HttpSecurityConfigurationTest {
                             .contentType(MediaType.APPLICATION_JSON).content(body))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true));
-            verify(previewBacklog).previewText(null, "Gestion des stocks");
+            verify(previewBacklog).previewText(null, "Gestion des stocks", null);
         }
 
         @Test
@@ -328,7 +340,7 @@ class HttpSecurityConfigurationTest {
         @Test
         @DisplayName("Body under the limit: unchanged behaviour (API key still required)")
         void bodyUnderTheLimitPasses() throws Exception {
-            when(previewBacklog.previewText(null, "Stocks")).thenReturn(List.of());
+            when(previewBacklog.previewText(null, "Stocks", null)).thenReturn(List.of());
             String small = "{\"content\":\"Stocks\"}";
             mockMvc.perform(post("/api/v1/analyze-preview").contentType(MediaType.APPLICATION_JSON).content(small))
                     .andExpect(status().isUnauthorized());

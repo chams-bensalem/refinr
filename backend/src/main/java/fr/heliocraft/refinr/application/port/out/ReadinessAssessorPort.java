@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.application.port.out;
 
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.domain.model.Readiness;
 import fr.heliocraft.refinr.domain.model.Story;
 
@@ -15,14 +16,15 @@ public interface ReadinessAssessorPort {
      * Un verdict par story, dans l'ordre de {@code stories} (meme taille). Un element {@code null} signifie qu'aucun
      * verdict fiable n'a pu etre obtenu pour cette story : l'appelant applique alors la politique par defaut.
      *
+     * @param languages langue de sortie de chaque story, deja resolue, dans le meme ordre (meme taille)
      * @throws LlmException si aucun verdict n'a pu etre obtenu
      */
-    List<Readiness> assess(List<Story> stories);
+    List<Readiness> assess(List<Story> stories, List<Language> languages);
 
     /**
      * Reevalue une story deja creee avec la precision apportee par l'utilisateur.
      *
      * @throws LlmException fournisseur indisponible, sortie invalide ou tronquee
      */
-    Readiness reassess(String summary, String description, String precision);
+    Readiness reassess(String summary, String description, String precision, Language language);
 }

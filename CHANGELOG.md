@@ -21,6 +21,13 @@ un fournisseur.
 - Jeu de référence du verdict (`eval/verdict/`, 50 stories étiquetées, **étiquettes posées par une IA**) et outil de
   mesure `scripts/eval-verdict.sh` (justesse, stabilité, matrice de confusion ; plafonds d'appels et budget), pour les
   mainteneurs, hors CI.
+- **Langue de sortie** : champ optionnel `language` (code ISO 639-1, casse ignorée) dans le corps de `analyze-preview`,
+  `analyze-and-create` et `reassess-story`, paramètre optionnel `language` de `create-jira` ; propriété
+  `refinr.llm.output-language` (`LLM_OUTPUT_LANGUAGE`, `auto` par défaut, ou un code ISO 639-1). Priorité : la requête,
+  la propriété, puis la détection français / anglais (français par défaut). Valeur invalide : `400` qui nomme le
+  paramètre, sans recopier la valeur ; propriété invalide : refus au démarrage. Ajout rétrocompatible du contrat REST.
+  Le français et l'anglais ont un prompt natif (`llm/prompts/prompts.fr.md`, `prompts.en.md`) et sont mesurés ; les
+  autres langues passent par le prompt anglais, prises en charge sans être mesurées.
 
 ### Changed
 - **La température n'est plus envoyée par défaut** (analyse `0.2` et verdict `0.1` jusqu'en 1.3) : le fournisseur
@@ -34,8 +41,7 @@ un fournisseur.
   `temperature`, `stream`) est refusée au démarrage, avec la clé nommée ; auparavant, avec `openai-compatible`, elle
   écrasait le champ. Une clé `extra-body` contenant un point est désormais un chemin imbriqué (elle était envoyée
   comme une clé littérale).
-- **Prompts revus (verdict `verdict-v3.1`)**, comportement du modèle modifié ; schéma de sortie et contrat REST
-  inchangés :
+- **Prompts revus (verdict `verdict-v3.2`)**, comportement du modèle modifié ; schéma de sortie inchangé :
   - critère du verdict revu : un développeur senior peut-il implémenter la story et faire passer ses critères
     d'acceptation sans attendre une réponse du Product Owner ? Les conventions (noms de champs, de classes, format
     technique d'une réponse dont l'information est définie), les détails d'implémentation et les cas limites non
@@ -44,11 +50,15 @@ un fournisseur.
     la réévaluation ;
   - raison du verdict : pour une story non prête, la question bloquante principale à poser au PO, formulée comme une
     question ;
-  - backlog rédigé dans la langue de la spécification, et raison du verdict (verdict séparé, réévaluation) dans la
-    langue de la story ;
+  - consigne de langue explicite dans les trois prompts (« Rédige tout le contenu en … » / « Write all content in … ») ;
+    les lots de verdict sont homogènes par langue, et la langue fait partie de la clé du cache ;
   - critères d'acceptation générés limités aux règles de la spécification ; une décision manquante n'est jamais un
     critère ; plus de story de cadrage ou de décision (« choisir… »).
-  Les verdicts en cache (version `verdict-v2`) ne sont plus réutilisés.
+  Les verdicts en cache des versions précédentes ne sont plus réutilisés.
+- **Mode `auto` (défaut) : une spec en anglais donne désormais un backlog en anglais** (titres, descriptions, critères,
+  sous-tâches et raisons) ; jusqu'en 1.3, les prompts en français donnaient en pratique un backlog en français. Pour garder le français :
+  `LLM_OUTPUT_LANGUAGE=fr`. Les lignes écrites par Refinr dans les tickets et le label `validation-necessaire` ne
+  changent pas.
 
 ### Migration
 - Pour retrouver l'ancienne température, ajouter dans `.env` :

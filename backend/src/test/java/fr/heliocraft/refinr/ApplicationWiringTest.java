@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr;
 
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.CheckHealth;
 import fr.heliocraft.refinr.application.port.in.CreateBacklog;
@@ -148,7 +149,7 @@ class ApplicationWiringTest {
         server.enqueue(new MockResponse().setResponseCode(200).addHeader("Content-Type", "application/json")
             .setBody("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"{\\\"epics\\\":[]}\"}]}}]}"));
 
-        assertEquals(List.of(), generator.generate("cdc"));
+        assertEquals(List.of(), generator.generate("cdc", Language.FR));
         assertEquals(2, server.getRequestCount() - before);
     }
 
@@ -161,7 +162,7 @@ class ApplicationWiringTest {
             .setBody("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":"
                 + "\"{\\\"aiReady\\\":true,\\\"aiReadyReason\\\":\\\"ok\\\"}\"}]}}]}"));
 
-        assertEquals(true, assessor.reassess("S", "D", "P").aiReady());
+        assertEquals(true, assessor.reassess("S", "D", "P", Language.FR).aiReady());
         assertEquals(2, server.getRequestCount() - before);
     }
 
@@ -170,7 +171,7 @@ class ApplicationWiringTest {
     void rejectedKeyIsNotRetried() {
         int before = server.getRequestCount();
         server.enqueue(new MockResponse().setResponseCode(401));
-        assertThrows(RuntimeException.class, () -> assessor.reassess("S", "D", "P"));
+        assertThrows(RuntimeException.class, () -> assessor.reassess("S", "D", "P", Language.FR));
         assertEquals(1, server.getRequestCount() - before);
     }
 }

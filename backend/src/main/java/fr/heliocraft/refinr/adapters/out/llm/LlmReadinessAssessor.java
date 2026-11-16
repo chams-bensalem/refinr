@@ -3,6 +3,8 @@
 
 package fr.heliocraft.refinr.adapters.out.llm;
 
+import java.util.LinkedHashMap;
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.application.port.out.LlmException;
 import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
 import fr.heliocraft.refinr.domain.model.Readiness;
@@ -23,7 +25,9 @@ import java.util.Map;
  * {@code batchSize} stories : un appel par lot ({@code batchSize = 1} : un appel par story). Un lot dont la reponse est
  * coupee par la limite de tokens de sortie est coupe en deux (premiere moitie arrondie au superieur) et chaque moitie
  * est redemandee, jusqu'a la story seule ; une story seule encore coupee n'a pas de verdict. Les stories sans
- * verdict dans la reponse sont redemandees une fois, seules ; sinon pas de verdict (null) pour elles.
+ * verdict dans la reponse sont redemandees une fois, seules ; sinon pas de verdict (null) pour elles. Les lots sont
+ * homogenes par langue de sortie : stories regroupees par langue (ordre de premiere apparition), puis decoupees en
+ * lots de {@code batchSize} dans chaque langue ; les verdicts reviennent a leur position d'origine.
  */
 public class LlmReadinessAssessor implements ReadinessAssessorPort {
 
@@ -54,39 +58,52 @@ public class LlmReadinessAssessor implements ReadinessAssessorPort {
     }
 
     @Override
-    public List<Readiness> assess(List<Story> stories) {
+    public List<Readiness> assess(List<Story> stories, List<Language> languages) {
+        if (languages.size() != stories.size()) {
+            throw new IllegalArgumentException("one output language per story is required");
+        }
         Readiness[] verdicts = new Readiness[stories.size()];
-        for (int from = 0; from < stories.size(); from += batchSize) {
-            List<Integer> batch = new ArrayList<>();
-            for (int i = from; i < Math.min(from + batchSize, stories.size()); i++) {
-                batch.add(i);
-            }
-            List<Integer> missing = assessBatch(stories, batch, verdicts);
-            if (!missing.isEmpty()) {
-                log.warn("{} verdict(s) missing from the batch answer, asking again for them only", missing.size());
-                missing = assessBatch(stories, missing, verdicts);
-            }
-            // Position seulement : le titre vient du modele ou de l'utilisateur
-            missing.forEach(i -> log.warn("Readiness verdict unavailable for story {}/{}", i + 1, stories.size()));
+        Map<Language, List<Integer>> byLanguage = new LinkedHashMap<>();
+        for (int i = 0; i < stories.size(); i++) {
+            byLanguage.computeIfAbsent(languages.get(i), l -> new ArrayList<>()).add(i);
+        }
+        for (Map.Entry<Language, List<Integer>> group : byLanguage.entrySet()) {
+            assessGroup(stories, group.getValue(), group.getKey(), verdicts);
         }
         return Arrays.asList(verdicts);
     }
 
-    /** Juge les stories d'indices {@code indexes} en un appel ; renvoie les indices restes sans verdict. */
-    private List<Integer> assessBatch(List<Story> stories, List<Integer> indexes, Readiness[] verdicts) {
-        return assessBatch(stories, indexes, verdicts, 0);
+    /** Stories d'une meme langue, par lots de {@code batchSize}. */
+    private void assessGroup(List<Story> stories, List<Integer> indexes, Language language, Readiness[] verdicts) {
+        for (int from = 0; from < indexes.size(); from += batchSize) {
+            List<Integer> batch = indexes.subList(from, Math.min(from + batchSize, indexes.size()));
+            List<Integer> missing = assessBatch(stories, batch, verdicts, language);
+            if (!missing.isEmpty()) {
+                log.warn("{} verdict(s) missing from the batch answer, asking again for them only", missing.size());
+                missing = assessBatch(stories, missing, verdicts, language);
+            }
+            // Position seulement : le titre vient du modele ou de l'utilisateur
+            missing.forEach(i -> log.warn("Readiness verdict unavailable for story {}/{}", i + 1, stories.size()));
+        }
     }
 
-    private List<Integer> assessBatch(List<Story> stories, List<Integer> indexes, Readiness[] verdicts, int depth) {
+    /** Juge les stories d'indices {@code indexes} en un appel ; renvoie les indices restes sans verdict. */
+    private List<Integer> assessBatch(List<Story> stories, List<Integer> indexes, Readiness[] verdicts, Language language) {
+        return assessBatch(stories, indexes, verdicts, language, 0);
+    }
+
+    private List<Integer> assessBatch(List<Story> stories, List<Integer> indexes, Readiness[] verdicts, Language language,
+                                      int depth) {
         List<Story> batch = indexes.stream().map(stories::get).toList();
         List<String> ids = new ArrayList<>();
         for (int i = 0; i < batch.size(); i++) {
             ids.add("s" + (i + 1));
         }
-        log.info("Assessing readiness of {} story(ies) with {}", batch.size(), client.settings().describe());
+        log.info("Assessing readiness of {} story(ies) with {}, output language {}", batch.size(),
+                client.settings().describe(), language.code());
         Map<String, Readiness> byId;
         try {
-            LlmRequest request = LlmRequest.of(LlmPrompts.SYSTEM, LlmPrompts.verdicts(batch, ids),
+            LlmRequest request = LlmRequest.of(LlmPrompts.system(language), LlmPrompts.verdicts(batch, ids, language),
                     LlmSchemas.READINESS_BATCH, LlmSchemas.forProvider(batchSchema));
             byId = output.call(client, request, batchSchema, LlmReadinessAssessor::verdictsById);
         } catch (LlmException e) {
@@ -95,8 +112,8 @@ public class LlmReadinessAssessor implements ReadinessAssessorPort {
                 int half = (indexes.size() + 1) / 2;
                 log.warn("Verdict batch of {} story(ies) truncated by the token limit, splitting into {} + {}",
                         indexes.size(), half, indexes.size() - half);
-                List<Integer> missing = new ArrayList<>(assessBatch(stories, indexes.subList(0, half), verdicts, depth + 1));
-                missing.addAll(assessBatch(stories, indexes.subList(half, indexes.size()), verdicts, depth + 1));
+                List<Integer> missing = new ArrayList<>(assessBatch(stories, indexes.subList(0, half), verdicts, language, depth + 1));
+                missing.addAll(assessBatch(stories, indexes.subList(half, indexes.size()), verdicts, language, depth + 1));
                 return missing;
             }
             log.warn("Readiness verdicts unavailable for {} story(ies): {}", batch.size(), e.getMessage());
@@ -115,9 +132,11 @@ public class LlmReadinessAssessor implements ReadinessAssessorPort {
     }
 
     @Override
-    public Readiness reassess(String summary, String description, String precision) {
-        log.info("Reassessing a story with the user's precision ({})", client.settings().describe());
-        LlmRequest request = LlmRequest.of(LlmPrompts.SYSTEM, LlmPrompts.reassessment(summary, description, precision),
+    public Readiness reassess(String summary, String description, String precision, Language language) {
+        log.info("Reassessing a story with the user's precision ({}, output language {})", client.settings().describe(),
+                language.code());
+        LlmRequest request = LlmRequest.of(LlmPrompts.system(language),
+                LlmPrompts.reassessment(summary, description, precision, language),
                 LlmSchemas.READINESS, LlmSchemas.forProvider(schema));
         return output.call(client, request, schema, LlmReadinessAssessor::readiness);
     }

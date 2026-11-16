@@ -3,9 +3,12 @@
 
 package fr.heliocraft.refinr.adapters.out.llm;
 
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.domain.model.Story;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -17,9 +20,13 @@ import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LlmPromptsTest {
+
+    private static final Path PROMPTS = Path.of("src/main/resources/llm/prompts");
+    private static final Pattern MARKER = Pattern.compile("\\{\\{[A-Z_]+\\}\\}");
 
     private static Story story() {
         Story s = new Story();
@@ -29,50 +36,151 @@ class LlmPromptsTest {
         return s;
     }
 
-    private static List<String> prompts() {
-        return List.of(LlmPrompts.analysis("DOC"), LlmPrompts.verdicts(List.of(story()), List.of("s1")),
-                LlmPrompts.reassessment("Titre A", "Description A", "Precision A"));
+    private static List<String> prompts(Language language) {
+        return List.of(LlmPrompts.analysis("DOC", language), LlmPrompts.verdicts(List.of(story()), List.of("s1"), language),
+                LlmPrompts.reassessment("Titre A", "Description A", "Precision A", language));
+    }
+
+    private static String file(String name) throws Exception {
+        return Files.readString(PROMPTS.resolve(name), StandardCharsets.UTF_8);
+    }
+
+    private static List<String> blocks(String markdown) {
+        List<String> blocks = new ArrayList<>();
+        Matcher m = Pattern.compile("```\\n(.*?)\\n```", Pattern.DOTALL).matcher(markdown);
+        while (m.find()) blocks.add(m.group(1));
+        return blocks;
+    }
+
+    private static List<String> markers(String block) {
+        List<String> found = new ArrayList<>();
+        Matcher m = MARKER.matcher(block);
+        while (m.find()) found.add(m.group());
+        return found;
+    }
+
+    private static long rules(String block) {
+        return block.lines().filter(l -> l.startsWith("- ")).count();
+    }
+
+    private static List<String> jsonLines(String block) {
+        return block.lines().filter(l -> l.startsWith("{")).toList();
+    }
+
+    // ---------- parite des deux fichiers ----------
+
+    @Test
+    @DisplayName("Parity: prompts.fr.md and prompts.en.md have the same sections, markers, rules and JSON")
+    void frenchAndEnglishFilesAreParallel() throws Exception {
+        String fr = file("prompts.fr.md"), en = file("prompts.en.md");
+        assertEquals(fr.lines().filter(l -> l.startsWith("## ")).count(), en.lines().filter(l -> l.startsWith("## ")).count(),
+                "same number of sections");
+        List<String> frBlocks = blocks(fr), enBlocks = blocks(en);
+        assertEquals(5, frBlocks.size());
+        assertEquals(5, enBlocks.size());
+        long frRules = 0, enRules = 0;
+        for (int i = 0; i < 5; i++) {
+            assertEquals(markers(frBlocks.get(i)), markers(enBlocks.get(i)), "same markers, same order, block " + i);
+            assertEquals(rules(frBlocks.get(i)), rules(enBlocks.get(i)), "same number of rules, block " + i);
+            assertEquals(jsonLines(frBlocks.get(i)), jsonLines(enBlocks.get(i)), "identical JSON, block " + i);
+            frRules += rules(frBlocks.get(i));
+            enRules += rules(enBlocks.get(i));
+        }
+        assertEquals(29, frRules);
+        assertEquals(29, enRules);
     }
 
     @Test
-    @DisplayName("Generation, batch verdict and reassessment share the same READINESS block, once each")
-    void threePromptsShareTheReadinessBlock() {
-        assertTrue(LlmPrompts.READINESS.startsWith("CONTRÔLE « PRÊTE POUR UN AGENT DE CODE »"));
-        for (String prompt : prompts()) {
-            assertTrue(prompt.contains(LlmPrompts.READINESS), prompt);
-            assertEquals(prompt.indexOf(LlmPrompts.READINESS), prompt.lastIndexOf(LlmPrompts.READINESS), "block present once");
-            assertEquals(1, prompt.split("CONTRÔLE « PRÊTE POUR UN AGENT DE CODE »", -1).length - 1, "no second copy of the rules");
+    @DisplayName("Parity of the batch verdict: the story JSON differs only by its key names (titre / title, criteresAcceptation / acceptanceCriteria)")
+    void storyJsonDiffersOnlyByKeyNames() {
+        String fr = storiesJson(LlmPrompts.verdicts(List.of(story()), List.of("s1"), Language.FR), "STORIES (JSON) :\n");
+        String en = storiesJson(LlmPrompts.verdicts(List.of(story()), List.of("s1"), Language.EN), "STORIES (JSON):\n");
+        assertTrue(fr.contains("\"titre\"") && fr.contains("\"criteresAcceptation\""), fr);
+        assertTrue(en.contains("\"title\"") && en.contains("\"acceptanceCriteria\""), en);
+        assertEquals(en, fr.replace("\"titre\"", "\"title\"").replace("\"criteresAcceptation\"", "\"acceptanceCriteria\""));
+    }
+
+    private static String storiesJson(String prompt, String header) {
+        int from = prompt.indexOf(header) + header.length();
+        return prompt.substring(from, prompt.indexOf("\n\n", from));
+    }
+
+    // ---------- concordance avec LlmPrompts, pour les deux langues ----------
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"fr", "en"})
+    @DisplayName("Prompt text matches its resource verbatim, markers replaced")
+    void textMatchesItsResource(String code) throws Exception {
+        Language language = Language.of(code);
+        List<String> b = blocks(file("prompts." + code + ".md"));
+        String name = code.equals("fr") ? "français" : "English";
+        String readiness = LlmPrompts.readiness(language);
+        assertEquals(b.get(0), LlmPrompts.system(language));
+        assertEquals(b.get(1), readiness);
+        assertEquals(b.get(2).replace("{{READINESS}}", readiness).replace("{{DOCUMENT}}", "DOC").replace("{{LANGUAGE}}", name),
+                LlmPrompts.analysis("DOC", language));
+        String verdicts = LlmPrompts.verdicts(List.of(story()), List.of("s1"), language);
+        String header = code.equals("fr") ? "STORIES (JSON) :\n" : "STORIES (JSON):\n";
+        assertEquals(b.get(3).replace("{{READINESS}}", readiness).replace("{{STORIES_JSON}}", storiesJson(verdicts, header))
+                .replace("{{LANGUAGE}}", name), verdicts);
+        assertEquals(b.get(4).replace("{{READINESS}}", readiness).replace("{{TITLE}}", "T").replace("{{DESCRIPTION}}", "D")
+                .replace("{{PRECISION}}", "P").replace("{{LANGUAGE}}", name), LlmPrompts.reassessment("T", "D", "P", language));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"fr", "en"})
+    @DisplayName("Generation, batch verdict and reassessment share the same READINESS block, once each; every marker is replaced")
+    void threePromptsShareTheReadinessBlock(String code) {
+        Language language = Language.of(code);
+        String readiness = LlmPrompts.readiness(language);
+        for (String prompt : prompts(language)) {
+            assertTrue(prompt.contains(readiness), prompt);
+            assertEquals(prompt.indexOf(readiness), prompt.lastIndexOf(readiness), "block present once");
+            assertFalse(prompt.contains("{{"), prompt);
         }
     }
 
+    // ---------- langue de sortie ----------
+
     @Test
-    @DisplayName("Every marker is replaced and the verdict prompt version is verdict-v3.1")
-    void markersReplaced() {
-        for (String prompt : prompts()) assertFalse(prompt.contains("{{"), prompt);
-        assertEquals("verdict-v3.1", LlmPrompts.VERDICT_PROMPT_VERSION);
-        String reassessment = LlmPrompts.reassessment("Titre A", "Description A", "Precision A");
-        assertTrue(reassessment.contains("Titre : Titre A\nDescription : Description A\n\nPRÉCISION DE L'UTILISATEUR :\nPrecision A\n"));
+    @DisplayName("French: French prompt, « français »; English: English prompt, English")
+    void frenchAndEnglishUseTheirNativePrompt() {
+        assertTrue(LlmPrompts.analysis("DOC", Language.FR)
+                .contains("- Rédige tout le contenu en français : titres, descriptions, critères d'acceptation, sous-tâches et raisons."));
+        assertTrue(LlmPrompts.reassessment("T", "D", "P", Language.FR).contains("Rédige aiReadyReason en français."));
+        assertTrue(LlmPrompts.analysis("DOC", Language.EN)
+                .contains("- Write all content in English: titles, descriptions, acceptance criteria, sub-tasks and reasons."));
+        assertTrue(LlmPrompts.verdicts(List.of(story()), List.of("s1"), Language.EN).contains("Write aiReadyReason in English."));
+        assertEquals(LlmPrompts.system(Language.FR), LlmPrompts.FR.system());
+        assertEquals(LlmPrompts.system(Language.EN), LlmPrompts.EN.system());
     }
 
-    /** Le texte des prompts est celui de eval/generation/prompts-v3.1.md, marqueurs remplaces. */
     @Test
-    @DisplayName("Prompt text matches eval/generation/prompts-v3.1.md verbatim")
-    void textMatchesTheV3Document() throws Exception {
-        String md = Files.readString(Path.of("..", "eval", "generation", "prompts-v3.1.md"), StandardCharsets.UTF_8);
-        List<String> blocks = new ArrayList<>();
-        Matcher m = Pattern.compile("```\\n(.*?)\\n```", Pattern.DOTALL).matcher(md);
-        while (m.find()) blocks.add(m.group(1));
-        assertEquals(5, blocks.size());
-        assertEquals(blocks.get(0), LlmPrompts.SYSTEM);
-        assertEquals(blocks.get(1), LlmPrompts.READINESS);
-        assertEquals(blocks.get(2).replace("{{READINESS}}", LlmPrompts.READINESS).replace("{{DOCUMENT}}", "DOC"),
-                LlmPrompts.analysis("DOC"));
-        String verdicts = LlmPrompts.verdicts(List.of(story()), List.of("s1"));
-        String json = verdicts.substring(verdicts.indexOf("STORIES (JSON) :\n") + "STORIES (JSON) :\n".length(),
-                verdicts.indexOf("\n\nRédige aiReadyReason"));
-        assertEquals(blocks.get(3).replace("{{READINESS}}", LlmPrompts.READINESS).replace("{{STORIES_JSON}}", json), verdicts);
-        assertTrue(json.contains("\"criteresAcceptation\""), "story JSON encoding unchanged");
-        assertEquals(blocks.get(4).replace("{{READINESS}}", LlmPrompts.READINESS).replace("{{TITLE}}", "T")
-                .replace("{{DESCRIPTION}}", "D").replace("{{PRECISION}}", "P"), LlmPrompts.reassessment("T", "D", "P"));
+    @DisplayName("Any other language: English prompt with the English name of the language, never the received code")
+    void otherLanguageUsesTheEnglishPromptWithItsName() {
+        Language german = Language.of("DE");
+        String analysis = LlmPrompts.analysis("DOC", german);
+        assertTrue(analysis.startsWith("MISSION: turn the specification"), "English prompt");
+        assertTrue(analysis.contains("- Write all content in German: titles, descriptions, acceptance criteria, sub-tasks and reasons."));
+        assertFalse(analysis.contains("in de:") || analysis.contains("in DE"), "the code is never copied into the prompt");
+        assertTrue(LlmPrompts.reassessment("T", "D", "P", Language.of("es")).contains("Write aiReadyReason in Spanish."));
+        assertEquals(LlmPrompts.system(Language.EN), LlmPrompts.system(german));
+    }
+
+    @Test
+    @DisplayName("A marker inside the document stays text; a missing marker value is refused")
+    void markersAreReplacedInTheTemplateOnly() {
+        String prompt = LlmPrompts.analysis("Spec {{READINESS}} {{LANGUAGE}}", Language.FR);
+        assertTrue(prompt.contains("Spec {{READINESS}} {{LANGUAGE}}"), "document content is never re-read");
+        assertThrows(IllegalStateException.class, () -> LlmPrompts.fill("{{X}}", java.util.Map.of()));
+        assertThrows(IllegalStateException.class, () -> LlmPrompts.parse("```\nseul\n```", "test.md"));
+    }
+
+    @Test
+    @DisplayName("Verdict prompt version is verdict-v3.2")
+    void version() {
+        assertEquals("verdict-v3.2", LlmPrompts.VERDICT_PROMPT_VERSION);
+        String reassessment = LlmPrompts.reassessment("Titre A", "Description A", "Precision A", Language.FR);
+        assertTrue(reassessment.contains("Titre : Titre A\nDescription : Description A\n\nPRÉCISION DE L'UTILISATEUR :\nPrecision A\n"));
     }
 }

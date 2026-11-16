@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.adapters.out.llm;
 
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
 import fr.heliocraft.refinr.domain.model.Readiness;
 import fr.heliocraft.refinr.domain.model.Story;
@@ -21,8 +22,8 @@ import java.util.Map;
 import java.util.function.LongSupplier;
 
 /**
- * Cache des verdicts, par empreinte du contenu juge (titre, description, criteres) et du fournisseur, du modele et
- * de la version du prompt. Seuls les verdicts reussis sont gardes (jamais "indisponible" ni une erreur) ; seuls des
+ * Cache des verdicts, par empreinte du contenu juge (titre, description, criteres), de la langue de sortie et du
+ * fournisseur, du modele et de la version du prompt. Seuls les verdicts reussis sont gardes (jamais "indisponible" ni une erreur) ; seuls des
  * verdicts produits par le serveur y entrent, le client ne peut donc rien imposer. Une story modifiee depuis
  * l'apercu a une autre empreinte et est rejugee. En memoire, borne (LRU) et avec une duree de vie.
  * La reevaluation avec une precision de l'utilisateur ({@link #reassess}) n'est jamais mise en cache.
@@ -58,12 +59,12 @@ public class CachingReadinessAssessor implements ReadinessAssessorPort {
     }
 
     @Override
-    public List<Readiness> assess(List<Story> stories) {
+    public List<Readiness> assess(List<Story> stories, List<Language> languages) {
         List<Readiness> verdicts = new ArrayList<>();
         List<String> keys = new ArrayList<>();
         List<Integer> misses = new ArrayList<>();
         for (int i = 0; i < stories.size(); i++) {
-            String key = key(stories.get(i));
+            String key = key(stories.get(i), languages.get(i));
             keys.add(key);
             Readiness cached = get(key);
             verdicts.add(cached);
@@ -75,7 +76,8 @@ public class CachingReadinessAssessor implements ReadinessAssessorPort {
         if (misses.isEmpty()) {
             return verdicts;
         }
-        List<Readiness> fresh = delegate.assess(misses.stream().map(stories::get).toList());
+        List<Readiness> fresh = delegate.assess(misses.stream().map(stories::get).toList(),
+                misses.stream().map(languages::get).toList());
         for (int j = 0; j < misses.size(); j++) {
             Readiness verdict = j < fresh.size() ? fresh.get(j) : null;
             int index = misses.get(j);
@@ -88,8 +90,8 @@ public class CachingReadinessAssessor implements ReadinessAssessorPort {
     }
 
     @Override
-    public Readiness reassess(String summary, String description, String precision) {
-        return delegate.reassess(summary, description, precision);
+    public Readiness reassess(String summary, String description, String precision, Language language) {
+        return delegate.reassess(summary, description, precision, language);
     }
 
     private synchronized Readiness get(String key) {
@@ -109,8 +111,8 @@ public class CachingReadinessAssessor implements ReadinessAssessorPort {
     }
 
     /** SHA-256 du contenu juge et de l'empreinte du fournisseur (separateurs non ambigus). */
-    String key(Story story) {
-        StringBuilder content = new StringBuilder(fingerprint).append('\u0000')
+    String key(Story story, Language language) {
+        StringBuilder content = new StringBuilder(fingerprint).append('\u0000').append(language.code()).append('\u0000')
                 .append(nullToEmpty(story.getTitle())).append('\u0000')
                 .append(nullToEmpty(story.getDescription())).append('\u0000');
         if (story.getAcceptanceCriteria() != null) {

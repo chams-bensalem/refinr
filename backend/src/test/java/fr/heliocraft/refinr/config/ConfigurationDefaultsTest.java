@@ -153,6 +153,23 @@ class ConfigurationDefaultsTest {
     }
 
     @Test
+    @DisplayName("Output language: auto by default everywhere (code, example config, .env.example, both READMEs); invalid value refused at startup")
+    void outputLanguageIsAligned() throws Exception {
+        String key = fr.heliocraft.refinr.domain.service.OutputLanguagePolicy.PROPERTY;
+        assertEquals("refinr.llm.output-language", key);
+        java.lang.reflect.Parameter parameter = UseCaseConfig.class.getConstructors()[0].getParameters()[2];
+        assertEquals("${" + key + ":auto}", parameter.getAnnotation(org.springframework.beans.factory.annotation.Value.class).value());
+        assertEquals("auto", exampleDefault(key));
+        assertEquals("auto", envExample("LLM_OUTPUT_LANGUAGE"));
+        for (String row : readmeTableRows(key)) {
+            assertTrue(row.contains("| `auto` |"), row);
+        }
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> new UseCaseConfig("", 1000, "xx"));
+        assertEquals("refinr.llm.output-language must be auto or an ISO 639-1 code (e.g. fr, en)", e.getMessage());
+        assertDoesNotThrow(() -> new UseCaseConfig("", 1000, "EN"));
+    }
+
+    @Test
     @DisplayName("Verdict batch size and cache defaults are aligned between the code, the example config and the README")
     void verdictBatchAndCacheAreAligned() throws Exception {
         java.lang.reflect.Parameter[] parameters = LlmConfiguration.class.getMethod("readinessAssessor",
@@ -277,7 +294,7 @@ class ConfigurationDefaultsTest {
         assertEquals(expected, readmeTableDefault("refinr.document.max-content-chars"));
         // Valeur nulle ou negative : echec au demarrage, avec le nom de la propriete
         for (int invalid : new int[] {0, -1}) {
-            IllegalStateException e = assertThrows(IllegalStateException.class, () -> new UseCaseConfig("", invalid));
+            IllegalStateException e = assertThrows(IllegalStateException.class, () -> new UseCaseConfig("", invalid, "auto"));
             assertTrue(e.getMessage().contains("refinr.document.max-content-chars"), e.getMessage());
         }
     }

@@ -29,7 +29,7 @@ class ReassessStoryServiceTest {
         TrackedStory story = new TrackedStory("PROJ-7", "Export PDF", "Exporter", List.of("validation-necessaire"));
         Readiness verdict = new Readiness(true, "Perimetre clair");
         when(tracker.findStory("PROJ-7")).thenReturn(story);
-        when(llm.reassess("Export PDF", "Exporter", "format A4")).thenReturn(verdict);
+        when(llm.reassess(eq("Export PDF"), eq("Exporter"), eq("format A4"), any())).thenReturn(verdict);
 
         assertEquals(verdict, service.reassess("PROJ-7", "format A4"));
 

@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.adapters.out.llm;
 
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
 import fr.heliocraft.refinr.domain.model.Epic;
 import org.slf4j.Logger;
@@ -26,9 +27,9 @@ public class LlmBacklogGenerator implements BacklogGeneratorPort {
     }
 
     @Override
-    public List<Epic> generate(String documentContent) {
-        log.info("Analyzing document with {}", client.settings().describe());
-        LlmRequest request = LlmRequest.of(LlmPrompts.SYSTEM, LlmPrompts.analysis(documentContent),
+    public List<Epic> generate(String documentContent, Language language) {
+        log.info("Analyzing document with {}, output language {}", client.settings().describe(), language.code());
+        LlmRequest request = LlmRequest.of(LlmPrompts.system(language), LlmPrompts.analysis(documentContent, language),
                 LlmSchemas.BACKLOG, LlmSchemas.forProvider(schema));
         List<Epic> epics = output.call(client, request, schema,
                 json -> GeneratedBacklogMapper.toDomain(output.mapper().treeToValue(json, GeneratedBacklog.class).getEpics()));

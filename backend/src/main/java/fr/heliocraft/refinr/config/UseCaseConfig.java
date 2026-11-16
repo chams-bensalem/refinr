@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.config;
 
+import fr.heliocraft.refinr.domain.service.OutputLanguagePolicy;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.CheckHealth;
 import fr.heliocraft.refinr.application.port.in.CreateBacklog;
@@ -44,10 +45,14 @@ public class UseCaseConfig {
     // Fournisseur de verdict distinct configure : le verdict de l'analyse est alors remplace par le sien
     private final boolean separateVerdict;
     private final int maxContentChars;
+    // Langue de sortie : auto (detection francais / anglais) ou un code ISO 639-1 ; refus au demarrage sinon
+    private final OutputLanguagePolicy languagePolicy;
 
     public UseCaseConfig(@Value("${refinr.llm.verdict.provider:}") String verdictProvider,
-                         @Value("${" + MAX_CONTENT_CHARS_PROPERTY + ":" + DEFAULT_MAX_CONTENT_CHARS + "}") int maxContentChars) {
+                         @Value("${" + MAX_CONTENT_CHARS_PROPERTY + ":" + DEFAULT_MAX_CONTENT_CHARS + "}") int maxContentChars,
+                         @Value("${" + OutputLanguagePolicy.PROPERTY + ":" + OutputLanguagePolicy.AUTO + "}") String outputLanguage) {
         this.separateVerdict = verdictProvider != null && !verdictProvider.isBlank();
+        this.languagePolicy = OutputLanguagePolicy.fromProperty(outputLanguage);
         if (maxContentChars <= 0) {
             throw new IllegalStateException(MAX_CONTENT_CHARS_PROPERTY + " must be a positive number of characters, got "
                     + maxContentChars);
@@ -62,25 +67,26 @@ public class UseCaseConfig {
 
     @Bean
     public CreateEditedBacklog createEditedBacklog(ReadinessAssessorPort assessor, CreateBacklog createBacklog) {
-        return new CreateEditedBacklogService(assessor, createBacklog);
+        return new CreateEditedBacklogService(assessor, createBacklog, languagePolicy);
     }
 
     @Bean
     public PreviewBacklog previewBacklog(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
                                          ReadinessAssessorPort assessor) {
-        return new PreviewBacklogService(documentSource, generator, separateVerdict ? assessor : null, maxContentChars);
+        return new PreviewBacklogService(documentSource, generator, separateVerdict ? assessor : null, maxContentChars,
+                languagePolicy);
     }
 
     @Bean
     public AnalyzeDocument analyzeDocument(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
                                            ReadinessAssessorPort assessor, CreateBacklog createBacklog) {
         return new AnalyzeDocumentService(documentSource, generator, separateVerdict ? assessor : null, createBacklog,
-                maxContentChars);
+                maxContentChars, languagePolicy);
     }
 
     @Bean
     public ReassessStory reassessStory(IssueTrackerPort issueTracker, ReadinessAssessorPort assessor) {
-        return new ReassessStoryService(issueTracker, assessor);
+        return new ReassessStoryService(issueTracker, assessor, languagePolicy);
     }
 
     @Bean
