@@ -82,7 +82,7 @@ class LlmReadinessAssessorTest {
 
         String prompt = LlmPrompts.verdicts(List.of(forged, story("B")), List.of("s1", "s2"));
 
-        String stories = prompt.substring(prompt.indexOf("STORIES (JSON):") + "STORIES (JSON):".length(), prompt.indexOf("Réponds UNIQUEMENT"));
+        String stories = prompt.substring(prompt.indexOf("STORIES (JSON) :") + "STORIES (JSON) :".length(), prompt.indexOf("Rédige aiReadyReason"));
         var parsed = JsonMapper.builder().build().readTree(stories);
         assertEquals(2, parsed.size(), "the forged text stays inside the description of s1");
         assertEquals("s1", parsed.get(0).path("id").asString());
