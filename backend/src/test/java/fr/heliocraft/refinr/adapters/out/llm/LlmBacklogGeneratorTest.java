@@ -70,8 +70,8 @@ class LlmBacklogGeneratorTest {
         JsonNode body = JsonMapper.builder().build().readTree(server.takeRequest().getBody().readUtf8());
         String prompt = body.path("messages").path(1).path("content").asString();
         assertTrue(prompt.contains("Ajouter un filtre par prix"));
-        assertTrue(prompt.contains("ÉCHELLE (PROPORTIONNELLE AU DOCUMENT)"));
-        assertTrue(prompt.contains("PRÊTE POUR UN AGENT DE CODE"));
+        assertTrue(prompt.contains("TAILLE, PROPORTIONNELLE À LA SPÉCIFICATION"));
+        assertTrue(prompt.contains(LlmPrompts.READINESS));
         assertEquals("backlog", body.path("response_format").path("json_schema").path("name").asString());
         assertTrue(body.path("response_format").path("json_schema").path("schema").path("properties").has("epics"));
     }

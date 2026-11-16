@@ -18,6 +18,9 @@ un fournisseur.
 - HTTP `400` du fournisseur avec un paramètre optionnel envoyé : message qui nomme le modèle et le paramètre refusé
   quand le fournisseur le désigne par un champ structuré (`error.param`, `fieldViolations`), sinon la liste des
   paramètres optionnels envoyés. Statut REST inchangé (`502`) ; aucun extrait de la réponse du fournisseur.
+- Jeu de référence du verdict (`eval/verdict/`, 50 stories étiquetées, **étiquettes posées par une IA**) et outil de
+  mesure `scripts/eval-verdict.sh` (justesse, stabilité, matrice de confusion ; plafonds d'appels et budget), pour les
+  mainteneurs, hors CI.
 
 ### Changed
 - **La température n'est plus envoyée par défaut** (analyse `0.2` et verdict `0.1` jusqu'en 1.3) : le fournisseur
@@ -31,6 +34,21 @@ un fournisseur.
   `temperature`, `stream`) est refusée au démarrage, avec la clé nommée ; auparavant, avec `openai-compatible`, elle
   écrasait le champ. Une clé `extra-body` contenant un point est désormais un chemin imbriqué (elle était envoyée
   comme une clé littérale).
+- **Prompts revus (verdict `verdict-v3.1`)**, comportement du modèle modifié ; schéma de sortie et contrat REST
+  inchangés :
+  - critère du verdict revu : un développeur senior peut-il implémenter la story et faire passer ses critères
+    d'acceptation sans attendre une réponse du Product Owner ? Les conventions (noms de champs, de classes, format
+    technique d'une réponse dont l'information est définie), les détails d'implémentation et les cas limites non
+    couverts qui ne touchent ni un montant, ni les droits d'accès, ni les données personnelles ne bloquent plus ; un
+    terme métier ambigu non défini bloque ; un seul bloc de règles, commun à la génération, au verdict par lots et à
+    la réévaluation ;
+  - raison du verdict : pour une story non prête, la question bloquante principale à poser au PO, formulée comme une
+    question ;
+  - backlog rédigé dans la langue de la spécification, et raison du verdict (verdict séparé, réévaluation) dans la
+    langue de la story ;
+  - critères d'acceptation générés limités aux règles de la spécification ; une décision manquante n'est jamais un
+    critère ; plus de story de cadrage ou de décision (« choisir… »).
+  Les verdicts en cache (version `verdict-v2`) ne sont plus réutilisés.
 
 ### Migration
 - Pour retrouver l'ancienne température, ajouter dans `.env` :
