@@ -1,0 +1,16 @@
+id,label,reason,confidence,labeled_by,labeled_on
+v066,ready,"champs, tri, pagination et cas vide définis",sure,claude-po,2026-11-16
+v067,not-ready,montant remboursé non défini quand un code promo s'applique au total de la commande,sure,claude-po,2026-11-16
+v068,not-ready,droits du manager non définis pour un salarié qui change d'équipe (anciennes notes visibles par quel manager ?),sure,claude-po,2026-11-16
+v069,ready,"contenu de l'export, filtre et cas vide définis ; structure JSON = convention",sure,claude-po,2026-11-16
+v070,not-ready,« client actif » non défini,hesitant,claude-po,2026-11-16
+v071,not-ready,« dossier complet » non défini,sure,claude-po,2026-11-16
+v072,ready,"limite, format du compteur et blocage définis ; collage au-delà de 500 = cas limite non sensible",sure,claude-po,2026-11-16
+v073,ready,"champ, casse, seuil, limite et tri définis ; accents = cas limite non sensible",sure,claude-po,2026-11-16
+v074,not-ready,sort des sessions déjà ouvertes à la désactivation non défini (droits d'accès),hesitant,claude-po,2026-11-16
+v075,ready,"API publique sans clé, seuil de score et comportement d'échec définis",sure,claude-po,2026-11-16
+v076,not-ready,format de fichier imposé et accès au serveur du logisticien non fournis,sure,claude-po,2026-11-16
+v077,ready,"seuil, montant, base après remises et exemples définis",sure,claude-po,2026-11-16
+v078,ready,"« validée » défini, date de mise en paiement et exclusions définies",sure,claude-po,2026-11-16
+v079,ready,"durée, fenêtre du bandeau, message et blocage à l'expiration définis",sure,claude-po,2026-11-16
+v080,not-ready,"compte conservé et sort des autres données (adresses, moyens de paiement, données personnelles) non définis",sure,claude-po,2026-11-16

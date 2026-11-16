@@ -1,0 +1,4 @@
+id,label_v1,confidence_v1,label,confidence,reason,decided_by,decided_on
+v004,ready,sure,ready,hesitant,schéma de la réponse 200 non défini,claude-po,2026-11-16
+v020,ready,sure,not-ready,sure,contradiction entre « temps réel » et « rafraîchit la page »,claude-po,2026-11-16
+v033,ready,sure,ready,hesitant,comportement au-delà de 10 000 articles non défini,claude-po,2026-11-16

@@ -38,3 +38,6 @@ frontend/*.tsbuildinfo
 .classpath
 .project
 .settings/
+
+# --- Verdict evaluation state (daily call counters, spend ledger) ---
+eval/verdict/.state/

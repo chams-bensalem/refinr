@@ -1,0 +1,35 @@
+{
+  "epics": [
+    {
+      "name": "Customer account data export",
+      "description": "Let support agents export the data of a customer account to answer customer requests. Format, content, access rights and delivery are not decided yet.",
+      "priority": "Medium",
+      "labels": ["backend", "security"],
+      "stories": [
+        {
+          "asA": "support agent",
+          "iWant": "to export the data of a customer account",
+          "soThat": "I can answer customer requests",
+          "title": "Export a customer account's data",
+          "description": "A support agent exports the data of a customer account. Open points from the spec: format (CSV, JSON or ZIP archive), encoding and delimiter, allowed roles (support level 1, level 2, admins), included fields (GDPR review pending), delivery (browser or e-mail) and size limits.",
+          "acceptanceCriteria": [
+            "Given an authorized support agent, When they request the export of a customer account, Then they receive the account's data in the format and with the content still to be decided",
+            "Given a user whose role is not authorized, When they request the export of a customer account, Then the export is refused"
+          ],
+          "estimatedStoryPoints": 5,
+          "priority": "Medium",
+          "labels": ["backend", "security"],
+          "dependencies": [],
+          "aiReady": false,
+          "aiReadyReason": "Which fields of the customer account must the export contain once the GDPR review is complete?",
+          "tasks": [
+            { "title": "Check the export permission", "description": "Restrict the export to the allowed roles. Depends on the missing decision: the list of roles from Legal.", "estimatedHours": 2, "labels": ["backend", "security"] },
+            { "title": "Collect the account data", "description": "Gather the customer account data. Depends on the missing decision: the field list validated by the GDPR review.", "estimatedHours": 4, "labels": ["backend", "database"] },
+            { "title": "Produce and deliver the export file", "description": "Generate and deliver the file. Depends on the missing decisions: format, encoding, delivery and size limits.", "estimatedHours": 4, "labels": ["backend"] },
+            { "title": "Test the export and the access control", "description": "Tests for an authorized role and for the refusal of an unauthorized role.", "estimatedHours": 2, "labels": ["test"] }
+          ]
+        }
+      ]
+    }
+  ]
+}

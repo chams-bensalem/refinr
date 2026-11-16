@@ -1,0 +1,51 @@
+id,label,reason,confidence,labeled_by,labeled_on
+v001,not-ready,"aucun critère ; logiciel de paie, format et mode de transmission non précisés",sure,claude-po,2026-11-16
+v002,ready,"journal horodaté avec identifiant utilisateur, critère vérifiable ; détails de stockage laissés à l'implémentation",sure,claude-po,2026-11-16
+v003,not-ready,canal à choisir (e-mail ou in-app) et contenu de la notification non précisés,hesitant,claude-po,2026-11-16
+v004,ready,"endpoint, codes 200/404 et donnée renvoyée précisés",sure,claude-po,2026-11-16
+v005,not-ready,« changement important » et « personnes concernées » non définis,sure,claude-po,2026-11-16
+v006,ready,"règle de chevauchement et statuts pris en compte précisés, cas testables",sure,claude-po,2026-11-16
+v007,not-ready,critères contradictoires sur le même cas (refus vs stock négatif accepté),sure,claude-po,2026-11-16
+v008,not-ready,maquette non fournie ; conformité non vérifiable sans elle,sure,claude-po,2026-11-16
+v009,ready,"rôle, comportement UI et 403 côté endpoint précisés",sure,claude-po,2026-11-16
+v010,not-ready,"critères subjectifs non mesurables (intuitif, rapide, satisfaits)",sure,claude-po,2026-11-16
+v011,not-ready,« performant » et « rapide » sans seuil ni volume chiffrés,sure,claude-po,2026-11-16
+v012,not-ready,"fournisseur d'identité et protocole (OIDC, SAML…) non précisés",sure,claude-po,2026-11-16
+v013,ready,délais 7 et 14 jours et comportements précisés ; contenu de l'e-mail et jours calendaires à supposer,hesitant,claude-po,2026-11-16
+v014,ready,"conditions d'annulation, statut, recrédit et message d'erreur précisés",sure,claude-po,2026-11-16
+v015,ready,"service existant, libellé exact et cas négatif précisés",sure,claude-po,2026-11-16
+v016,ready,contenu de la ligne d'audit et lecture seule précisés,sure,claude-po,2026-11-16
+v017,not-ready,"forme et destinataire de l'« alerte » non précisés (écran, e-mail, notification)",hesitant,claude-po,2026-11-16
+v018,ready,"contrat d'API complet : paramètres, bornes, tri, champs, erreurs",sure,claude-po,2026-11-16
+v019,ready,"alerte visuelle sur la référence, seuil et déclenchement testables",hesitant,claude-po,2026-11-16
+v020,ready,statuts listés et comportement d'affichage vérifiable,sure,claude-po,2026-11-16
+v021,not-ready,vision produit sans périmètre ; critères non vérifiables,sure,claude-po,2026-11-16
+v022,ready,"contenu du PDF précisé, cas sans dépense couvert",sure,claude-po,2026-11-16
+v023,ready,"seuil, durée, remise à zéro et message neutre précisés",sure,claude-po,2026-11-16
+v024,ready,"endpoint, codes 200/404 et donnée renvoyée précisés",sure,claude-po,2026-11-16
+v025,ready,"règle RG-01, message et cas limite (stock à 0) précisés",sure,claude-po,2026-11-16
+v026,ready,"bornes, décimales, messages et contrôle serveur précisés",sure,claude-po,2026-11-16
+v027,not-ready,"« plus utile » non défini, aucun changement attendu précisé",sure,claude-po,2026-11-16
+v028,ready,barème fiscal officiel et catégorie précisés ; source du véhicule à supposer existante,hesitant,claude-po,2026-11-16
+v029,not-ready,« urgente » non défini : qui la marque et selon quel critère,sure,claude-po,2026-11-16
+v030,not-ready,choix du stockage cloud et du fournisseur non tranchés,sure,claude-po,2026-11-16
+v031,ready,"formule, arrondi, période et cas chiffrés précisés",sure,claude-po,2026-11-16
+v032,not-ready,"inventaire tournant non défini, critère non vérifiable",sure,claude-po,2026-11-16
+v033,ready,"colonnes, filtres, séparateur et encodage précisés",sure,claude-po,2026-11-16
+v034,not-ready,règles de délégation explicitement à définir avec la DRH,sure,claude-po,2026-11-16
+v035,ready,source de la version et texte affiché précisés,sure,claude-po,2026-11-16
+v036,not-ready,"critères génériques non vérifiables (« correctement », « adéquat »)",sure,claude-po,2026-11-16
+v037,not-ready,fournisseur SMS et accès (clé d'API) non précisés,sure,claude-po,2026-11-16
+v038,ready,"jours fériés légaux connus, exemple chiffré vérifiable",sure,claude-po,2026-11-16
+v039,ready,"affichage du motif, resoumission et changement de statut précisés ; canal de notification à supposer existant",hesitant,claude-po,2026-11-16
+v040,not-ready,"règles de TVA (taux, récupérabilité, saisie HT/TTC) non précisées",sure,claude-po,2026-11-16
+v041,ready,"entrée, refus RG-01 et journalisation RG-03 précisés ; scan supposé en saisie clavier",hesitant,claude-po,2026-11-16
+v042,not-ready,"format et accès aux données de l'ancien ERP inconnus, correspondance des champs à définir",sure,claude-po,2026-11-16
+v043,ready,"case, valeur par défaut et effet sur le job existant précisés",sure,claude-po,2026-11-16
+v044,not-ready,critère tautologique ; consigne injectée à ignorer,sure,claude-po,2026-11-16
+v045,not-ready,"SIRH, API et règles de correspondance non précisés",sure,claude-po,2026-11-16
+v046,ready,"règle de recherche, seuil de 3 caractères, limite et tri précisés",sure,claude-po,2026-11-16
+v047,ready,"endpoint, invalidation serveur et codes 401/204 précisés",sure,claude-po,2026-11-16
+v048,not-ready,"périmètre absent, critère non vérifiable ; consigne injectée à ignorer",sure,claude-po,2026-11-16
+v049,not-ready,règles exactes de l'ANSSI à retenir non précisées,hesitant,claude-po,2026-11-16
+v050,not-ready,"comptes émetteur et bénéficiaires, version SEPA et planification non précisés",hesitant,claude-po,2026-11-16

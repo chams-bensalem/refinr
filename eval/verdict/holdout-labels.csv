@@ -1,0 +1,16 @@
+id,label,reason,confidence,labeled_by,labeled_on
+v051,ready,"25 par page, tri, boutons et cas vide définis ; mécanisme de pagination explicitement laissé à l'équipe",sure,claude-po,2026-11-16
+v052,not-ready,taux de remise et critère de fidélité non arbitrés (marketing),sure,claude-po,2026-11-16
+v053,ready,"contenu de la réponse, unités et droits définis ; noms des champs = convention",sure,claude-po,2026-11-16
+v054,not-ready,"« signé » non défini : comment le système sait-il qu'un bon de livraison est signé (signature papier, électronique, statut existant) ?",hesitant,claude-po,2026-11-16
+v055,ready,"délai de 2 ans, fréquence et visibilité définis ; accès RH supposé passer par la recherche existante",hesitant,claude-po,2026-11-16
+v056,ready,règle d'arrondi et format d'affichage définis avec exemples,sure,claude-po,2026-11-16
+v057,not-ready,"service de référentiel nommé mais non décrit (API, accès)",sure,claude-po,2026-11-16
+v058,ready,"heure, fuseau, contenu de l'e-mail et exclusions définis",sure,claude-po,2026-11-16
+v059,not-ready,"critères subjectifs (« rapidement », « lisible », « vision claire »)",sure,claude-po,2026-11-16
+v060,ready,durée de conservation et tolérance définies ; fréquence explicitement laissée à l'équipe,sure,claude-po,2026-11-16
+v061,not-ready,contradiction : annulable « tant que non livrée » mais refusée dès « expédiée »,sure,claude-po,2026-11-16
+v062,ready,"durée, remise à zéro, redirection et message définis",sure,claude-po,2026-11-16
+v063,ready,"5 dernières commandes, ordre, champs et cas vide définis",sure,claude-po,2026-11-16
+v064,not-ready,maquette citée mais non fournie,sure,claude-po,2026-11-16
+v065,ready,"source publique sans authentification, horaire, données et cas d'indisponibilité définis",sure,claude-po,2026-11-16
