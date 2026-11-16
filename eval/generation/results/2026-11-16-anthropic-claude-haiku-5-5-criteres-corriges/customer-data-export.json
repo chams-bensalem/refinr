@@ -1,0 +1,52 @@
+{
+  "epics" : [ {
+    "description" : "Permettre à un agent du support d'exporter les données d'un compte client afin de répondre aux demandes des clients. Les points de format, d'encodage, de droits d'accès, de contenu, de taille et de livraison ne sont pas encore décidés.",
+    "labels" : [ "backend", "security", "documentation" ],
+    "name" : "Export des données de compte client",
+    "priority" : "Medium",
+    "stories" : [ {
+      "acceptanceCriteria" : [ "Given a customer account exists, When a support agent requests an export of its data, Then an export containing the data of that customer account is produced.", "Given a support agent requests an export for a customer account, When the export is produced, Then it contains no data from other customer accounts.", "Given the format, access rights, content, encoding and delivery are not yet decided, When the story is refined, Then each of these open points is decided and recorded before development starts." ],
+      "aiReady" : false,
+      "aiReadyReason" : "Question bloquante au PO : quel format d'export (CSV, JSON ou ZIP), quels rôles peuvent exporter et quels champs sont inclus ?",
+      "asA" : "support agent",
+      "dependencies" : [ ],
+      "description" : "Un agent du support peut demander l'export des données d'un compte client. L'export doit contenir les données de ce compte. Points non décidés à trancher par le Product Owner avant le développement : format (CSV, JSON ou archive ZIP avec plusieurs fichiers), encodage (UTF-8 ou Windows-1252) et délimiteur (virgule ou point-virgule) à définir par l'équipe data, rôles autorisés à exporter (support niveau 1, niveau 2, administrateurs) en attente de la réponse du service juridique, contenu exporté (commandes, factures, données personnelles, historique de support) en attente de la revue RGPD, et mode de livraison (téléchargement dans le navigateur ou envoi par e-mail) ainsi que comportement pour les comptes très volumineux. Aucun critère d'acceptation n'est encore défini.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 5,
+      "iWant" : "to export the data of a customer account",
+      "labels" : [ "backend", "security", "documentation" ],
+      "priority" : "High",
+      "soThat" : "I can answer customer requests",
+      "tasks" : [ {
+        "description" : "Faire trancher par le Product Owner, le service juridique et l'équipe data le format, l'encodage, le délimiteur, les rôles autorisés, le contenu, la taille maximale et le mode de livraison. Résultat attendu : décisions documentées dans la story.",
+        "estimatedHours" : 2,
+        "labels" : [ "documentation" ],
+        "parentTrackerKey" : null,
+        "title" : "Obtenir les décisions sur les points ouverts",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Mettre en place la génération de l'export des données d'un compte client selon le format et le contenu décidés. Bloquée tant que le format, le contenu et les droits d'accès ne sont pas décidés.",
+        "estimatedHours" : 8,
+        "labels" : [ "backend", "security" ],
+        "parentTrackerKey" : null,
+        "title" : "Implémenter l'export des données d'un compte client",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Vérifier que l'export contient les données du seul compte demandé, que la demande d'un agent autorisé aboutit, et que les points de format et de contenu décidés sont respectés.",
+        "estimatedHours" : 4,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester l'export contre les critères d'acceptation",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Export customer account data",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "trackerKey" : null,
+    "trackerUrl" : null
+  } ]
+}
