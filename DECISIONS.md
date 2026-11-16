@@ -376,3 +376,96 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
 - **Décision (mainteneur, 2026-11-16)** : `thinkingLevel=low` n'est pas recommandé. Il reste dans la documentation
   comme simple exemple de syntaxe Google (« à vérifier dans la doc du fournisseur »), comme aujourd'hui. Sans
   paramètre optionnel, c'est le fournisseur qui choisit : c'est le comportement par défaut.
+
+## Justesse du verdict (v1.4, E0)
+
+- **Jeu de référence versionné** (`eval/verdict/`) : 50 stories, ~⅓ générées par Refinr (17, reprises sans retouche des
+  backlogs des mesures M0 et G0, vérifiées sans donnée sensible) et ~⅔ synthétiques (33, couvrant chaque règle de
+  `READINESS_RULES` et des pièges : story longue mais vague, courte mais complète, critères non vérifiables, absents ou
+  contradictoires, consignes injectées). Champs : exactement ceux que reçoit le modèle (titre, description, critères).
+- **Référence étiquetée par une IA, pas par un humain** : `labels.csv` (26 `ready`, 24 `not-ready` ; 41 `sure`,
+  9 `hesitant`) a été rempli par Claude en position de PM/PO (`labeled_by` = `claude-po`, 2026-11-16), sans accès à
+  l'intention de l'auteur (`candidates-notes.md`). C'est la seule référence : ni étiquette « auteur », ni fusion. Les
+  9 étiquettes `hesitant` seront relues par le mainteneur.
+- **Circularité** : les mesures Anthropic évaluent Claude contre des étiquettes de Claude, pour les deux cibles
+  (`anthropic`, modèle économique, **et** `anthropic-check`, modèle haut de gamme : Opus est aussi Claude) ; leurs
+  résultats sont indicatifs.
+- **Seuil** : bloquant sur les étiquettes `sure` seulement (0 faux `ai-ready` au verdict majoritaire, aucune story
+  `not-ready` / `sure` jugée prête dans plus d'une exécution sur 5) ; `hesitant` rapportées à part ; faux
+  `validation-necessaire` ≤ 25 %, stabilité ≥ 90 %. Égalité au vote = `ai-ready` (le cas dangereux).
+- **Outil du dépôt, hors CI** : `scripts/eval-verdict.sh` lance `VerdictEval` (sources de test du backend, aucune
+  nouvelle dépendance), qui appelle le vrai `LlmReadinessAssessor` (prompt, schéma, lots de 10 et réparations de
+  production, `max-retries=0`). Jamais exécuté par `mvn test` ni par la CI : aucune annotation JUnit, nom hors des
+  motifs par défaut de Surefire (le `pom.xml` n'en définit pas d'autres), et `run` refuse de tourner en CI ou sous
+  Surefire ; `VerdictEvalGuardTest` vérifie les trois points dans `mvn test`, avec les métriques (`VerdictMetrics`). Réglages :
+  `application-example.properties` (défauts de production 1.4) + `.env`, pour que la mesure ne dépende pas d'un
+  `application.properties` local ancien. Ordre des stories mélangé par exécution (graine fixe), pour mesurer aussi
+  l'effet de la composition des lots.
+- **Garde-fous** : plafond de requêtes par jour et par fournisseur, budget par phase calculé sur l'usage facturé
+  (champ `usage` / `usageMetadata`) avec un refus préalable au coût maximal de la requête, arrêts sur 400 / 401 / 403 /
+  404 / 429 et après 2 échecs consécutifs 503 / 529 ou délai dépassé. Tarifs dans `eval/verdict/prices.csv`, datés, avec
+  la source (page officielle Anthropic, relevée le 2026-11-16, vérifiée par le mainteneur), par tranche d'entrée et
+  appliqués requête par requête (Haiku 5.5 au-delà de 100 000 tokens d'entrée : 0,50 / 2,50 USD par million).
+- **Arbitrage des étiquettes (v2)** : `eval/verdict/labels-adjudication.csv` corrige trois étiquettes de `labels.csv`
+  (laissé intact) : v004 `ready`/`sure` → `ready`/`hesitant` (schéma de la réponse 200 non défini), v020
+  `ready`/`sure` → `not-ready`/`sure` (contradiction entre « temps réel » et « rafraîchit la page »), v033
+  `ready`/`sure` → `ready`/`hesitant` (comportement au-delà de 10 000 articles non défini). `summarize` l'applique et
+  rapporte aussi le résultat avant arbitrage. **Corrections faites après avoir vu les réponses des modèles** : elles
+  biaisent la mesure en leur faveur.
+- **Faux `validation-necessaire` lu sur les `ready` / `sure`** (≤ 25 %), les `ready` / `hesitant` rapportées à part :
+  **règle fixée après la première mesure** (2026-11-16). Le seuil bloquant ne change pas.
+- **Estimation du coût** recalée sur l'usage observé en E0 (Haiku 5.5, Opus 5.5) : 1 token d'entrée pour 2,2 caractères
+  (au lieu de 3) et 166 tokens de sortie par story (au lieu de 80). Le refus préalable garde le pire cas (sortie
+  maximale). Un lot arrêté par le protocole (429…) n'est pas enregistré : `--out` le refait à la reprise.
+- **Première mesure, prompt `verdict-v2`** (2026-11-16, étiquettes arbitrées) : seuil bloquant **atteint** pour Haiku
+  5.5 × 5 et Opus 5.5 × 1 (0 faux `ai-ready`, aucune `not-ready` / `sure` jugée prête même une fois) ; faux
+  `validation-necessaire` sur `ready` / `sure` : Haiku 4 sur 18 (22 %), Opus 3 sur 18 (17 %), et 7 sur 7 `hesitant`
+  rejetées par les deux ; stabilité Haiku 70 % (**échec**, seuil 90 %). Coût Anthropic 0,2246 USD. Gemini 3.6 Flash :
+  partielle (10 stories, arrêt sur 429), à terminer. Résultats : `eval/verdict/results/`.
+- **Plafond d'appels par jour et par fournisseur** (2026-11-16, après la mesure v3 interrompue) : 100 pour Anthropic,
+  dont le coût reste borné par le budget de 20 USD par phase et le refus avant chaque requête ; 40 pour Gemini (quota
+  observé) et les autres fournisseurs. `--cap` remplace la valeur par défaut. Une story sans aucune observation (mesure
+  interrompue) est rapportée « non mesurée », à part du repli.
+- **Politique d'erreur du verdict** : les faux `ai-ready` doivent rester quasi nuls, car la validation humaine ne les
+  rattrape pas (la story part chez un agent de code). Les faux `validation-necessaire` sont tolérés jusqu'à 25 % sur
+  les `ready` / `sure`, car la validation et la réévaluation les rattrapent (du temps humain, pas un risque). Les écarts
+  entre modèles sont normaux : on ne retouche pas le prompt pour un modèle qui tient ces seuils.
+- **Prompt `verdict-v3.1`** (2026-11-16), construit sur les échecs de Haiku en v3 (questions sur des cas limites, noms
+  de champs) : cas limites non couverts non bloquants s'ils ne touchent ni un montant, ni les droits d'accès, ni les
+  données personnelles ; terme métier ambigu non défini bloquant ; raison en forme de question. Un second jeu de
+  contrôle (`holdout2.jsonl`, 15 stories visant ces règles) est écrit avant toute mesure v3.1 et étiqueté en aveugle.
+- **Critères d'acceptation de v3.1, fixés avant la mesure** (Haiku × 5, Opus × 1, jeu d'origine arbitré + deux jeux
+  de contrôle) :
+  - 0 faux `ai-ready` sur les `not-ready` / `sure`, sur les trois jeux, pour les deux modèles ;
+  - faux `validation-necessaire` sur les `ready` / `sure` ≤ 25 %, pour Haiku comme pour Opus, sur le jeu d'origine et
+    sur chaque jeu de contrôle ;
+  - aucune régression d'Opus par rapport à v3 au-delà d'une story ;
+  - v054 et les termes ambigus de `holdout2` jugés pas prêts à la majorité.
+  Si un critère échoue, pas de retouche du prompt en boucle : retour au mainteneur avec les chiffres.
+- **`verdict-v3.1` acceptée, avec une exception** (mesure du 2026-11-16 : Haiku 5.5 × 5, Opus 5.5 × 1, 80 stories) :
+  - critères réussis : 0 faux `ai-ready` sur les `not-ready` / `sure` (trois jeux, deux modèles) ; faux
+    `validation-necessaire` sur les `ready` / `sure` ≤ 25 % sur chaque jeu (Haiku 11 / 12 / 12 %, Opus 11 / 0 / 12 %) ;
+    v054, v070, v071 jugées pas prêtes ;
+  - critère **échoué**, noté comme tel : « pas de régression d'Opus par rapport à v3 au-delà d'une story » (v009, v017).
+    Exception acceptée par le mainteneur : les seuils de la politique d'erreur sont tenus, et l'écart repose sur
+    2 stories, une seule exécution et une étiquette `hesitant` (v017). Aucun réétiquetage ; l'étiquette de v009
+    (`ready` / `sure`) était probablement trop indulgente : Opus y relève une vraie contradiction (403 sur tout l'écran
+    dans le critère, bouton et endpoint seulement dans la description) ;
+  - **v017** (`not-ready` / `hesitant`) est le **seul faux `ai-ready` de la campagne** (v3.1 : Opus 1 sur 1, Haiku à
+    égalité 1 / 1 avec 3 replis), à faire figurer dans la matrice de compatibilité.
+- **Stabilité de Haiku non bloquante** (80 % sur le jeu d'origine, 85 % sur 80 stories, seuil 90 %) : ses variations
+  ne portent jamais sur une `not-ready` / `sure`. Option de repli gardée, **non implémentée** : vote majoritaire sur
+  plusieurs appels de verdict.
+- **Robustesse du verdict par lots (4c)** :
+  - **troncature** : un lot dont la réponse s'arrête sur la limite de tokens de sortie (`stop_reason: max_tokens`,
+    `finishReason: MAX_TOKENS`, `finish_reason: length`) est coupé en deux (première moitié arrondie au supérieur) et
+    chaque moitié est redemandée, jusqu'à la story seule (profondeur bornée à 8) ; une story seule encore coupée garde
+    le repli actuel. Log : taille et cause, jamais le contenu. Prompt et contrat REST inchangés. La limite de 4 096
+    tokens observée en mesure est bien celle livrée pour un rôle verdict distinct (`LLM_VERDICT_MAX_OUTPUT_TOKENS`) ;
+    sans rôle verdict, le verdict passe par le client d'analyse (32 768) ;
+  - **délai** : les 327 s et 354 s relevées pour un délai de 90 s **ne viennent pas d'un défaut des clients**, mais de
+    la mise en veille de la machine pendant la mesure (journal `pmset` : veille à 17:40:54, appels à 17:41:51 et
+    17:54) : le minuteur de Reactor suit une horloge monotone, arrêtée pendant la veille, alors que la mesure chronométrait
+    en heure murale. Les trois clients partagent `LlmClient.post()`, dont `Mono.timeout` porte sur le corps reçu en
+    entier, donc sur la durée totale de l'appel ; un test sur chaque client (en-têtes immédiats, puis corps envoyé à
+    1 octet / 100 ms) le prouve. La mesure lance Java sous `caffeinate -i` et marque `suspended` un appel trop long.

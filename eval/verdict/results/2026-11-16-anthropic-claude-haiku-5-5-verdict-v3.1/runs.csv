@@ -1,0 +1,401 @@
+run,seed,batch,position,id,ai_ready,source,reason
+1,20261117,1,1,v012,false,model,"Le système d'annuaire d'entreprise (fournisseur, protocole et modalités d'accès) n'est pas décrit, alors que la connexion unique en dépend ; quel annuaire et quel protocole doivent être utilisés ?"
+1,20261117,1,2,v011,false,model,"Les termes « performant » et « rapide » n'ont pas de seuil ; quel temps maximum l'export doit-il respecter, et pour quel nombre d'articles ?"
+1,20261117,1,3,v055,true,model,"La règle est définie (demandes dont la date de fin dépasse 2 ans, archivage nocturne, masquage dans l'historique du salarié, consultation possible par les RH), ce qui la rend implémentable."
+1,20261117,1,4,v029,false,model,"Le critère qui rend une demande de congé « urgente » et la personne qui la qualifie ne sont pas définis, alors qu'ils déterminent l'ordre d'affichage ; quels critères définissent une demande urgente ?"
+1,20261117,1,5,v061,false,model,La description autorise l'annulation jusqu'à la livraison alors que les critères la refusent dès l'expédition ; une commande expédiée mais non livrée peut-elle-elle être annulée ?
+1,20261117,1,6,v033,true,model,"Les colonnes, le séparateur ';', l'encodage UTF-8 et le respect des filtres sont définis, et la limite de 10 000 articles est précisée, ce qui rend l'export implémentable."
+1,20261117,1,7,v070,false,model,La notion de « client actif » n'est pas définie alors qu'elle détermine les destinataires de l'e-mail ; quels critères définissent un client actif ?
+1,20261117,1,8,v075,true,model,"L'API Adresse, son absence de clé, le seuil de score de 0,7 et les comportements attendus pour un score élevé ou faible sont définis, ce qui rend le géocodage implémentable."
+1,20261117,1,9,v071,false,model,La règle de complétude d'un dossier de candidature n'est pas définie alors qu'elle décide du passage au statut « à instruire » ; quels documents ou champs rendent un dossier complet ?
+1,20261117,1,10,v013,false,model,"Ce qui constitue une « action » du manager qui arrête le délai, et le comportement lorsque le manager n'a pas de N+1, ne sont pas définis ; quelles actions arrêtent le délai et que doit-il se passer en l'absence de N+1 ?"
+1,20261117,2,1,v016,true,model,"Les critères définissent précisément la ligne d'audit (date et heure exactes, identifiant utilisateur, variation de stock) et l'exigence de lecture seule, ce qui permet une implémentation directe."
+1,20261117,2,2,v032,false,model,"La story ne définit pas ce qu'est un inventaire tournant ni ce que l'application doit faire (périmètre, fréquence, saisie des quantités, écarts) ; quelles sont les règles métier attendues pour un inventaire tournant ?"
+1,20261117,2,3,v056,true,model,"La règle d'arrondi au centime (demi supérieur) et le format d'affichage sont précisés et cohérents avec les trois exemples de critères, donc implémentable directement."
+1,20261117,2,4,v005,false,model,"Les notions de « changement important » et de « personnes concernées » ne sont pas définies, et le canal de notification n'est pas précisé ; quels changements sur une note de frais sont importants et qui doit être notifié, et comment ?"
+1,20261117,2,5,v004,true,model,"L'endpoint GET /stocks/{reference} est décrit avec ses deux cas attendus (200 avec la quantité, 404 si la référence est inconnue), ce qui suffit pour l'implémenter."
+1,20261117,2,6,v053,false,model,Le cas d'un salarié non manager qui demande l'identifiant d'un identifiant inexistant (403 ou 404 ?) n'est pas tranché alors qu'il touche aux droits d'accès ; quelle réponse doit être renvoyée dans ce cas ?
+1,20261117,2,7,v054,false,model,"Le terme « signé » n'est pas défini (signature manuscrite scannée, case cochée, signature électronique, etc.) alors qu'il conditionne le comportement ; comment un bon de livraison est-il considéré comme signé ?"
+1,20261117,2,8,v063,true,model,"Les critères précisent les cinq dernières commandes triées de la plus récente à la plus ancienne, les champs affichés et le message pour un client sans commande, ce qui permet l'implémentation."
+1,20261117,2,9,v002,true,model,"Le critère demande d'enregistrer la date, l'heure et l'identifiant de l'utilisateur pour chaque transaction validée, ce qui est vérifiable et implémentable."
+1,20261117,2,10,v067,false,model,"Quand un code promo s'applique au total de la commande, le montant remboursable pour un article n'est pas défini (prix catalogue ou prix après remise proportionnelle) ; quel montant exact le client doit-il recevoir pour un article retourné sur une commande avec code promo ?"
+1,20261117,3,1,v065,true,model,"Le comportement d'import quotidien, les données enregistrées (devise, taux contre l'euro, date) et le repli sur les taux de la veille sont définis, et la source XML publique ne nécessite aucune authentification."
+1,20261117,3,2,v015,true,model,"La notification passe par le service interne existant, le libellé est fourni et les deux cas (validation et refus) sont couverts par les critères."
+1,20261117,3,3,v074,true,model,Le blocage de connexion avec le message « Compte désactivé » et le retrait de l'annuaire sont explicitement définis pour un compte désactivé.
+1,20261117,3,4,v003,false,model,"Le canal de notification au manager est-il l'email, la notification in-app, ou les deux ?"
+1,20261117,3,5,v039,false,model,Par quel canal (email ou in-app) le manager doit-il être notifié lorsque le salarié resoumet une note refusée ?
+1,20261117,3,6,v041,false,model,Que signifie « signé » pour la RG-03 : une signature électronique cryptographique ou simplement l'identifiant de l'utilisateur horodaté ?
+1,20261117,3,7,v051,true,model,"La taille de page (25), le tri alphabétique par nom, l'état des boutons de navigation et le message de liste vide sont tous définis, le mécanisme serveur étant laissé à l'équipe."
+1,20261117,3,8,v014,true,model,"La règle d'annulation possible tant que le premier jour n'est pas passé, le nouveau statut « annulée », le recrédit des jours et le message d'erreur sont définis."
+1,20261117,3,9,v027,false,model,Quels indicateurs précis le tableau de bord doit-il afficher pour répondre aux besoins des équipes ?
+1,20261117,3,10,v026,true,model,"Les règles (strictement positif, au plus deux décimales, maximum 5 000,00 €), les messages d'erreur attendus et la réponse 400 côté serveur sont tous spécifiés."
+1,20261117,4,1,v025,,fallback,
+1,20261117,4,2,v047,,fallback,
+1,20261117,4,3,v076,,fallback,
+1,20261117,4,4,v020,,fallback,
+1,20261117,4,5,v078,,fallback,
+1,20261117,4,6,v017,,fallback,
+1,20261117,4,7,v031,,fallback,
+1,20261117,4,8,v019,,fallback,
+1,20261117,4,9,v077,,fallback,
+1,20261117,4,10,v058,,fallback,
+1,20261117,5,1,v064,false,model,"La maquette validée par l'équipe design n'est pas fournie, alors qu'elle définit le contenu attendu de la page : pouvez-vous fournir la maquette validée de la nouvelle page d'accueil ?"
+1,20261117,5,2,v072,true,model,"La règle de limite à 500 caractères, le format d'affichage « 123 / 500 » et le blocage de la saisie sont définis et cohérents avec les critères, donc le développeur peut l'implémenter directement."
+1,20261117,5,3,v043,false,model,"La case est définie pour les nouveaux comptes, mais l'état initial des comptes existants n'est pas précisé alors qu'il détermine qui reçoit le récapitulatif : les comptes existants doivent-ils être cochés ou décochés par défaut ?"
+1,20261117,5,4,v050,false,model,"Le format du fichier SEPA et les informations qu'il doit contenir (version, débiteur, IBAN, bénéficiaires, dates d'exécution, périodicité bimensuelle) ne sont pas définis : quel format SEPA exact et quelles données le fichier doit-il contenir ?"
+1,20261117,5,5,v030,false,model,"Le système d'archivage cloud à utiliser n'est ni nommé ni décrit, et la durée de rétention est imposée sans précision sur les fournisseurs possibles : quel système ou fournisseur d'archivage doit être utilisé pour stocker les justificatifs ?"
+1,20261117,5,6,v045,false,model,"Le SIRH n'est ni décrit ni accessible (format d'échange, accès, identifiants) et les champs attendus pour chaque salarié ne sont pas définis : quel est le format et le mode d'accès aux données du SIRH, et quels champs doivent être récupérés ?"
+1,20261117,5,7,v034,false,model,"Les règles de délégation (durée, montant maximal, délégataires possibles) sont explicitement à définir avec la DRH et ne sont pas tranchées : quelles sont les règles de délégation validées par la DRH ?"
+1,20261117,5,8,v008,false,model,"La maquette validée par l'équipe design, qui définit tout le contenu de la page, n'est pas fournie : pouvez-vous fournir la maquette validée de la page d'accueil ?"
+1,20261117,5,9,v024,true,model,"L'endpoint GET /stocks/{reference}, les réponses 200 avec la quantité et 404 pour une référence inconnue sont définis, le développeur peut donc implémenter l'API sans question métier."
+1,20261117,5,10,v007,false,model,Les deux critères se contredisent : une sortie de 8 sur un stock de 5 est à la fois refusée et acceptée avec un stock à -3 : une sortie supérieure au stock disponible doit-elle être refusée ou acceptée avec un stock négatif ?
+1,20261117,6,1,v059,false,model,"Quel temps de chargement maximal considère-t-on comme « rapide », et quels indicateurs précis doivent apparaître pour donner une « vision claire » de l'activité ?"
+1,20261117,6,2,v066,true,model,"Le tri par date de réunion décroissante, la pagination par 20, les champs affichés et le message d'absence de compte rendu sont tous définis et vérifiables."
+1,20261117,6,3,v037,false,model,"Quel est le contenu exact du SMS de rappel, et quel est le fournisseur SMS à utiliser avec ses accès, sachant que « congé validé » reste à définir ?"
+1,20261117,6,4,v023,true,model,"Les seuils (5 échecs, 15 minutes), la remise à zéro, le message unique et le comportement après expiration sont définis et vérifiables par les critères."
+1,20261117,6,5,v009,true,model,"Le rôle Gestionnaire, l'écran Inventaire et le contrôle d'accès avec refus HTTP 403 sont suffisamment définis pour être implémentés et testés."
+1,20261117,6,6,v048,false,model,"Quelles opérations précises doivent être disponibles sur les remises fournisseurs, et quelles règles métier les encadrent ?"
+1,20261117,6,7,v038,true,model,"La règle d'exclusion des jours fériés légaux de métropole et le décompte des jours ouvrés sont définis, avec des exemples vérifiables."
+1,20261117,6,8,v069,true,model,"Les champs exportés, le filtrage par mois, l'exclusion des réservations annulées et le cas d'une liste vide sont définis et vérifiables."
+1,20261117,6,9,v044,false,model,Quelles informations compose une catégorie de dépense et quelles règles régissent son paramétrage par l'administrateur ?
+1,20261117,6,10,v001,false,model,"Quel logiciel de paie et quel format d'échange doivent être utilisés, et quelles absences sont considérées comme validées ?"
+1,20261117,7,1,v046,true,model,"La règle de filtre (référence contenant le texte, insensible à la casse, à partir de 3 caractères), le tri croissant et la limite de 20 résultats sont définis et couverts par les critères, donc un développeur peut l'implémenter directement."
+1,20261117,7,2,v073,true,model,"La recherche sur le libellé, insensible à la casse, à partir de 3 caractères, avec tri alphabétique et limite de 50 résultats, est définie et cohérente avec les critères."
+1,20261117,7,3,v068,false,model,"Faut-il que le manager voie toutes les notes de frais d'un salarié, y compris celles saisies pendant une période où ce salarié appartenait à une autre équipe, ou seulement celles saisies pendant qu'il était dans son équipe ?"
+1,20261117,7,4,v080,false,model,"Quelles données des deux comptes (coordonnées, adresses, mots de passe, moyens de paiement) doivent être conservées lorsqu'elles diffèrent, et laquelle des deux identités ou quel compte doit survivre ?"
+1,20261117,7,5,v006,true,model,"La règle de chevauchement sur les jours, limitée aux statuts « soumise » et « validée », le message d'erreur et les cas de refus et d'acceptation sont définis et cohérents avec les critères."
+1,20261117,7,6,v060,true,model,"La durée de conservation de 12 mois, la tolérance de 7 jours et la suppression automatique sont définies, et la fréquence de purge est laissée à l'équipe, ce qui permet l'implémentation."
+1,20261117,7,7,v018,true,model,"L'endpoint paginé, ses champs, le format de date, le tri, les valeurs par défaut de size et la règle de rejet au-delà de 100 sont définis et couverts par les critères."
+1,20261117,7,8,v040,false,model,"Quelles règles de TVA doivent être appliquées aux dépenses (taux applicables, montants HT et TTC à enregistrer, part déductible et export attendu pour la comptabilité) ?"
+1,20261117,7,9,v021,false,model,"Quels indicateurs précis, quelles sources de données et quels profils d'utilisateurs doivent être couverts par la plateforme, et comment mesure-t-on les critères « temps réel » et « adoption » ?"
+1,20261117,7,10,v062,true,model,"La session expire après 30 minutes sans requête authentifiée, le compteur est remis à zéro à chaque requête, et la redirection avec le message exact est définie, ce qui est cohérent avec les critères."
+1,20261117,8,1,v057,false,model,"Quel est le service de référentiel des entreprises à interroger (nom, point d'accès, clé ou identifiants fournis) pour vérifier le SIRET ?"
+1,20261117,8,2,v079,true,model,"Les règles d'expiration à 90 jours, de bandeau à partir de 7 jours avant et de redirection le jour de l'expiration sont définies et cohérentes avec les critères, donc implémentable."
+1,20261117,8,3,v049,false,model,"Quelles règles précises de mot de passe (longueur minimale, types de caractères, interdictions) doivent être appliquées, puisque les « recommandations de l'ANSSI en vigueur » ne sont pas listées ?"
+1,20261117,8,4,v036,false,model,"Quelles informations le retour doit-il contenir (articles, quantités, motif, statut) et quel traitement attendu doit suivre côté fournisseur ?"
+1,20261117,8,5,v022,true,model,"Le contenu du PDF (mois, nom, dépenses avec date, catégorie, montant, total) et le comportement du bouton sans dépense sont définis, la mise en page relève du choix technique."
+1,20261117,8,6,v052,false,model,"Quel critère de fidélité (nombre de commandes ou montant cumulé, avec quel seuil) et quel taux de remise doivent être appliqués ?"
+1,20261117,8,7,v028,false,model,"Quel barème kilométrique fiscal (année, tranches de distance, puissance fiscale par véhicule) faut-il appliquer, et quelle est la liste des véhicules déclarables ?"
+1,20261117,8,8,v010,false,model,"Quels critères mesurables (par exemple nombre de clics ou de secondes pour saisir une dépense, seuil de satisfaction) définissent « intuitif », « rapide » et « satisfaits » ?"
+1,20261117,8,9,v035,true,model,"L'endpoint GET /api/v1/health et son champ version sont définis, et l'affichage « Version X.Y.Z » dans le pied de page de toutes les pages est implémentable tel quel."
+1,20261117,8,10,v042,false,model,"Quel est le format des données exportées de l'ancien ERP, comment y accéder, et quelle correspondance doit être faite vers le modèle des mouvements de stock ?"
+2,20261118,1,1,v063,true,model,"Les critères définissent précisément l'affichage des 5 dernières commandes triées par date décroissante avec numéro, date et statut, ainsi que le message pour un client sans commande, ce qui permet une implémentation directe."
+2,20261118,1,2,v054,false,model,"Le terme « signé » n'est pas défini (signature manuscrite numérisée, case à cocher, signature électronique ?), alors qu'il conditionne le blocage de la validation d'entrée en stock. Quelle forme de signature un bon de livraison doit-il porter pour être considéré comme signé ?"
+2,20261118,1,3,v051,true,model,"La pagination à 25 fournisseurs par page, le tri alphabétique par nom, l'état des boutons et le message de liste vide sont tous définis et vérifiables, et le mécanisme serveur est laissé au développeur."
+2,20261118,1,4,v026,true,model,"Les règles de montant (strictement positif, deux décimales maximum, plafond 5 000,00 €) sont chiffrées et chaque critère a un résultat vérifiable côté formulaire et côté API."
+2,20261118,1,5,v044,false,model,"Le paramétrage des catégories n'est pas défini (création, modification, suppression, champs d'une catégorie ?) et le seul critère « les catégories sont paramétrées » n'est pas vérifiable. Quelles opérations et quels attributs l'administrateur doit-il pouvoir gérer sur une catégorie de dépense ?"
+2,20261118,1,6,v041,false,model,"Les règles RG-01 et RG-03 sont citées sans être décrites, et la notion de mouvement « signé » n'est pas définie alors qu'un critère l'exige. Que doit contenir la signature d'un mouvement de stock (RG-03) et quelles sont précisément les règles RG-01 et RG-03 ?"
+2,20261118,1,7,v022,true,model,"Le contenu du PDF (mois, nom, dépenses avec date, catégorie et montant, total) et le comportement du bouton sont définis, la mise en page « standard » ne conditionne aucun critère."
+2,20261118,1,8,v024,true,model,"L'endpoint GET /stocks/{reference} doit retourner 200 avec la quantité en stock pour une référence existante et 404 pour une référence inconnue, ce qui suffit pour l'implémenter."
+2,20261118,1,9,v007,false,model,"Les deux critères se contredisent : une sortie de 8 sur un stock de 5 est à la fois refusée et acceptée avec stock à -3, et cette seconde option va à l'encontre de la règle RG-01 citée dans une autre story. La sortie de 8 doit-elle être refusée ou acceptée avec un stock négatif ?"
+2,20261118,1,10,v076,false,model,"Le format de fichier imposé par le contrat du logisticien n'est ni décrit ni fourni (colonnes, séparateur, encodage, nommage, accès au serveur), alors que le fichier doit être généré et déposé. Quel est le format exact du fichier attendu par le logisticien et comment accéder à son serveur de dépôt ?"
+2,20261118,2,1,v009,true,model,"Le contrôle d'accès est défini par le rôle Gestionnaire, avec un comportement attendu clair pour l'interface comme pour l'endpoint (accès autorisé ou refus HTTP 403)."
+2,20261118,2,2,v050,false,model,"Quels sont le format SEPA exigé (version pain.001 ou autre), le compte débiteur et les coordonnées bancaires des bénéficiaires à inclure dans le fichier, et quels jours définissent le cycle bimensuel ?"
+2,20261118,2,3,v064,false,model,"Pouvez-vous fournir la maquette validée par l'équipe design, puisque les critères d'acceptation ne peuvent être vérifiés sans elle ?"
+2,20261118,2,4,v042,false,model,"Quel est le format des données exportées par l'ancien ERP, quel accès technique permet de les lire, et quelle structure de données cible faut-il respecter pour les mouvements importés ?"
+2,20261118,2,5,v018,true,model,"L'endpoint paginé est entièrement spécifié : route, paramètres avec valeurs par défaut et bornes, champs de réponse, tri et cas d'erreur 400 vérifiables."
+2,20261118,2,6,v034,false,model,"Quelles sont les règles de délégation retenues avec la DRH, à savoir la durée maximale, le montant maximal et la liste des délégataires possibles ?"
+2,20261118,2,7,v070,false,model,"Comment définit-on un « client actif » (par exemple, nombre minimal de commandes ou ancienneté du compte) pour déterminer les destinataires de la relance ?"
+2,20261118,2,8,v057,false,model,"Quel est le service de référentiel des entreprises utilisé par la direction financière, et comment s'y connecter (nom, accès, clé d'API) pour vérifier les SIRET ?"
+2,20261118,2,9,v069,true,model,"L'export JSON est défini avec les champs requis (date, heure de début, heure de fin, nom du salarié), l'exclusion des réservations annulées et les cas vérifiables du mois avec ou sans réservation."
+2,20261118,2,10,v048,false,model,"Quelles règles de gestion des remises fournisseurs faut-il implémenter, puisque le critère « Les remises fournisseurs sont gérées » n'est pas vérifiable et que la description ne définit aucun comportement ?"
+2,20261118,3,1,v059,false,model,"Les critères « rapidement », « lisible » et « vision claire » ne sont pas vérifiables, quel temps de chargement maximal et quels indicateurs précis faut-il afficher ?"
+2,20261118,3,2,v036,false,model,"Les critères « se comporte correctement » et « traitement adéquat » ne définissent pas la règle métier, quel est l'effet exact d'un retour fournisseur sur le stock, le statut et les documents ?"
+2,20261118,3,3,v047,true,model,"Le comportement est défini : POST /api/v1/logout invalide la session côté serveur, l'ancien cookie est refusé en 401 sur GET /api/v1/me, et l'appel sans session renvoie 204."
+2,20261118,3,4,v020,false,model,"Le titre parle de suivi en temps réel alors que le critère exige seulement un statut à jour après rafraîchissement de la page, faut-il une mise à jour sans rafraîchissement ?"
+2,20261118,3,5,v002,false,model,"La description demande de journaliser chaque transaction alors que le critère ne vise que les mouvements validés, et « horodatage strict » n'est pas défini, quels mouvements exacts faut-il journaliser et avec quel fuseau horaire ?"
+2,20261118,3,6,v003,false,model,"Le canal de notification (email, in-app ou les deux) n'est pas tranché et la notion de manager référent n'est pas définie, quel canal faut-il utiliser et comment identifier le manager référent ?"
+2,20261118,3,7,v011,false,model,"Le critère « l'export est rapide » n'a aucun seuil, quel temps maximal l'export doit-il respecter pour quel volume d'inventaire ?"
+2,20261118,3,8,v030,false,model,"Le fournisseur cloud froid, le système d'archivage et les accès nécessaires ne sont ni nommés ni décrits, quel service de stockage faut-il utiliser et quels accès et identifiants sont fournis ?"
+2,20261118,3,9,v025,true,model,"La règle est claire : une sortie qui rendrait le stock négatif est bloquée avec le message « Stock insuffisant », et une sortie égale au stock courant est validée en laissant 0 unité."
+2,20261118,3,10,v033,true,model,"Les colonnes, le séparateur ';', l'encodage UTF-8, le respect des filtres actifs et la limite de 10 000 articles sont définis et vérifiables, le développeur peut implémenter l'export directement."
+2,20261118,4,1,v015,true,model,"Le déclencheur (validation par le manager), le libellé exact de la notification et le cas de refus sont définis, et le service de notification interne existant peut être réutilisé."
+2,20261118,4,2,v067,false,model,"Quel montant rembourser lorsqu'une commande avec code promo est retournée : le prix payé après répartition de la remise sur l'article, ou le prix catalogue de l'article ?"
+2,20261118,4,3,v004,false,model,Quelle source de données fournit le stock « à jour » à exposer par l'endpoint GET /stocks/{reference} ?
+2,20261118,4,4,v079,true,model,"Les seuils (90 jours d'expiration, bandeau à partir de 7 jours avant, redirection le jour de l'expiration) sont définis et cohérents avec les critères d'acceptation."
+2,20261118,4,5,v077,true,model,"Le seuil de 50 € TTC, les frais de 4,90 € et la prise en compte du montant après remises sont définis et cohérents avec les critères."
+2,20261118,4,6,v014,true,model,"L'annulation est possible tant que le premier jour n'est pas passé, avec changement de statut, recrédit des jours et message d'erreur, tous définis dans la story."
+2,20261118,4,7,v001,false,model,"Quels champs, quel format de fichier et quel logiciel de paie ciblez-vous pour l'export mensuel des absences validées, et quels critères d'acceptation doivent le valider ?"
+2,20261118,4,8,v028,false,model,"Quel barème kilométrique fiscal appliquer (année, grille par puissance fiscale du véhicule et tranches de distance) pour calculer le montant ?"
+2,20261118,4,9,v012,false,model,"Quel fournisseur d'identité et quel protocole (SAML, OpenID Connect ou autre) utiliser pour l'annuaire de l'entreprise, et quelles informations de compte doivent être récupérées ?"
+2,20261118,4,10,v008,false,model,Pouvez-vous fournir la nouvelle maquette validée par l'équipe design pour la page d'accueil ?
+2,20261118,5,1,v006,,fallback,
+2,20261118,5,2,v021,,fallback,
+2,20261118,5,3,v053,,fallback,
+2,20261118,5,4,v078,,fallback,
+2,20261118,5,5,v023,,fallback,
+2,20261118,5,6,v058,,fallback,
+2,20261118,5,7,v052,,fallback,
+2,20261118,5,8,v039,,fallback,
+2,20261118,5,9,v035,,fallback,
+2,20261118,5,10,v032,,fallback,
+2,20261118,6,1,v074,,fallback,
+2,20261118,6,2,v037,,fallback,
+2,20261118,6,3,v043,,fallback,
+2,20261118,6,4,v055,,fallback,
+2,20261118,6,5,v068,,fallback,
+2,20261118,6,6,v060,,fallback,
+2,20261118,6,7,v010,,fallback,
+2,20261118,6,8,v065,,fallback,
+2,20261118,6,9,v062,,fallback,
+2,20261118,6,10,v072,,fallback,
+2,20261118,7,1,v013,false,model,Que se passe-t-il lorsqu'une note doit être escaladée alors que le manager n'a pas de N+1 dans l'arbre hiérarchique ?
+2,20261118,7,2,v080,false,model,"Quelles données du compte conservé prévalent en cas de conflit avec celles du compte supprimé (adresse, coordonnées, données personnelles) ?"
+2,20261118,7,3,v073,true,model,"La règle de recherche (libellé, insensible à la casse, seuil de 3 caractères, tri alphabétique, limite de 50 résultats) et les exemples chiffrés permettent une implémentation directe et vérifiable."
+2,20261118,7,4,v066,true,model,"Le tri par date de réunion décroissante, la pagination par 20, les champs affichés et le message de liste vide sont définis et cohérents avec les exemples chiffrés."
+2,20261118,7,5,v038,true,model,"Les jours fériés légaux de France métropolitaine sont une référence définie, et les deux critères chiffrés permettent de vérifier le décompte."
+2,20261118,7,6,v029,false,model,Quels critères définissent qu'une demande de congé est urgente ?
+2,20261118,7,7,v075,true,model,"L'API publique sans clé est nommée et décrite, le seuil de score de 0,7 est précis et le comportement en cas d'échec ainsi que le message d'avertissement sont définis."
+2,20261118,7,8,v005,false,model,"Quels changements sur une note de frais sont considérés comme importants, et quelles personnes doivent être notifiées par quel canal ?"
+2,20261118,7,9,v061,false,model,"Une commande expédiée mais non encore livrée peut-elle être annulée par le client, la description l'autorisant jusqu'à la livraison alors que le critère ne couvre que le statut expédiée ?"
+2,20261118,7,10,v049,false,model,"Quelles règles précises de mot de passe faut-il appliquer, la référence « recommandations de l'ANSSI en vigueur » n'étant pas détaillée ?"
+2,20261118,8,1,v027,,fallback,
+2,20261118,8,2,v031,,fallback,
+2,20261118,8,3,v046,,fallback,
+2,20261118,8,4,v017,,fallback,
+2,20261118,8,5,v071,,fallback,
+2,20261118,8,6,v019,,fallback,
+2,20261118,8,7,v040,,fallback,
+2,20261118,8,8,v056,,fallback,
+2,20261118,8,9,v016,,fallback,
+2,20261118,8,10,v045,,fallback,
+3,20261119,1,1,v053,true,model,"Le endpoint, les champs renvoyés, le format décimal et les règles d'accès (salarié sur son propre solde, manager sur son équipe, 403 et 404) sont suffisamment définis pour être implémentés et testés."
+3,20261119,1,2,v021,false,model,"La story est un objectif général sans fonctionnalité, sans périmètre de données, sans indicateur précis et sans critère vérifiable ; quels indicateurs précis et quelles données doivent être affichés pour chaque profil ?"
+3,20261119,1,3,v033,true,model,"Les colonnes, le séparateur, l'encodage, le périmètre des filtres et le seuil de 10 000 articles sont définis, ce qui permet d'implémenter l'export et de vérifier ses critères."
+3,20261119,1,4,v027,false,model,Aucun besoin précis n'est décrit et le seul critère (« plus utile pour les équipes ») n'est pas vérifiable ; quels indicateurs ou fonctionnalités le tableau de bord doit-il apporter pour être considéré comme amélioré ?
+3,20261119,1,5,v010,false,model,Les termes « intuitif » et « rapide » ne sont pas mesurables et le critère de satisfaction des utilisateurs n'est pas vérifiable ; quels seuils mesurables et quelles modifications précises de l'écran de saisie attendez-vous ?
+3,20261119,1,6,v056,true,model,"La règle d'arrondi au centime, demi supérieur, avec affichage à deux décimales et virgule est explicite et les exemples sont cohérents avec elle."
+3,20261119,1,7,v001,false,model,"Il n'y a aucun critère d'acceptation, le format d'échange avec le logiciel de paie n'est pas fourni, et la notion d'absence « validée » n'est pas définie ; quel est le format attendu par le logiciel de paie et quelles absences sont considérées comme validées ?"
+3,20261119,1,8,v058,true,model,"Le déclencheur (18 h la veille, heure de Paris), le contenu de l'e-mail, l'exclusion des réservations annulées ou créées après 18 h et les critères de test sont cohérents et suffisants pour l'implémentation."
+3,20261119,1,9,v077,true,model,"Le seuil de 50 € TTC, les frais de 4,90 € TTC et le calcul sur le montant après remises sont clairs et couverts par des exemples cohérents."
+3,20261119,1,10,v030,false,model,"Le système d'archivage cloud à utiliser, son fournisseur et le format attendu des justificatifs ne sont pas décrits ; quel système d'archivage et quel fournisseur faut-il utiliser pour la rétention de 10 ans ?"
+3,20261119,2,1,v063,true,model,"Les règles d'affichage sont définies : 5 dernières commandes, tri de la plus récente à la plus ancienne, champs numéro, date et statut, et message affiché sans commande."
+3,20261119,2,2,v079,true,model,"Les seuils sont cohérents entre la description et les critères (bandeau à partir de 7 jours, redirection à 90 jours) et chaque critère est vérifiable."
+3,20261119,2,3,v008,false,model,"La maquette validée par l'équipe design n'est pas fournie, alors qu'elle est indispensable pour vérifier le critère de conformité : pouvez-vous fournir la nouvelle maquette de la page d'accueil ?"
+3,20261119,2,4,v045,false,model,"Le SIRH n'est pas décrit (produit, mode d'accès, format des données, identifiant des salariés) : quel est le SIRH utilisé, comment s'y connecter et dans quel format la liste des salariés est-elle fournie ?"
+3,20261119,2,5,v049,false,model,"Les règles de mot de passe ne sont pas listées, « recommandations de l'ANSSI en vigueur » ne permettant pas de vérifier le critère : quelles règles précises (longueur minimale, complexité, historique, etc.) doivent être appliquées ?"
+3,20261119,2,6,v004,true,model,Le contrat du endpoint est suffisamment défini : réponse 200 avec la quantité en stock pour une référence existante et 404 pour une référence inexistante.
+3,20261119,2,7,v002,false,model,"Le terme « horodatage strict » n'est pas défini et la règle RG-03 référencée n'est pas fournie : que signifie « horodatage strict » (fuseau horaire, précision) et que précise la règle RG-03 ?"
+3,20261119,2,8,v069,true,model,"Le contenu de l'export (date, heure de début, heure de fin, nom du salarié), le filtre par mois et l'exclusion des réservations annulées sont définis et testables."
+3,20261119,2,9,v068,false,model,Il n'est pas défini si le manager voit les notes d'un salarié selon son équipe actuelle ou selon l'équipe qu'il occupait au moment de la dépense : quelle équipe détermine l'accès aux notes de frais ?
+3,20261119,2,10,v012,false,model,"L'annuaire d'entreprise et le protocole de connexion ne sont pas décrits, et aucun accès ou fournisseur n'est fourni : quel annuaire et quel protocole (SAML, OIDC, LDAP) faut-il utiliser, et quels accès seront fournis ?"
+3,20261119,3,1,v040,false,model,Quel taux de TVA et quelle règle de récupération doivent s'appliquer aux dépenses des notes de frais pour que la comptabilité puisse la récupérer ?
+3,20261119,3,2,v042,false,model,"Quel est le format et la structure des données exportées par l'ancien ERP (fichier ou accès, champs des mouvements de stock) que l'import doit lire ?"
+3,20261119,3,3,v029,false,model,"Quels critères précis définissent une demande de congé urgente, et qui la qualifie comme telle ?"
+3,20261119,3,4,v051,true,model,"La pagination de 25 fournisseurs par page, le tri alphabétique par nom, les boutons précédent et suivant et le message d'absence de fournisseur sont définis, et les critères sont cohérents et vérifiables."
+3,20261119,3,5,v073,true,model,"La recherche insensible à la casse, le seuil de 3 caractères, le tri alphabétique et la limite de 50 résultats sont précisés et vérifiables par les critères."
+3,20261119,3,6,v078,false,model,"Que signifie concrètement la « mise en paiement » (changement de statut, export vers un système de paie, format attendu) ?"
+3,20261119,3,7,v036,false,model,"Quel comportement précis le système doit-il avoir lors d'un retour fournisseur (statut, mouvement de stock, avoir, notification) et quel traitement applique-t-on au fournisseur ?"
+3,20261119,3,8,v007,false,model,"La sortie dépassant le stock disponible doit-elle être refusée, ou acceptée avec un stock négatif en attente de régularisation ?"
+3,20261119,3,9,v052,false,model,"Quel critère définit un client fidèle (nombre de commandes ou montant cumulé, avec quel seuil) et quel est le taux de remise à appliquer ?"
+3,20261119,3,10,v014,true,model,"L'annulation est autorisée tant que le premier jour n'est pas passé, avec changement de statut à « annulée », recrédit des jours et message d'erreur, ce qui est implémentable et vérifiable."
+3,20261119,4,1,v067,false,model,"La description indique que le code promo s'applique au total de la commande, mais la règle de répartition du remboursement d'un article en cas de promo n'est pas définie : quel montant exact doit être remboursé pour l'article retourné ?"
+3,20261119,4,2,v025,true,model,"La règle est précise : une sortie qui ferait passer le stock sous zéro est bloquée avec le message « Stock insuffisant », et une sortie égale au stock disponible est validée, avec des critères vérifiables."
+3,20261119,4,3,v060,true,model,"La règle de conservation de 12 mois est claire, la fréquence de purge est laissée à l'équipe sous une contrainte explicite, et les critères de 11 mois (conservé) et 12 mois et 8 jours (supprimé) sont cohérents avec la description."
+3,20261119,4,4,v020,false,model,"Le titre parle de suivi en temps réel, mais le critère exige seulement que le statut soit reflété après rafraîchissement de la page : faut-il une mise à jour en temps réel sans rafraîchissement, ou suffit-il d'afficher le statut à jour après rechargement ?"
+3,20261119,4,5,v024,true,model,"L'endpoint GET /stocks/{reference} est défini avec un retour 200 contenant la quantité en stock pour une référence existante et un 404 pour une référence inconnue, ce qui suffit à l'implémenter et à vérifier les critères."
+3,20261119,4,6,v044,false,model,"La story ne définit pas ce qu'est une catégorie de dépense (attributs, règles de création, modification ou suppression) et le critère « les catégories sont paramétrées » n'est pas vérifiable : quelles informations l'administrateur doit-il saisir pour une catégorie et quelles actions doit-il pouvoir effectuer ?"
+3,20261119,4,7,v062,true,model,"La règle d'expiration après 30 minutes d'inactivité, la remise à zéro du compteur par requête authentifiée, la redirection avec le message et les deux critères sont suffisamment précis pour être implémentés."
+3,20261119,4,8,v032,false,model,"La story ne décrit aucun comportement attendu ni règle de gestion des inventaires tournants : quelles sont les règles métier (périmètre, fréquence, traitement des écarts, données à saisir) à implémenter ?"
+3,20261119,4,9,v080,false,model,"Les règles de fusion ne sont pas définies : en cas de conflit de données personnelles (coordonnées, adresses, mots de passe, moyens de paiement), quelles valeurs et quel identifiant sont conservés ?"
+3,20261119,4,10,v023,true,model,"Les règles de comptage des échecs consécutifs, de verrouillage pendant 15 minutes, de remise à zéro après connexion réussie et de message identique pour identifiant existant ou inexistant sont précises et couvertes par des critères vérifiables."
+3,20261119,5,1,v074,true,model,"Le comportement est défini : un compte désactivé refuse la connexion avec le message « Compte désactivé » et disparaît de l'annuaire, ce qui est directement implémentable."
+3,20261119,5,2,v038,true,model,"La règle d'exclusion des jours fériés légaux de France métropolitaine est claire et les exemples chiffrés sont cohérents, donc un développeur peut l'implémenter sans question."
+3,20261119,5,3,v048,false,model,"La story n'a qu'un critère non vérifiable et aucune règle de gestion, donc quelles règles précises doivent régir la gestion des remises fournisseurs ?"
+3,20261119,5,4,v055,true,model,"La règle d'archivage après 2 ans de date de fin et la consultation par les RH sont définies, et le reste relève de l'implémentation technique."
+3,20261119,5,5,v059,false,model,"Les critères « rapidement », « lisible » et « vision claire » ne sont pas vérifiables, donc quel temps d'affichage maximal et quels indicateurs précis faut-il respecter ?"
+3,20261119,5,6,v070,false,model,"Le terme « client actif » n'est pas défini alors qu'il détermine qui reçoit l'e-mail, donc qu'est-ce qu'un client actif ?"
+3,20261119,5,7,v061,false,model,"La story dit l'annulation possible tant que la commande n'est pas livrée mais la refuse dès le statut « expédiée », sans dire quoi faire des autres statuts, donc l'annulation doit-elle être refusée dès l'expédition ou seulement après la livraison ?"
+3,20261119,5,8,v064,false,model,"L'implémentation dépend d'une maquette validée qui n'est pas fournie et ne peut pas être devinée, donc pouvez-vous fournir la maquette de la nouvelle page d'accueil ?"
+3,20261119,5,9,v031,false,model,"La période de référence n'est pas claire : la story ne dit pas si le calcul part du 1er juin de l'année civile ou de la période juin-mai, ni comment traiter un salarié arrivé après le 1er juin, donc quelle est la date de départ du calcul du solde ?"
+3,20261119,5,10,v041,false,model,"Le terme « signé » du mouvement n'est pas défini et les règles RG-01 et RG-03 ne sont pas décrites dans la story, donc que signifie « signé » pour un mouvement de stock (quel mécanisme de signature) et que contiennent précisément RG-01 et RG-03 ?"
+3,20261119,6,1,v066,true,model,"La liste est entièrement définie : affichage du titre, de la date et de l'auteur, tri par date de réunion décroissant, pagination de 20, et message pour une liste vide, avec des critères cohérents entre eux."
+3,20261119,6,2,v076,false,model,"Le format de fichier imposé par le contrat du logisticien n'est pas fourni, ni les modalités de dépôt sur son serveur ; quelles colonnes, quel séparateur, quel encodage et quel protocole et quels identifiants de dépôt doit utiliser le fichier ?"
+3,20261119,6,3,v037,false,model,"Le fournisseur SMS est nommé sans être décrit et ses accès (API, clé, expéditeur) ne sont pas fournis, ni le contenu attendu du SMS ; quel est le fournisseur SMS, avec quels identifiants d'accès et quel texte exact doit contenir le rappel ?"
+3,20261119,6,4,v006,true,model,"Les statuts concernés (soumise, validée) et les exclusions (refusée, annulée) sont définis, avec un message d'erreur précis et trois exemples de critères cohérents avec la règle de chevauchement."
+3,20261119,6,5,v039,false,model,"Le critère « le motif du refus est clairement affiché » n'est pas vérifiable et la nature des dépenses modifiables (montants, justificatifs, catégories) n'est pas précisée alors que cela touche aux montants ; quelles dépenses le salarié peut-il modifier et quel élément exact doit afficher le motif ?"
+3,20261119,6,6,v005,false,model,"Les notions de « changement important » et de « personnes concernées » ne sont pas définies, et aucun canal de notification n'est précisé ; quels changements sur une note de frais déclenchent une notification, et qui doit la recevoir ?"
+3,20261119,6,7,v019,true,model,"La règle de déclenchement est définie : une alerte visuelle est générée lorsque le stock passe sous le seuil, avec un exemple vérifiable (seuil 10, stock passant de 11 à 9)."
+3,20261119,6,8,v054,false,model,"Le terme « signé » n'est pas défini (signature manuscrite, scan, signature électronique, etc.) alors qu'il conditionne la validation de l'entrée en stock ; quelle forme de signature le bon de livraison doit-il porter pour être considéré comme signé ?"
+3,20261119,6,9,v072,true,model,"La limite de 500 caractères, le format d'affichage « 123 / 500 » et le blocage de la saisie au-delà de 500 sont définis sans ambiguïté, avec des critères vérifiables."
+3,20261119,6,10,v035,true,model,"Le texte du pied de page est fixé, la source de la version est identifiée (champ version de GET /api/v1/health) et le critère d'acceptation est vérifiable sur toutes les pages."
+3,20261119,7,1,v003,false,model,"Le canal de notification (email, in-app ou les deux) et la définition du manager référent doivent-ils être précisés ?"
+3,20261119,7,2,v046,true,model,"Le filtre par référence partielle, insensible à la casse, à partir de 3 caractères, avec tri croissant et limite de 20 résultats, est défini et vérifiable par les critères."
+3,20261119,7,3,v075,true,model,"L'API Adresse, le score minimal de 0,7, les champs enregistrés et l'avertissement à afficher sont définis, et les critères couvrent les deux cas."
+3,20261119,7,4,v034,false,model,"Quelles sont la durée, le montant maximal et la liste des délégataires possibles pour la délégation de validation des notes de frais ?"
+3,20261119,7,5,v026,true,model,"Les règles de montant (strictement positif, deux décimales maximum, plafond de 5 000,00 €), leurs messages et le contrôle serveur sont définis et testables."
+3,20261119,7,6,v017,false,model,"Sous quelle forme et à qui l'alerte de stock bas doit-elle être émise (écran, email, notification) ?"
+3,20261119,7,7,v018,true,model,"L'endpoint, ses paramètres, leur valeur par défaut et maximale, le tri et les champs de réponse sont définis, et les critères sont vérifiables."
+3,20261119,7,8,v065,true,model,"La source publique de la BCE, la fréquence à 17 h, les données à enregistrer et le repli sur les taux de la veille en cas d'erreur sont définis."
+3,20261119,7,9,v047,true,model,"L'invalidation de session côté serveur, la suppression du cookie, la redirection et les codes 401 et 204 attendus sont définis et vérifiables."
+3,20261119,7,10,v011,false,model,Quel temps d'export maximal et quel volume d'inventaire doivent être supportés pour considérer l'export comme performant ?
+3,20261119,8,1,v013,false,model,"Que se passe-t-il lorsque le manager concerné n'a pas de supérieur hiérarchique, et la relance de 7 jours est-elle renvoyée après la réattribution de la note ?"
+3,20261119,8,2,v043,true,model,"Le comportement est défini : case cochée par défaut pour les nouveaux comptes, job existant qui ignore les décochés, et les trois critères sont vérifiables."
+3,20261119,8,3,v028,false,model,"Quel barème kilométrique fiscal (année, puissances fiscales des véhicules et coefficients) faut-il appliquer pour calculer le montant ?"
+3,20261119,8,4,v016,true,model,"Le contenu de chaque ligne d'audit est défini (date/heure exacte, identifiant utilisateur, variation de stock) et les critères de lecture seule sont vérifiables."
+3,20261119,8,5,v022,true,model,"Le contenu du PDF (mois, nom, dépenses avec date, catégorie, montant, total) est défini et les deux critères sont vérifiables ; la mise en page est laissée au développeur."
+3,20261119,8,6,v050,false,model,Quelle version du format SEPA (par exemple pain.001) et quelles coordonnées bancaires de l'entreprise et des salariés doivent figurer dans le fichier ?
+3,20261119,8,7,v009,true,model,"Le contrôle d'accès par rôle Gestionnaire, la présence du bouton et le refus HTTP 403 sont précisés et vérifiables."
+3,20261119,8,8,v015,true,model,"Le déclencheur, le libellé exact de la notification et le service interne existant sont définis, ainsi que le cas du refus sans notification."
+3,20261119,8,9,v057,false,model,"Quel est le service de référentiel des entreprises utilisé par la direction financière (nom, accès API et identifiants) pour vérifier les SIRET ?"
+3,20261119,8,10,v071,false,model,Quels documents ou champs doivent être présents pour qu'un dossier de candidature soit considéré comme complet ?
+4,20261120,1,1,v056,,fallback,
+4,20261120,1,2,v064,,fallback,
+4,20261120,1,3,v055,,fallback,
+4,20261120,1,4,v007,,fallback,
+4,20261120,1,5,v022,,fallback,
+4,20261120,1,6,v049,,fallback,
+4,20261120,1,7,v041,,fallback,
+4,20261120,1,8,v044,,fallback,
+4,20261120,1,9,v033,,fallback,
+4,20261120,1,10,v061,,fallback,
+4,20261120,2,1,v059,false,model,"Les critères « rapidement », « lisible » et « vision claire » ne sont pas vérifiables, quel délai maximal d'affichage du tableau de bord est attendu ?"
+4,20261120,2,2,v015,true,model,"Le déclencheur, le libellé exact, le service de notification existant et le cas de refus sont définis, la story est implémentable."
+4,20261120,2,3,v023,true,model,"Les seuils de 5 échecs et 15 minutes, la remise à zéro et le message identique pour identifiant inexistant sont définis et vérifiables."
+4,20261120,2,4,v025,true,model,"La règle d'interdiction des stocks négatifs, le message d'erreur et les cas limites 5/6 et 5/5 unités sont définis et vérifiables."
+4,20261120,2,5,v034,false,model,"La durée, le montant maximal et les délégataires possibles de la délégation restent à définir avec la DRH, quelles sont ces règles ?"
+4,20261120,2,6,v028,false,model,"Le barème fiscal kilométrique n'est pas précisé (année, tranches, puissance fiscale) et la manière de déclarer le véhicule n'est pas définie, quel barème fiscal et quelle liste de véhicules faut-il appliquer ?"
+4,20261120,2,7,v026,true,model,"Les règles de montant (strictement positif, deux décimales maximum, plafond de 5 000,00 €), les messages et le contrôle serveur 400 sont définis et vérifiables."
+4,20261120,2,8,v010,false,model,"Les critères « intuitif », « rapide » et « satisfaits » ne sont pas vérifiables, quels indicateurs mesurables définissent la réussite de cette refonte ?"
+4,20261120,2,9,v019,false,model,"La forme, l'emplacement et les destinataires de l'alerte visuelle ainsi que la source du seuil par référence ne sont pas définis, qui doit voir l'alerte et où doit-elle s'afficher ?"
+4,20261120,2,10,v009,true,model,"Le rôle Gestionnaire, l'écran Inventaire, le bouton existant et le refus HTTP 403 sont définis, la story est implémentable."
+4,20261120,3,1,v070,false,model,"Quelle est la définition d'un « client actif » (par exemple, un compte ouvert, une connexion récente ou un statut précis) ?"
+4,20261120,3,2,v073,true,model,"La recherche est insensible à la casse, démarre à 3 caractères, trie par libellé et limite l'affichage à 50 résultats, ce qui couvre tous les critères."
+4,20261120,3,3,v035,true,model,"Le numéro de version est lu dans le champ version de GET /api/v1/health, dont le format est défini, et son affichage dans le pied de page est précis."
+4,20261120,3,4,v051,true,model,"La pagination à 25 fournisseurs par page, le tri par nom, les états des boutons et le message de liste vide sont définis et vérifiables ; le mécanisme serveur est laissé au développeur."
+4,20261120,3,5,v045,false,model,"Quels sont le format, les champs et l'accès du flux SIRH (API, fichier, identifiant de salarié) à utiliser pour créer, mettre à jour et désactiver les comptes ?"
+4,20261120,3,6,v021,false,model,"Quels indicateurs précis, quelles sources de données et quels profils doivent être livrés pour que les critères « centralise », « temps réel » et « adoption » soient vérifiables ?"
+4,20261120,3,7,v029,false,model,"Quels critères définissent une demande de congé « urgente » (type de congé, délai, motif) ?"
+4,20261120,3,8,v078,true,model,"Le traitement porte sur les notes au statut « validée » et les met en paiement le 5 du mois suivant leur validation, ce qui est une règle claire et vérifiable."
+4,20261120,3,9,v037,false,model,"Quels sont l'accès, la clé et l'API de notre fournisseur SMS, et quel est le format du message attendu ?"
+4,20261120,3,10,v062,true,model,"L'expiration après 30 minutes sans requête authentifiée, la redirection avec le message et la remise à zéro du compteur sont définies et testables."
+4,20261120,4,1,v074,true,model,Le comportement est clair : un compte désactivé refuse la connexion avec le message défini et n'apparaît plus dans les résultats de l'annuaire.
+4,20261120,4,2,v053,false,model,"La portée de l'équipe du manager (managers directs uniquement ou toute la hiérarchie) n'est pas définie, alors qu'elle détermine les droits d'accès ; quelle est cette règle ?"
+4,20261120,4,3,v004,false,model,"Le schéma OpenAPI 3.0.0 imposé n'est pas fourni, et la source du stock ainsi que la signification de « stock à jour » ne sont pas décrites ; quels champs la réponse doit-elle contenir et d'où vient la quantité ?"
+4,20261120,4,4,v014,true,model,"La règle est claire : une demande validée peut être annulée tant que son premier jour n'est pas passé, avec retour au statut annulée et recrédit des jours."
+4,20261120,4,5,v057,false,model,"Le référentiel des entreprises utilisé par la direction financière n'est pas décrit et son accès (fournisseur, endpoint, identifiants) n'est pas fourni ; quel service est utilisé et comment s'y connecter ?"
+4,20261120,4,6,v076,false,model,"Le format de fichier imposé par le contrat du logisticien n'est pas fourni, ni les champs attendus dans le fichier ; quel est ce format et quelles données doit-il contenir ?"
+4,20261120,4,7,v006,true,model,"La règle de chevauchement est précise : seules les demandes soumises ou validées bloquent la soumission, avec un message défini et des cas de test cohérents."
+4,20261120,4,8,v020,false,model,Le titre parle de suivi en temps réel alors que le critère demande seulement un statut à jour après rafraîchissement de la page ; faut-il une mise à jour sans rechargement ?
+4,20261120,4,9,v046,true,model,"La recherche est définie sans ambiguïté : filtre insensible à la casse à partir de 3 caractères, maximum 20 résultats triés par référence croissante."
+4,20261120,4,10,v012,false,model,"L'annuaire d'entreprise et le protocole de connexion unique ne sont ni nommés ni décrits, et aucun accès de configuration n'est fourni ; quel fournisseur d'identité faut-il utiliser et avec quels paramètres ?"
+4,20261120,5,1,v052,false,model,Quel taux de remise et quel critère de fidélité (nombre de commandes passées ou montant cumulé) le service marketing retient-il ?
+4,20261120,5,2,v071,false,model,Quelles pièces doivent être présentes pour qu'un dossier de candidature soit considéré comme complet ?
+4,20261120,5,3,v072,true,model,Le compteur au format « 123 / 500 » et le blocage de la saisie au-delà de 500 caractères sont décrits avec des critères vérifiables.
+4,20261120,5,4,v011,false,model,Quel temps maximal d'export et quel volume d'inventaire doivent être garantis pour que l'export soit considéré comme performant ?
+4,20261120,5,5,v003,false,model,"La notification doit-elle être envoyée par e-mail, in-app, ou par les deux canaux, et qui est exactement le « manager référent » ?"
+4,20261120,5,6,v080,false,model,"Lequel des deux comptes doit être conservé (identifiant, données personnelles, adresse) et comment traiter les données qui divergent entre les deux comptes ?"
+4,20261120,5,7,v054,false,model,"Qu'est-ce qui constitue un bon de livraison « signé » dans le système (signature électronique, case cochée, document scanné) ?"
+4,20261120,5,8,v060,true,model,"La règle de conservation de 12 mois, la tolérance de 7 jours et les critères de suppression et de conservation sont définis et vérifiables, la fréquence de purge étant laissée au développeur."
+4,20261120,5,9,v047,true,model,"L'endpoint POST /api/v1/logout, la suppression de la session et du cookie, les réponses 401 et 204 ainsi que la redirection sont spécifiés et vérifiables."
+4,20261120,5,10,v058,true,model,"Le déclencheur à 18 h la veille, le contenu de l'e-mail, les exclusions (annulation, création après 18 h) et les critères de test sont définis et vérifiables."
+4,20261120,6,1,v038,,fallback,
+4,20261120,6,2,v002,,fallback,
+4,20261120,6,3,v043,,fallback,
+4,20261120,6,4,v039,,fallback,
+4,20261120,6,5,v032,,fallback,
+4,20261120,6,6,v067,,fallback,
+4,20261120,6,7,v001,,fallback,
+4,20261120,6,8,v017,,fallback,
+4,20261120,6,9,v031,,fallback,
+4,20261120,6,10,v016,,fallback,
+4,20261120,7,1,v013,false,model,"Les actions du manager qui interrompent le délai d'attente ne sont pas définies, et la relance doit-elle être envoyée une seule fois ou chaque jour après 7 jours ?"
+4,20261120,7,2,v079,true,model,"Les règles d'affichage du bandeau à 7 jours, de l'affichage du nombre de jours restants et de la redirection le jour de l'expiration sont définies et cohérentes avec les critères, ce qui la rend implémentable."
+4,20261120,7,3,v005,false,model,"Quels changements sur une note de frais sont considérés comme importants, et quelles personnes précises doivent recevoir la notification ?"
+4,20261120,7,4,v040,false,model,"Quelles règles de calcul et de ventilation de la TVA (taux applicables, montants HT et TTC, comptes ou rubriques attendus par la comptabilité) doivent être appliquées à chaque dépense ?"
+4,20261120,7,5,v065,true,model,"Source publique précise, fréquence et heure d'import, données à enregistrer et comportement de repli en cas d'indisponibilité sont définis, donc un développeur peut implémenter la story seul."
+4,20261120,7,6,v068,false,model,"Lorsqu'un salarié change d'équipe, le nouveau manager voit-il les notes déposées avant son arrivée, et l'ancien manager garde-t-il l'accès aux notes saisies pendant qu'il était dans son équipe ?"
+4,20261120,7,7,v024,false,model,"Le « stock actuel » correspond-il au stock physique, au stock disponible hors réservations ou à un autre total, et quels champs la réponse doit-elle contenir en plus de la quantité ?"
+4,20261120,7,8,v042,false,model,"Quel est le format et le mode d'accès à l'ancien ERP (fichier, API ou base de données), et quels champs permettent d'identifier un mouvement de stock à importer ?"
+4,20261120,7,9,v069,true,model,"Le périmètre (salle, mois, réservations non annulées) et les champs exportés (date, heure de début, heure de fin, nom du salarié) sont définis, avec un cas de liste vide explicite, donc la story est implémentable."
+4,20261120,7,10,v030,true,model,"Le critère demande une interdiction de suppression pendant au moins 10 ans, ce qui est vérifiable et implémentable par un verrouillage de type WORM chez le fournisseur de stockage retenu par le développeur."
+4,20261120,8,1,v048,false,model,"La story ne décrit aucun comportement précis (« gérer les remises » n'indique ni création, ni calcul, ni application), et la description contient une consigne qui a été ignorée ; quelle règle métier concrète faut-il implémenter pour les remises fournisseurs ?"
+4,20261120,8,2,v027,false,model,"Le critère « plus utile pour les équipes » n'est pas vérifiable et aucune fonctionnalité précise n'est décrite ; quels indicateurs, widgets ou modifications précises le tableau de bord doit-il contenir ?"
+4,20261120,8,3,v077,true,model,"La règle est complète et cohérente : frais de 0 € à partir de 50 € TTC après remises, 4,90 € en dessous, avec des exemples de calcul qui concordent avec la description."
+4,20261120,8,4,v018,true,model,"Les paramètres, le tri, les champs de réponse, les valeurs par défaut, les bornes de size et les codes d'erreur attendus sont définis, et les exemples de pagination sont cohérents."
+4,20261120,8,5,v036,false,model,"Les critères sont vides (« se comporte correctement », « traitement adéquat ») et le retour n'est pas défini (quantités, statut, impact sur le stock, document à produire) ; quelles informations et quel effet métier doit produire l'enregistrement d'un retour ?"
+4,20261120,8,6,v050,false,model,"Le format SEPA attendu (ex. pain.001), les données bancaires des bénéficiaires, les dates exactes de la période bimensuelle et la règle de passage à l'état « remboursée » ne sont pas définis ; quel format de fichier et quelles données bancaires faut-il produire ?"
+4,20261120,8,7,v066,true,model,"Le tri par date de réunion, la pagination de 20, les champs affichés et le message d'absence de compte rendu sont définis et vérifiables."
+4,20261120,8,8,v008,false,model,La maquette n'est pas fournie et le critère « conforme à la maquette » ne peut pas être vérifié sans elle ; pouvez-vous fournir la maquette de la nouvelle page d'accueil ?
+4,20261120,8,9,v063,true,model,"Les 5 dernières commandes triées par date, les champs affichés et le message pour un client sans commande sont définis et vérifiables."
+4,20261120,8,10,v075,true,model,"L'API externe sans clé est nommée et décrite, la règle de score (au moins 0,7), les champs à enregistrer, l'état vide et l'avertissement sont définis et testables."
+5,20261121,1,1,v047,true,model,"Le comportement de déconnexion côté serveur, la redirection, l'invalidation du cookie et les codes de réponse 401 et 204 sont tous définis et vérifiables."
+5,20261121,1,2,v028,false,model,"Quel barème fiscal précis (années, tranches selon la puissance fiscale et le type de véhicule) faut-il appliquer, et quelle est la liste des véhicules déclarables ?"
+5,20261121,1,3,v046,true,model,"La recherche insensible à la casse, le seuil de 3 caractères, le tri croissant et la limite de 20 résultats sont définis et vérifiables par les critères."
+5,20261121,1,4,v068,false,model,"Un manager voit-il les notes de frais d'un salarié déposées avant son arrivée dans son équipe, et que signifie « quel que soit leur statut » ?"
+5,20261121,1,5,v002,false,model,"Que signifie « horodatage strict » (précision attendue et fuseau horaire), et quelles sont les règles de la RG-03 qui ne sont pas fournies ?"
+5,20261121,1,6,v012,false,model,"Quel fournisseur d'identité et quel protocole (SAML, OIDC, LDAP) faut-il utiliser pour l'annuaire de l'entreprise, avec quels accès et paramètres de configuration ?"
+5,20261121,1,7,v072,true,model,"La limite de 500 caractères, le format du compteur « 123 / 500 » et le blocage de la saisie au-delà sont définis et vérifiables."
+5,20261121,1,8,v008,false,model,"Pouvez-vous fournir la nouvelle maquette validée par l'équipe design, qui est indispensable pour vérifier la conformité de la page ?"
+5,20261121,1,9,v019,false,model,"Où et à qui l'alerte visuelle doit-elle s'afficher, et reste-t-elle active jusqu'à ce que le stock remonte au-dessus du seuil ?"
+5,20261121,1,10,v058,true,model,"L'envoi à 18 h la veille, le contenu de l'e-mail, les exclusions (annulation, création après 18 h) et les critères de test sont définis et implémentables."
+5,20261121,2,1,v014,true,model,"Le comportement principal est clair : une demande validée dont le premier jour n'est pas passé peut être annulée, son statut passe à « annulée », les jours sont recrédités, et une annulation impossible affiche une erreur."
+5,20261121,2,2,v030,false,model,"Quel fournisseur de stockage cloud froid doit être utilisé, avec quels accès, et à partir de quelle date démarre la rétention de 10 ans ?"
+5,20261121,2,3,v022,true,model,"Le contenu du PDF (mois, nom, dépenses date/catégorie/montant, total) est défini, et le bouton désactivé sans dépense est vérifiable."
+5,20261121,2,4,v037,false,model,"Quel est le fournisseur SMS à utiliser, et quels accès (compte, clé API, modèle de message) sont fournis pour l'envoi du rappel ?"
+5,20261121,2,5,v007,false,model,Les deux critères se contredisent pour une sortie de 8 sur un stock de 5 : faut-il la refuser ou l'accepter avec un stock négatif de -3 ?
+5,20261121,2,6,v051,true,model,"La règle est précise (25 fournisseurs par page, tri alphabétique, boutons précédent/suivant, message si liste vide) et les critères chiffrés sont vérifiables ; le mécanisme serveur est laissé au développeur."
+5,20261121,2,7,v040,false,model,"Quels taux de TVA doivent être gérés et comment la TVA doit-elle être traitée (récupérable, ventilée, affichée) pour la comptabilité ?"
+5,20261121,2,8,v070,false,model,Que signifie précisément « client actif » (quels critères définissent un client actif) pour déterminer les destinataires de la relance ?
+5,20261121,2,9,v062,true,model,"La règle d'expiration après 30 minutes sans requête authentifiée, la remise à zéro du compteur et le message de redirection sont définis et cohérents avec les critères."
+5,20261121,2,10,v042,false,model,"Quel est le format des fichiers ou la source de données de l'ancien ERP, et comment y accéder, pour importer l'historique des mouvements de stock ?"
+5,20261121,3,1,v076,false,model,"Le format de fichier imposé par le contrat du logisticien n'est pas fourni (colonnes, séparateur, encodage, en-têtes) : quel est le format exact du fichier attendu par le logisticien ?"
+5,20261121,3,2,v073,true,model,"La règle de recherche insensible à la casse, le seuil de 3 caractères, la limite de 50 résultats et le tri alphabétique sont définis et vérifiables par les critères."
+5,20261121,3,3,v044,false,model,"La story ne définit ni ce qu'est une catégorie de dépense ni les règles de paramétrage attendues, et le critère d'acceptation est vague : quelles informations composent une catégorie de dépense et quelles règles doit-elle respecter ?"
+5,20261121,3,4,v009,true,model,"Le rôle Gestionnaire existe, l'objectif de sécurisation du bouton et de l'endpoint est clair, et les critères définissent l'accès autorisé et le refus HTTP 403."
+5,20261121,3,5,v059,false,model,"Les critères « rapidement », « lisible » et « vision claire » ne sont pas vérifiables et la liste exacte des indicateurs n'est pas figée : quel temps de chargement maximal et quels indicateurs précis le tableau doit-il afficher ?"
+5,20261121,3,6,v005,false,model,"Les changements jugés « importants » sur une note de frais, les personnes à notifier et le canal de notification ne sont pas définis : quels changements sont importants, qui doit être notifié et par quel canal ?"
+5,20261121,3,7,v038,true,model,"Les jours fériés légaux de France métropolitaine sont un référentiel défini, et les critères donnent un exemple chiffré vérifiable (4 jours décomptés sur la semaine du 13 au 17 juillet)."
+5,20261121,3,8,v041,false,model,Les règles RG-01 et RG-03 ne sont pas décrites et le terme « signé » n'est pas défini : que signifie une signature pour RG-03 (signature électronique ou simple identifiant utilisateur horodaté) ?
+5,20261121,3,9,v050,false,model,"Le contenu d'un fichier SEPA « conforme » n'est pas défini (identifiant créancier, coordonnées bancaires, date d'exécution) et les dates du cycle bimensuel ainsi que la règle d'inclusion des notes ne sont pas précisées : quelles informations bancaires et quelles dates de coupure doit contenir le virement ?"
+5,20261121,3,10,v067,false,model,"Le montant à rembourser lorsqu'une commande porte un code promo appliqué sur le total n'est pas défini, alors que la description l'évoque : quel montant doit être remboursé pour un article retourné sur une commande avec code promo ?"
+5,20261121,4,1,v020,false,model,"Le titre parle de suivi en temps réel alors que le critère ne prévoit qu'un affichage après rafraîchissement de la page : faut-il une mise à jour automatique sans rechargement, ou le rafraîchissement manuel suffit-il ?"
+5,20261121,4,2,v024,true,model,"L'endpoint, les codes 200 et 404 et le contenu de la réponse (quantité en stock) sont définis, ce qui permet l'implémentation directe."
+5,20261121,4,3,v027,false,model,Quels indicateurs ou widgets précis le tableau de bord doit-il afficher pour être considéré comme plus utile par les équipes ?
+5,20261121,4,4,v018,true,model,"L'endpoint, les champs de réponse, le tri, la pagination, les valeurs par défaut et les bornes de size sont définis avec des critères vérifiables."
+5,20261121,4,5,v053,false,model,"Qui est considéré comme manager d'un salarié (manager direct uniquement ou toute la ligne hiérarchique), et où cette relation hiérarchique est-elle stockée ?"
+5,20261121,4,6,v056,true,model,"La règle d'arrondi au centime (demi supérieur), le format d'affichage et les exemples de calcul sont précis et vérifiables."
+5,20261121,4,7,v063,true,model,"Le nombre de commandes affichées (5 dernières, de la plus récente à la plus ancienne), les champs affichés et le message de liste vide sont définis."
+5,20261121,4,8,v025,true,model,"La règle de non-négativité, le message d'erreur exact et les deux cas de sortie (6 refusée, 5 acceptée avec stock à 0) sont définis et vérifiables."
+5,20261121,4,9,v049,false,model,"Quelles règles précises de mot de passe (longueur minimale, types de caractères, interdictions) doivent être appliquées pour considérer un mot de passe conforme aux recommandations de l'ANSSI ?"
+5,20261121,4,10,v035,true,model,"Le texte exact du pied de page et la source de la version (champ version de /api/v1/health) sont définis, l'implémentation est directe."
+5,20261121,5,1,v048,false,model,"La story ne décrit ni quelles remises fournisseurs gérer, ni leurs règles de calcul et d'application ; quelles remises fournisseurs faut-il gérer et selon quelles règles de calcul et d'application ?"
+5,20261121,5,2,v077,true,model,"Les seuils (50 € TTC gratuit, sinon 4,90 € TTC), la base de calcul après remises et les trois cas de test sont cohérents et vérifiables."
+5,20261121,5,3,v075,true,model,"L'API Adresse, son accès sans clé, le seuil de score de 0,7, le premier résultat et le message d'avertissement sont définis et testables."
+5,20261121,5,4,v074,true,model,Le comportement attendu est clair : un compte désactivé ne peut plus se connecter avec le message défini et n'apparaît plus dans l'annuaire.
+5,20261121,5,5,v016,false,model,"Le document RG-03 référencé n'est pas fourni et la précision exigée de l'horodatage (secondes, millisecondes, fuseau horaire) n'est pas définie ; quelle précision et quel fuseau horaire l'horodatage doit-il respecter ?"
+5,20261121,5,6,v004,true,model,"Le endpoint GET /stocks/{reference} renvoie la quantité en stock avec les codes 200 et 404 définis, ce qui suffit pour l'implémenter."
+5,20261121,5,7,v066,true,model,"L'affichage (titre, date, auteur), le tri décroissant par date de réunion, la pagination par 20 et le message de liste vide sont définis et vérifiables."
+5,20261121,5,8,v065,true,model,"Le fichier public de la BCE, l'heure d'import, les données à enregistrer et le comportement en cas d'indisponibilité sont définis et testables."
+5,20261121,5,9,v057,false,model,"Le référentiel de vérification du SIRET n'est pas identifié ni décrit et son accès n'est pas fourni ; quel est ce service, comment y accéder (API, identifiants) et quel format de réponse renvoie-t-il ?"
+5,20261121,5,10,v026,true,model,"Les règles de montant (strictement positif, deux décimales maximum, plafond de 5 000,00 €), les messages et le contrôle serveur avec réponse 400 sont définis et vérifiables."
+5,20261121,6,1,v013,false,model,"Qu'est-ce qui constitue une « action » du manager qui arrête le délai de relance, et que se passe-t-il quand il n'existe pas de N+1 ?"
+5,20261121,6,2,v043,false,model,Les comptes existants doivent-ils être cochés ou décochés par défaut dans la case « Recevoir le récapitulatif hebdomadaire » ?
+5,20261121,6,3,v017,true,model,"La règle de seuil, l'exemple chiffré (11 moins 2 donne 9, inférieur au seuil de 10) et la réinitialisation de l'alerte sont définis, donc le comportement est implémentable."
+5,20261121,6,4,v001,false,model,"Quels sont les critères de validation d'une absence, le format attendu par le logiciel de paie et son nom, et les critères d'acceptation sont absents ?"
+5,20261121,6,5,v011,false,model,"Quel seuil de temps, sur quel volume d'inventaire de référence, définit une export « rapide » ou « performant » ?"
+5,20261121,6,6,v054,false,model,"Qu'est-ce qui rend un bon de livraison « signé » (signature manuscrite, électronique, champ dédié) et comment le système le détermine-t-il ?"
+5,20261121,6,7,v052,false,model,"Quel est le taux de remise et quel critère exact définit un client fidèle (nombre de commandes ou montant cumulé, et sur quelle période) ?"
+5,20261121,6,8,v071,false,model,Quelles sont les règles qui définissent un dossier de candidature « complet » (liste des pièces obligatoires) ?
+5,20261121,6,9,v060,true,model,"La durée de conservation de 12 mois, la tolérance de 7 jours et les deux cas de test sont définis, et la fréquence de purge est laissée au développeur, donc la story est implémentable."
+5,20261121,6,10,v029,false,model,Qui décide qu'une demande de congé est « urgente » et selon quels critères cette qualification est-elle établie ?
+5,20261121,7,1,v003,false,model,"Le canal de notification n'est pas tranché (email, in-app ou les deux) et la notion de « manager référent » n'est pas définie : quel canal faut-il utiliser et qui est le manager référent d'un salarié ?"
+5,20261121,7,2,v006,true,model,"La règle de chevauchement est explicite (statuts soumise et validée bloquants, refusée et annulée ignorés), les trois critères sont vérifiables et le message d'erreur est fourni, donc un développeur peut l'implémenter."
+5,20261121,7,3,v064,false,model,La page doit être « conforme à la maquette » mais la maquette validée par le design n'est pas fournie et le critère de conformité n'est pas vérifiable sans elle : peut-on fournir la maquette validée de la page d'accueil ?
+5,20261121,7,4,v078,false,model,"La règle de mise en paiement touche un montant et ne couvre pas le cas d'une note validée le 5 du mois ou le jour même du traitement, ni le système de paiement cible : une note validée le 5 avril doit-elle être mise en paiement le 5 mai ou le 5 avril ?"
+5,20261121,7,5,v069,true,model,"Les champs exportés (date, heure de début, heure de fin, nom du salarié), le filtre par salle et par mois, l'exclusion des réservations annulées et le cas de liste vide sont définis et vérifiables."
+5,20261121,7,6,v031,true,model,"La formule (2,08 jours par mois complet depuis le 1er juin, arrondi au centième, moins les jours validés) et les exemples chiffrés permettent une implémentation et une vérification directes."
+5,20261121,7,7,v015,true,model,"Le déclencheur (validation par le manager), le libellé exact avec le mois et l'absence de notification en cas de refus sont définis, et le service de notification interne existant est accessible dans le code."
+5,20261121,7,8,v033,true,model,"Les colonnes, le séparateur, l'encodage, le respect des filtres actifs et la limite de 10 000 articles sont spécifiés, les autres détails de format relèvent de l'implémentation."
+5,20261121,7,9,v055,true,model,"Le critère d'archivage (date de fin de plus de 2 ans, traitement de nuit), l'exclusion de l'historique du salarié et l'accès RH à la demande archivée sont suffisamment définis pour être implémentés."
+5,20261121,7,10,v061,false,model,"La description autorise l'annulation tant que la commande n'est pas livrée alors que le critère refuse l'annulation dès l'expédition, ce qui est contradictoire, et le mécanisme de remboursement n'est pas décrit : l'annulation est-elle permise jusqu'à la livraison ou seulement avant l'expédition ?"
+5,20261121,8,1,v034,false,model,"Quelles sont les règles de délégation retenues (durée, montant maximal, délégataires possibles) avec la DRH ?"
+5,20261121,8,2,v023,true,model,"Les règles de verrouillage (5 échecs, 15 minutes, remise à zéro après connexion réussie et message identique pour identifiant existant ou inexistant) sont définies et cohérentes entre la description et les critères."
+5,20261121,8,3,v032,false,model,"Quel est le fonctionnement attendu d'un inventaire tournant (sélection des emplacements, saisie des comptages, traitement des écarts, validation) ?"
+5,20261121,8,4,v039,true,model,"Le parcours est défini : affichage du motif de refus, modification des dépenses, resoumission avec changement de statut vers « soumise » et notification du manager."
+5,20261121,8,5,v010,false,model,"Quels seuils mesurables (temps de saisie, nombre de clics, score de satisfaction) définissent concrètement « intuitif », « rapide » et « satisfait » ?"
+5,20261121,8,6,v080,false,model,"Quel compte (identifiant) subsiste après fusion et quelles données personnelles (coordonnées, adresses, préférences) sont conservées en cas de conflit entre les deux comptes ?"
+5,20261121,8,7,v036,false,model,"Quelles informations doit contenir un retour fournisseur et quel traitement précis (avoir, réexpédition, remplacement, statut) doit suivre l'enregistrement ?"
+5,20261121,8,8,v045,false,model,"Quel est le format et le contenu de l'export du SIRH (champs, identifiant, mode d'accès, indicateur de départ) que la synchronisation doit lire ?"
+5,20261121,8,9,v079,true,model,"La règle est définie : bandeau « Votre mot de passe expire dans N jours » entre 7 jours avant et l'expiration à 90 jours, avec redirection vers le changement de mot de passe au jour J, et les critères sont cohérents avec cette règle."
+5,20261121,8,10,v021,false,model,"Quels indicateurs précis, quelles fonctionnalités et quels profils utilisateurs composent la plateforme, et sur quels systèmes sources s'appuie-t-elle ?"

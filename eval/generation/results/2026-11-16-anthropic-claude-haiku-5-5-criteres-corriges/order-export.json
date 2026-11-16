@@ -1,0 +1,159 @@
+{
+  "epics" : [ {
+    "description" : "Permettre au client d'exporter ses commandes payées au format CSV depuis sa page compte. Le fichier contient une ligne par commande (numéro, date, total TTC), exclut les commandes annulées et porte le nom orders-YYYY-MM-DD.csv. Le délimiteur et l'encodage ne sont pas encore décidés.",
+    "labels" : [ "frontend", "backend", "test", "documentation" ],
+    "name" : "Export CSV des commandes payées",
+    "priority" : "Medium",
+    "stories" : [ {
+      "acceptanceCriteria" : [ "Given un client connecté sur sa page compte, When il lance l'export, Then un fichier CSV est téléchargé", "Given un client connecté sur sa page compte, When il lance l'export, Then le fichier ne contient que ses propres commandes payées", "Given un client sans commande payée, When il lance l'export, Then le comportement attendu doit être défini par le Product Owner (non précisé dans la spécification)" ],
+      "aiReady" : false,
+      "aiReadyReason" : "Quel est le comportement attendu lorsque le client n'a aucune commande payée (fichier vide, message, bouton désactivé) ?",
+      "asA" : "client",
+      "dependencies" : [ ],
+      "description" : "Sur la page compte, le client peut lancer l'export de ses commandes payées. L'export produit un fichier CSV téléchargé par le client. Question ouverte : comportement attendu lorsque le client n'a aucune commande payée (la spécification ne le précise pas).",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 3,
+      "iWant" : "exporter mes commandes payées en CSV depuis ma page compte",
+      "labels" : [ "frontend", "backend", "test" ],
+      "priority" : "Medium",
+      "soThat" : "disposer d'un fichier de mes commandes payées",
+      "tasks" : [ {
+        "description" : "Afficher le point d'entrée d'export sur la page compte et déclencher le téléchargement du fichier.",
+        "estimatedHours" : 3,
+        "labels" : [ "frontend" ],
+        "parentTrackerKey" : null,
+        "title" : "Ajouter l'action d'export sur la page compte",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Côté serveur, récupérer uniquement les commandes payées de l'utilisateur connecté pour alimenter l'export.",
+        "estimatedHours" : 4,
+        "labels" : [ "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Implémenter la récupération des commandes payées du client",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Vérifier que le téléchargement se déclenche pour un client connecté et que seules ses commandes payées sont incluses.",
+        "estimatedHours" : 2,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester le déclenchement de l'export",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Déclencher l'export CSV depuis la page compte",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "acceptanceCriteria" : [ "Given un client avec deux commandes payées, When il exporte, Then le fichier contient deux lignes, une par commande", "Given une commande payée, When elle est exportée, Then la ligne contient son numéro, sa date et son total TTC", "Given l'export, When le fichier est généré, Then le délimiteur et l'encodage doivent être définis avant l'implémentation" ],
+      "aiReady" : false,
+      "aiReadyReason" : "Quel délimiteur (virgule ou point-virgule), quel encodage et quelle date (date de commande ou autre) utiliser dans le fichier ?",
+      "asA" : "client",
+      "dependencies" : [ "Déclencher l'export CSV depuis la page compte" ],
+      "description" : "Chaque commande payée devient une ligne du CSV avec le numéro de commande, la date et le montant total TTC (TVA incluse). Questions ouvertes : le délimiteur (virgule ou point-virgule) et l'encodage du fichier ne sont pas décidés ; la date à retenir (date de commande ou autre) et les en-têtes de colonnes ne sont pas précisés.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 3,
+      "iWant" : "que le fichier CSV contienne une ligne par commande avec son numéro, sa date et son total TTC",
+      "labels" : [ "backend", "test" ],
+      "priority" : "High",
+      "soThat" : "retrouver les informations essentielles de mes commandes",
+      "tasks" : [ {
+        "description" : "Bloquée : attend la décision du PO sur le délimiteur et l'encodage. Une fois décidés, documenter le format retenu.",
+        "estimatedHours" : 1,
+        "labels" : [ "documentation" ],
+        "parentTrackerKey" : null,
+        "title" : "Définir le format de sortie CSV",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Construire les lignes avec numéro de commande, date et total TTC, en respectant le format décidé.",
+        "estimatedHours" : 4,
+        "labels" : [ "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Générer une ligne par commande payée",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Vérifier le nombre de lignes et les valeurs de chaque colonne pour des commandes de test.",
+        "estimatedHours" : 2,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester le contenu du fichier",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Produire une ligne par commande avec numéro, date et total TTC",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "acceptanceCriteria" : [ "Given un client ayant une commande annulée et une commande payée, When il exporte, Then la commande annulée n'apparaît pas dans le fichier", "Given un client n'ayant que des commandes annulées, When il exporte, Then aucune ligne de commande n'est présente dans le fichier" ],
+      "aiReady" : true,
+      "aiReadyReason" : "La règle d'exclusion des commandes annulées est explicite et les critères sont vérifiables.",
+      "asA" : "client",
+      "dependencies" : [ "Produire une ligne par commande avec numéro, date et total TTC" ],
+      "description" : "Les commandes annulées sont exclues du fichier exporté. Seules les commandes payées et non annulées sont exportées.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 2,
+      "iWant" : "que les commandes annulées n'apparaissent pas dans l'export",
+      "labels" : [ "backend", "test" ],
+      "priority" : "High",
+      "soThat" : "le fichier ne contienne que des commandes valides",
+      "tasks" : [ {
+        "description" : "Ajouter au périmètre de l'export la condition excluant les commandes annulées.",
+        "estimatedHours" : 2,
+        "labels" : [ "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Filtrer les commandes annulées",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Vérifier qu'une commande annulée n'apparaît pas et qu'une commande payée apparaît.",
+        "estimatedHours" : 2,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester l'exclusion des commandes annulées",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Exclure les commandes annulées de l'export",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "acceptanceCriteria" : [ "Given un export réalisé, When le fichier est téléchargé, Then son nom respecte le format orders-YYYY-MM-DD.csv", "Given un export réalisé à une date donnée, When le nom est généré, Then la partie YYYY-MM-DD correspond à la date retenue par le Product Owner" ],
+      "aiReady" : false,
+      "aiReadyReason" : "La date figurant dans le nom du fichier est-elle la date de l'export ou une autre date ?",
+      "asA" : "client",
+      "dependencies" : [ "Déclencher l'export CSV depuis la page compte" ],
+      "description" : "Le fichier téléchargé est nommé orders-YYYY-MM-DD.csv. Question ouverte : la date du nom correspond-elle à la date de l'export ou à une autre date ? La spécification ne le précise pas.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 1,
+      "iWant" : "que le fichier exporté porte le nom orders-YYYY-MM-DD.csv",
+      "labels" : [ "frontend", "test" ],
+      "priority" : "Medium",
+      "soThat" : "identifier facilement mon export",
+      "tasks" : [ {
+        "description" : "Construire le nom orders-YYYY-MM-DD.csv avec la date retenue par le PO.",
+        "estimatedHours" : 1,
+        "labels" : [ "frontend" ],
+        "parentTrackerKey" : null,
+        "title" : "Générer le nom de fichier",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Vérifier que le nom téléchargé respecte le format attendu.",
+        "estimatedHours" : 1,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester le nom du fichier téléchargé",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Nommer le fichier exporté selon le format orders-YYYY-MM-DD.csv",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "trackerKey" : null,
+    "trackerUrl" : null
+  } ]
+}
