@@ -366,6 +366,63 @@ abstract class AbstractLlmClientTest {
     }
 
     @Test
+    @DisplayName("Total call timeout: headers at once, then a body streamed slowly without pause still fails at the timeout")
+    void timeoutBoundsTheWholeCall() throws Exception {
+        // Serveur minimal : lit la requete entiere, envoie les en-tetes tout de suite, puis le corps a 1 octet / 100 ms
+        // (un delai de connexion ou de premier octet ne suffirait pas ; MockWebServer.throttleBody ralentirait aussi la
+        // lecture de la requete)
+        byte[] body = success("{\"aiReady\":true,\"aiReadyReason\":\"" + "x".repeat(200) + "\"}").getBody().readByteArray();
+        java.util.concurrent.atomic.AtomicInteger requests = new java.util.concurrent.atomic.AtomicInteger();
+        try (java.net.ServerSocket slow = new java.net.ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress())) {
+            Thread serverThread = Thread.ofVirtual().start(() -> {
+                try (java.net.Socket socket = slow.accept()) {
+                    requests.incrementAndGet();
+                    var in = new java.io.DataInputStream(socket.getInputStream());
+                    int contentLength = 0;
+                    for (String line; !(line = readLine(in)).isEmpty(); ) {
+                        if (line.toLowerCase(java.util.Locale.ROOT).startsWith("content-length:")) {
+                            contentLength = Integer.parseInt(line.substring(15).trim());
+                        }
+                    }
+                    in.readFully(new byte[contentLength]);
+                    var out = socket.getOutputStream();
+                    out.write(("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " + body.length
+                            + "\r\n\r\n").getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+                    out.flush();
+                    for (byte b : body) {
+                        out.write(b);
+                        out.flush();
+                        Thread.sleep(100);
+                    }
+                } catch (Exception closedByClient) {
+                    // le client abandonne au delai : connexion fermee
+                }
+            });
+            LlmClient client = LlmClients.create(LlmTestSettings.of(provider(), "http://127.0.0.1:" + slow.getLocalPort() + "/",
+                    Duration.ofSeconds(1), 1000));
+            long start = System.nanoTime();
+
+            LlmException error = assertThrows(LlmException.class, () -> client.complete(request()));
+
+            long elapsed = Duration.ofNanos(System.nanoTime() - start).toMillis();
+            assertEquals(LlmException.Reason.UNAVAILABLE, error.reason());
+            assertTrue(error.getMessage().contains("did not answer within 1 s"), error.getMessage());
+            assertTrue(elapsed >= 900 && elapsed < 3000, "the timeout covers the whole call: " + elapsed + " ms");
+            assertTrue(body.length * 100L > 3000, "the full body would take longer than the timeout");
+            serverThread.join(Duration.ofSeconds(30));
+            assertEquals(1, requests.get(), "a single request, never retried");
+        }
+    }
+
+    private static String readLine(java.io.DataInputStream in) throws IOException {
+        StringBuilder line = new StringBuilder();
+        for (int c; (c = in.read()) != -1 && c != '\n'; ) {
+            if (c != '\r') line.append((char) c);
+        }
+        return line.toString();
+    }
+
+    @Test
     @DisplayName("Output truncated by the token limit: explicit TRUNCATED failure, never retried")
     void truncationIsExplicit() {
         server.enqueue(truncated("{\"aiReady\":tr"));
