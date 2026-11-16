@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.adapters.in.rest;
 
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.adapters.in.rest.dto.EpicDto;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
@@ -49,6 +50,9 @@ public class BacklogController {
     // Document fourni en texte (Markdown ou texte brut), exclusif de l'identifiant, et son titre optionnel
     static final String CONTENT = "content";
     static final String TITLE = "title";
+    /** Langue de sortie optionnelle : code ISO 639-1 (casse ignoree) ; jamais recopiee dans un prompt ni une reponse. */
+    static final String LANGUAGE = "language";
+    static final String INVALID_LANGUAGE = LANGUAGE + " " + Language.INVALID;
 
     // Alias deprecie de GET /documents/search (RFC 9745 : date de depreciation, RFC 8288 : remplacant)
     static final String LEGACY_SEARCH_DEPRECATION = "@1794528000";
@@ -130,16 +134,24 @@ public class BacklogController {
         if (!isValidProjectKey(projectKey)) {
             return invalidProjectKey(projectKey);
         }
-        
+        Language language;
+        try {
+            language = language(request.get(LANGUAGE));
+        } catch (IllegalArgumentException e) {
+            return invalidLanguage();
+        }
+
         try {
             if (isTextInput(request)) {
                 // Pas de documentUrl : le texte n'a pas d'adresse dans la source active
                 logTextInput("Analyze", request);
-                return creationResponse(analyzeDocument.analyzeTextAndCreate(request.get(TITLE), request.get(CONTENT), projectKey));
+                return creationResponse(analyzeDocument.analyzeTextAndCreate(request.get(TITLE), request.get(CONTENT),
+                        projectKey, language));
             }
             String documentId = documentId(request);
             log.info("Received request to analyze {} document: {}", describeSource.displayName(), documentId);
-            return withDocumentUrl(creationResponse(analyzeDocument.analyzeAndCreate(documentId, projectKey)), documentId);
+            return withDocumentUrl(creationResponse(analyzeDocument.analyzeAndCreate(documentId, projectKey, language)),
+                    documentId);
 
         } catch (InvalidRequestException e) {
             return invalidRequest(e);
@@ -248,15 +260,22 @@ public class BacklogController {
 
     @PostMapping("/analyze-preview")
     public ResponseEntity<Map<String, Object>> analyzePreview(@RequestBody Map<String, String> request) {
+        Language language;
+        try {
+            language = language(request.get(LANGUAGE));
+        } catch (IllegalArgumentException e) {
+            return invalidLanguage();
+        }
         try {
             if (isTextInput(request)) {
                 // Pas de documentUrl : le texte n'a pas d'adresse dans la source active
                 logTextInput("Preview", request);
-                return ResponseEntity.ok(previewBody(previewBacklog.previewText(request.get(TITLE), request.get(CONTENT))));
+                return ResponseEntity.ok(previewBody(previewBacklog.previewText(request.get(TITLE), request.get(CONTENT),
+                        language)));
             }
             String documentId = documentId(request);
             log.info("Preview request for {} document: {}", describeSource.displayName(), documentId);
-            List<Epic> epics = previewBacklog.preview(documentId);
+            List<Epic> epics = previewBacklog.preview(documentId, language);
             return withDocumentUrl(ResponseEntity.ok(previewBody(epics)), documentId);
             
         } catch (InvalidRequestException e) {
@@ -289,16 +308,24 @@ public class BacklogController {
     public ResponseEntity<Map<String, Object>> createJira(
             @RequestBody List<EpicDto> request,
             // Projet cible optionnel (sinon le projet par defaut du gestionnaire actif), meme validation que analyze-and-create
-            @RequestParam(required = false) String projectKey) {
+            @RequestParam(required = false) String projectKey,
+            // Langue des verdicts optionnelle (ex. celle de l'apercu) ; sinon la propriete, puis la detection par story
+            @RequestParam(required = false) String language) {
         if (!isValidProjectKey(projectKey)) {
             return invalidProjectKey(projectKey);
+        }
+        Language verdictLanguage;
+        try {
+            verdictLanguage = language(language);
+        } catch (IllegalArgumentException e) {
+            return invalidLanguage();
         }
         log.info("Received request to create {} epics in {}", request.size(), describeTracker.displayName());
 
         try {
             List<Epic> epics = RestBacklogMapper.toDomain(request);
             // Verdict recalcule sur le contenu final : aiReady / aiReadyReason envoyes par le client sont ignores
-            return creationResponse(createEditedBacklog.create(epics, projectKey));
+            return creationResponse(createEditedBacklog.create(epics, projectKey, verdictLanguage));
 
         } catch (Exception e) {
             log.error("Error creating issues in {}", describeTracker.displayName(), e);
@@ -320,10 +347,16 @@ public class BacklogController {
                     "error", "issueKey and precision are required"
             ));
         }
+        Language language;
+        try {
+            language = language(request.get(LANGUAGE));
+        } catch (IllegalArgumentException e) {
+            return invalidLanguage();
+        }
 
         log.info("Reassessment request for {}", issueKey);
         try {
-            Readiness verdict = reassessStory.reassess(issueKey, precision);
+            Readiness verdict = reassessStory.reassess(issueKey, precision, language);
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "issueKey", issueKey,
@@ -340,6 +373,16 @@ public class BacklogController {
             log.error("Error reassessing story {}", issueKey, e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to reassess the story"));
         }
+    }
+
+    /** Langue demandee, ou null si absente ; IllegalArgumentException si ce n'est pas un code ISO 639-1 connu. */
+    static Language language(String raw) {
+        return raw == null ? null : Language.of(raw);
+    }
+
+    /** 400 qui nomme le parametre, sans recopier la valeur recue. */
+    private static ResponseEntity<Map<String, Object>> invalidLanguage() {
+        return ResponseEntity.badRequest().body(ErrorResponses.error(INVALID_LANGUAGE));
     }
 
     /** Recherche de documents de la source active par titre, dans un espace optionnel (format de la source). */

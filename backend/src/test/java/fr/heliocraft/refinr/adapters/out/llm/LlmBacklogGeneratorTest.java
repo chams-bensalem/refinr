@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.adapters.out.llm;
 
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Story;
 import okhttp3.mockwebserver.MockResponse;
@@ -58,7 +59,7 @@ class LlmBacklogGeneratorTest {
     void parsesBacklogAndSendsPromptAndSchema() throws Exception {
         server.enqueue(answer(BACKLOG));
 
-        List<Epic> epics = generator.generate("Ajouter un filtre par prix");
+        List<Epic> epics = generator.generate("Ajouter un filtre par prix", Language.FR);
 
         Story story = epics.get(0).getStories().get(0);
         assertEquals("Epic: Prix", epics.get(0).getName());
@@ -71,7 +72,7 @@ class LlmBacklogGeneratorTest {
         String prompt = body.path("messages").path(1).path("content").asString();
         assertTrue(prompt.contains("Ajouter un filtre par prix"));
         assertTrue(prompt.contains("TAILLE, PROPORTIONNELLE À LA SPÉCIFICATION"));
-        assertTrue(prompt.contains(LlmPrompts.READINESS));
+        assertTrue(prompt.contains(LlmPrompts.readiness(Language.FR)));
         assertEquals("backlog", body.path("response_format").path("json_schema").path("name").asString());
         assertTrue(body.path("response_format").path("json_schema").path("schema").path("properties").has("epics"));
     }
@@ -81,7 +82,7 @@ class LlmBacklogGeneratorTest {
     void toleratesFencesAndThinking() {
         server.enqueue(answer("<think>je reflechis {pas du json}</think>\n```json\n" + BACKLOG + "\n```"));
 
-        assertEquals(1, generator.generate("Besoin").size());
+        assertEquals(1, generator.generate("Besoin", Language.FR).size());
     }
 
     @Test
@@ -89,6 +90,6 @@ class LlmBacklogGeneratorTest {
     void emptyBacklog() {
         server.enqueue(answer("{\"epics\":[]}"));
 
-        assertEquals(List.of(), generator.generate("Besoin"));
+        assertEquals(List.of(), generator.generate("Besoin", Language.FR));
     }
 }

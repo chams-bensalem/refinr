@@ -469,3 +469,16 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
     en heure murale. Les trois clients partagent `LlmClient.post()`, dont `Mono.timeout` porte sur le corps reçu en
     entier, donc sur la durée totale de l'appel ; un test sur chaque client (en-têtes immédiats, puis corps envoyé à
     1 octet / 100 ms) le prouve. La mesure lance Java sous `caffeinate -i` et marque `suspended` un appel trop long.
+- **Langue de sortie et `verdict-v3.2`** (4b, 2026-11-16) :
+  - deux prompts seulement, en ressources (`llm/prompts/prompts.fr.md`, `prompts.en.md`, cinq blocs chacun, mêmes
+    sections, marqueurs, 29 règles et JSON, vérifiés par un test de parité) ; le français a son prompt, l'anglais et
+    toute autre langue le prompt anglais, avec le nom anglais de la langue injecté (`Locale`), jamais la valeur reçue ;
+    aucun chargement générique d'autres fichiers ;
+  - priorité : champ `language` de la requête (paramètre de requête pour `create-jira`), puis
+    `refinr.llm.output-language`, puis détection déterministe français / anglais (au moins 8 mots outils reconnus,
+    rapport de 1,5, français par défaut) ; codes ISO 639-1 connus de `Locale` seulement, mis en minuscules ;
+  - détection d'une story sur son titre, sa description **et ses critères** : sur le titre et la description seuls,
+    2 des 15 stories anglaises du contrôle 1 (v059, v064) restent sous 8 mots reconnus et retomberaient sur le français ;
+  - version `verdict-v3.2` : le bloc READINESS est inchangé ; seules les consignes de langue changent (prompts 2 et 3),
+    et le prompt anglais est nouveau. Mesure française : contrôle léger (Haiku × 1 sur 80 stories, mêmes critères que
+    v3.1), mesure complète seulement en cas d'écart ; mesure anglaise nouvelle sur `holdout.en.jsonl` (15 stories).

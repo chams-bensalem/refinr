@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.application.service;
 
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.CreateBacklog;
 import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
@@ -24,12 +25,12 @@ class CreateEditedBacklogServiceTest {
         final List<String> assessed = new ArrayList<>();
 
         @Override
-        public Readiness reassess(String summary, String description, String precision) {
+        public Readiness reassess(String summary, String description, String precision, Language language) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public List<Readiness> assess(List<Story> stories) {
+        public List<Readiness> assess(List<Story> stories, List<Language> languages) {
             List<Readiness> verdicts = new ArrayList<>();
             for (Story story : stories) {
                 verdicts.add(assessOne(story));

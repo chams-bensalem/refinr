@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.adapters.out.llm;
 
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Story;
 import fr.heliocraft.refinr.domain.model.Task;
@@ -49,7 +50,7 @@ class LlmResponseContractTest {
     void readsEveryField() throws IOException {
         mockWebServer.enqueue(geminiText(resource("contract/llm-backlog-response.json")));
 
-        List<Epic> epics = analyzer.generate("cdc");
+        List<Epic> epics = analyzer.generate("cdc", Language.FR);
 
         assertEquals(1, epics.size());
         Epic epic = epics.get(0);
@@ -89,7 +90,7 @@ class LlmResponseContractTest {
             mockWebServer.enqueue(geminiText("{\"epics\":[{\"name\":\"E\",\"description\":\"d\",\"jiraKey\":\"PROJ-1\",\"stories\":[]}]}"));
         }
 
-        LlmException error = assertThrows(LlmException.class, () -> analyzer.generate("cdc"));
+        LlmException error = assertThrows(LlmException.class, () -> analyzer.generate("cdc", Language.FR));
 
         assertEquals(LlmException.Reason.INVALID_OUTPUT, error.reason());
         assertEquals(3, mockWebServer.getRequestCount());

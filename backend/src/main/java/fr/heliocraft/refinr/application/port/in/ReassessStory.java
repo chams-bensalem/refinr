@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.application.port.in;
 
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.domain.model.Readiness;
 
 /**
@@ -12,5 +13,13 @@ import fr.heliocraft.refinr.domain.model.Readiness;
 public interface ReassessStory {
 
     /** @throws StoryNotAwaitingValidationException si la story n'est pas en attente de validation */
-    Readiness reassess(String storyKey, String precision);
+    default Readiness reassess(String storyKey, String precision) {
+        return reassess(storyKey, precision, null);
+    }
+
+    /**
+     * @param language langue de la raison demandee, ou null : propriete, puis detection sur le titre et la description
+     * @throws StoryNotAwaitingValidationException si la story n'est pas en attente de validation
+     */
+    Readiness reassess(String storyKey, String precision, Language language);
 }

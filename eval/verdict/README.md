@@ -25,6 +25,7 @@ ni dans la CI** (`run` appelle le modèle : quota et argent).
 | `labels-adjudication.csv` | arbitrage : étiquettes corrigées (`id,label_v1,confidence_v1,label,confidence,reason,decided_by,decided_on`), appliquées par `check` et `summarize` |
 | `holdout.jsonl`, `holdout-labels.csv` | jeu de contrôle : 15 stories écrites après la mesure v2 et les prompts v3, étiquetées en aveugle ; mesuré avec le jeu d'origine, rapporté à part, **jamais arbitré** |
 | `holdout-notes.md` | intention de l'auteur du jeu de contrôle, à lire après l'étiquetage |
+| `holdout.en.jsonl` | contrôle 1 traduit fidèlement en anglais (mêmes ids v051 à v065), étiquettes de `holdout-labels.csv` reprises telles quelles ; mesuré à part avec `--set en` |
 | `candidates-notes.md` | provenance (`generated` / `synthetic`) et intention de l'auteur des stories ; ne sert pas à la mesure |
 | `prices.csv` | tarifs par million de tokens, datés, avec la source ; une ligne par tranche (`max_input_tokens` : tokens d'entrée de la requête au plus, vide = sans limite) ; revérifiés avant chaque mesure payante |
 | `results/<date>-<fournisseur>-<modèle>/` | `meta.md`, `runs.csv` (un verdict par story et par exécution), `calls.csv` (tokens, coût), `summary.md` |
@@ -74,6 +75,8 @@ scripts/eval-verdict.sh estimate env 5                         # appels et token
 scripts/eval-verdict.sh estimate anthropic 5 --assume-model claude-haiku-5-5   # coût estimé, aucun appel
 scripts/eval-verdict.sh run env 5                              # APPELLE LE MODÈLE
 scripts/eval-verdict.sh summarize eval/verdict/results/<dossier> [--baseline eval/verdict/results/<autre>]   # jeu d'origine (+ comparaison) et jeu de contrôle à part
+scripts/eval-verdict.sh run anthropic 5 --set en               # APPELLE LE MODÈLE : jeu anglais seul (holdout.en.jsonl)
+scripts/eval-verdict.sh summarize eval/verdict/results/<dossier>-en --set en
 scripts/eval-verdict.sh generate anthropic eval/generation/specs/<spec>.md --out eval/generation/results/<dossier>   # APPELLE LE MODÈLE : génération du backlog
 ```
 
@@ -105,3 +108,10 @@ Garde-fous de `run` :
   `STOP-<raison>` dans le dossier de résultats (à supprimer pour reprendre) ;
 - reprise : relancer la même commande avec `--out <dossier>` ; les lots déjà mesurés sont sautés (ordre mélangé
   reproductible : graine 20261116 + numéro d'exécution).
+
+## Prompts et langue
+
+Les prompts mesurés sont ceux de production : `backend/src/main/resources/llm/prompts/prompts.fr.md` et
+`prompts.en.md` (version `VERDICT_PROMPT_VERSION`, relevée dans chaque `meta.md`). La langue de sortie de chaque story
+suit la règle de production sans langue demandée : propriété `refinr.llm.output-language` de `.env`, puis détection
+français / anglais sur le titre, la description et les critères ; les lots sont homogènes par langue.

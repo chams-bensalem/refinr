@@ -3,6 +3,8 @@
 
 package fr.heliocraft.refinr.eval;
 
+import fr.heliocraft.refinr.domain.service.OutputLanguagePolicy;
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.adapters.out.llm.LlmBacklogGenerator;
 import fr.heliocraft.refinr.adapters.out.llm.LlmReadinessAssessor;
 import fr.heliocraft.refinr.adapters.out.llm.LlmRequest;
@@ -138,7 +140,8 @@ public final class VerdictEval {
         }
     }
 
-    record Setup(Target target, LlmSettings settings, int repairs, int batchSize) {
+    /** {@code languages} : politique de langue de production ({@code refinr.llm.output-language}, auto par defaut). */
+    record Setup(Target target, LlmSettings settings, int repairs, int batchSize, OutputLanguagePolicy languages) {
         List<String> optionalParams() {
             List<String> p = new ArrayList<>();
             if (settings.temperature() != null) p.add("temperature");
@@ -215,6 +218,10 @@ public final class VerdictEval {
         }
         VerdictEval eval = new VerdictEval(Path.of(opts.getOrDefault("root", "..")).toAbsolutePath().normalize());
         String config = opts.getOrDefault("config", "src/main/resources/application-example.properties");
+        if (opts.containsKey("set")) {
+            if (!"en".equals(opts.get("set"))) throw new IllegalArgumentException("--set only accepts en (English control set)");
+            eval.set = "en";
+        }
         switch (positional.get(0)) {
             case "check" -> eval.check();
             case "describe" -> eval.describe(eval.setup(Target.of(arg(positional, 1)), config));
@@ -290,7 +297,17 @@ public final class VerdictEval {
     }
 
     /** Stories mesurees : jeu d'origine (stories.jsonl) puis chaque jeu de controle existant. */
+    /** Jeu anglais : traduction du controle 1, memes ids, memes etiquettes ; mesure a part ({@code --set en}). */
+    static final String ENGLISH_SET = "holdout.en.jsonl";
+    static final ControlSet ENGLISH_CONTROL = new ControlSet(ENGLISH_SET, "holdout-labels.csv");
+
+    /** null : jeu francais (origine + controles) ; "en" : jeu anglais seul. */
+    String set;
+
     List<Story> stories(List<String> idsOut) throws IOException {
+        if ("en".equals(set)) {
+            return readStories(dataDir.resolve(ENGLISH_SET), idsOut);
+        }
         List<Story> stories = readStories(dataDir.resolve("stories.jsonl"), idsOut);
         for (ControlSet c : controlSets()) stories.addAll(readStories(dataDir.resolve(c.stories()), idsOut));
         return stories;
@@ -485,8 +502,22 @@ public final class VerdictEval {
                         : "set " + target.modelVariable + " and EVAL_ANTHROPIC_API_KEY in .env (names only, see eval/verdict/README.md)", e);
             }
             int batchSize = Integer.parseInt(ctx.getEnvironment().getProperty("refinr.llm.verdict.batch-size", "10"));
-            return new Setup(target, settings, EvalLlmSettings.maxRepairAttempts(props), batchSize);
+            return new Setup(target, settings, EvalLlmSettings.maxRepairAttempts(props), batchSize, languagePolicy(ctx));
         }
+    }
+
+    static OutputLanguagePolicy languagePolicy(ConfigurableApplicationContext ctx) {
+        return OutputLanguagePolicy.fromProperty(ctx.getEnvironment().getProperty(OutputLanguagePolicy.PROPERTY,
+                OutputLanguagePolicy.AUTO));
+    }
+
+    /** Langue de sortie d'une story, comme en production sans langue demandee (create-jira) : propriete, puis detection. */
+    static Language language(Setup s, Story story) {
+        StringBuilder text = new StringBuilder();
+        if (story.getTitle() != null) text.append(story.getTitle()).append('\n');
+        if (story.getDescription() != null) text.append(story.getDescription()).append('\n');
+        if (story.getAcceptanceCriteria() != null) story.getAcceptanceCriteria().forEach(c -> text.append(c).append('\n'));
+        return s.languages().resolve(null, text.toString());
     }
 
     static final List<String> PRICES_HEADER = List.of("provider", "model", "max_input_tokens", "input_usd_per_mtok",
@@ -558,7 +589,9 @@ public final class VerdictEval {
         for (int run = 1; run <= runs; run++) {
             for (List<Integer> batch : batches(stories.size(), s.batchSize(), run)) {
                 int callsPerBatchWorst = 2 * batch.size() * (s.repairs() + 1);
-                long in = Math.round(MeteredLlmClients.verdictRequestChars(batch.stream().map(stories::get).toList()) / CHARS_PER_TOKEN);
+                List<Story> batchStories = batch.stream().map(stories::get).toList();
+                long in = Math.round(MeteredLlmClients.verdictRequestChars(batchStories, language(s, batchStories.get(0)))
+                        / CHARS_PER_TOKEN);
                 calls++;
                 input += in;
                 output += (long) OUTPUT_TOKENS_PER_STORY * batch.size();
@@ -741,7 +774,7 @@ public final class VerdictEval {
         List<Story> stories = stories(ids);
         Path out = outOption != null ? Path.of(outOption)
                 : dataDir.resolve("results").resolve(LocalDate.now(ZONE) + "-" + s.settings().provider().id() + "-" + s.settings().model()
-                        + "-" + MeteredLlmClients.verdictPromptVersion());
+                        + "-" + MeteredLlmClients.verdictPromptVersion() + ("en".equals(set) ? "-en" : ""));
         Files.createDirectories(out);
         Files.createDirectories(stateDir);
         try (Stream<Path> files = Files.list(out)) {
@@ -761,7 +794,10 @@ public final class VerdictEval {
                     s.optionalParams().isEmpty() ? "aucun" : s.optionalParams(), MeteredLlmClients.verdictPromptVersion(),
                     s.batchSize(), s.repairs(), BASE_SEED, s.settings().timeout(), s.settings().maxOutputTokens(), labelers(),
                     s.settings().provider().id().equals("anthropic")
-                            ? "\n- **Circularité** : modèle Claude évalué contre des étiquettes posées par Claude ; résultats indicatifs." : ""));
+                            ? "\n- **Circularité** : modèle Claude évalué contre des étiquettes posées par Claude ; résultats indicatifs." : "")
+                    + ("en".equals(set) ? "- Jeu mesuré : `" + ENGLISH_SET + "` (contrôle 1 traduit en anglais, étiquettes `"
+                            + ENGLISH_CONTROL.labels() + "` reprises telles quelles)\n" : "")
+                    + "- Langue de sortie : propriété `" + OutputLanguagePolicy.PROPERTY + "` puis détection par story\n");
         }
         Path runsCsv = out.resolve("runs.csv");
         Set<String> done = new HashSet<>();
@@ -784,7 +820,8 @@ public final class VerdictEval {
                 List<Integer> batch = batches.get(b);
                 List<Readiness> verdicts;
                 try {
-                    verdicts = assessor.assess(batch.stream().map(stories::get).toList());
+                    List<Story> batchStories = batch.stream().map(stories::get).toList();
+                    verdicts = assessor.assess(batchStories, batchStories.stream().map(st -> language(s, st)).toList());
                 } catch (Stop stop) {
                     stopFile(out, stop.reason, run, b + 1, meter);
                     return;
@@ -838,7 +875,8 @@ public final class VerdictEval {
         try (ConfigurableApplicationContext ctx = new SpringApplicationBuilder(LlmOnly.class).web(WebApplicationType.NONE)
                 .bannerMode(Banner.Mode.OFF).logStartupInfo(false).run(args.toArray(String[]::new))) {
             LlmProperties props = ctx.getBean(LlmProperties.class);
-            s = new Setup(target, EvalLlmSettings.analysisRole(props), EvalLlmSettings.maxRepairAttempts(props), 0);
+            s = new Setup(target, EvalLlmSettings.analysisRole(props), EvalLlmSettings.maxRepairAttempts(props), 0,
+                    languagePolicy(ctx));
             separate = EvalLlmSettings.separateVerdict(props);
         }
         if (separate) throw new IllegalStateException("a separate verdict provider is configured: generate measures the generation verdict only");
@@ -858,7 +896,7 @@ public final class VerdictEval {
         Files.createDirectories(stateDir);
         Meter meter = new Meter(s, price, out.resolve("calls.csv"), cap, budget, phase);
         LlmBacklogGenerator generator = new LlmBacklogGenerator(MeteredLlmClients.create(s.settings(), meter), new StructuredOutput(s.repairs()));
-        PreviewBacklogService preview = new PreviewBacklogService(null, generator, null, 200_000);
+        PreviewBacklogService preview = new PreviewBacklogService(null, generator, null, 200_000, s.languages());
         JsonMapper json = JsonMapper.builder().build();
         for (int i = 0; i < specs.size(); i++) {
             Path spec = Path.of(specs.get(i));
@@ -905,6 +943,10 @@ public final class VerdictEval {
      */
     void summarize(Path results, List<Path> baselines) throws IOException {
         List<Observation> observations = observations(results);
+        if ("en".equals(set)) {
+            summarizeEnglish(results, observations);
+            return;
+        }
         VerdictMetrics metrics = new VerdictMetrics(references(), observations);
         List<List<String>> adjudicated = adjudication();
         StringBuilder md = new StringBuilder();
@@ -956,6 +998,17 @@ public final class VerdictEval {
             md.append("\n# Jeu de contrôle `").append(c.stories()).append("` (").append(ids.size()).append(" stories, `")
                     .append(c.labels()).append("`, jamais arbitré)\n\n").append(new VerdictMetrics(controlReferences(c), observations).markdown());
         }
+        writeString(results.resolve("summary.md"), md.toString());
+        System.out.print(md);
+    }
+
+    /** Jeu anglais : un seul jeu, etiquettes du controle 1 reprises telles quelles, jamais arbitrees. */
+    void summarizeEnglish(Path results, List<Observation> observations) throws IOException {
+        StringBuilder md = new StringBuilder();
+        if (Files.exists(results.resolve("meta.md"))) md.append(Files.readString(results.resolve("meta.md"))).append("\n");
+        md.append("# Contrôle 1, anglais (`").append(ENGLISH_SET).append("`, étiquettes `").append(ENGLISH_CONTROL.labels())
+                .append("` reprises telles quelles, jamais arbitrées)\n\n")
+                .append(new VerdictMetrics(controlReferences(ENGLISH_CONTROL), observations).markdown());
         writeString(results.resolve("summary.md"), md.toString());
         System.out.print(md);
     }

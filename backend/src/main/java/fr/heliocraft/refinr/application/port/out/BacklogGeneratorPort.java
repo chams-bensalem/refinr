@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.application.port.out;
 
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.domain.model.Epic;
 
 import java.util.List;
@@ -15,7 +16,8 @@ public interface BacklogGeneratorPort {
      * analyse ; il est remplace par celui de {@link ReadinessAssessorPort} quand un fournisseur de verdict distinct
      * est configure.
      *
+     * @param language langue de sortie, deja resolue (requete, propriete, detection)
      * @throws LlmException fournisseur indisponible, sortie invalide ou tronquee
      */
-    List<Epic> generate(String documentContent);
+    List<Epic> generate(String documentContent, Language language);
 }

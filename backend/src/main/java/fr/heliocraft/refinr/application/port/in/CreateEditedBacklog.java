@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.application.port.in;
 
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.domain.model.Epic;
 
 import java.util.List;
@@ -14,5 +15,13 @@ import java.util.List;
 public interface CreateEditedBacklog {
 
     /** @param project projet cible ; null ou vide : projet par defaut */
-    BacklogCreationResult create(List<Epic> epics, String project);
+    default BacklogCreationResult create(List<Epic> epics, String project) {
+        return create(epics, project, null);
+    }
+
+    /**
+     * @param project  projet cible ; null ou vide : projet par defaut
+     * @param language langue des verdicts demandee, ou null : propriete, puis detection story par story
+     */
+    BacklogCreationResult create(List<Epic> epics, String project, Language language);
 }

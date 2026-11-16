@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.adapters.out.llm;
 
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.application.port.out.LlmException;
 import fr.heliocraft.refinr.domain.model.Story;
 import tools.jackson.databind.JsonNode;
@@ -60,13 +61,14 @@ public final class MeteredLlmClients {
     }
 
     /** Taille en caracteres de la requete de verdict d'un lot (systeme + prompt + schema), pour l'estimation du cout. */
-    public static int verdictRequestChars(List<Story> batch) {
+    public static int verdictRequestChars(List<Story> batch, Language language) {
         List<String> ids = new java.util.ArrayList<>();
         for (int i = 0; i < batch.size(); i++) {
             ids.add("s" + (i + 1));
         }
         JsonNode schema = LlmSchemas.forProvider(LlmSchemas.load(LlmSchemas.READINESS_BATCH));
-        return LlmPrompts.SYSTEM.length() + LlmPrompts.verdicts(batch, ids).length() + schema.toString().length();
+        return LlmPrompts.system(language).length() + LlmPrompts.verdicts(batch, ids, language).length()
+                + schema.toString().length();
     }
 
     /** Taille en caracteres d'une requete (systeme + messages + schema). */

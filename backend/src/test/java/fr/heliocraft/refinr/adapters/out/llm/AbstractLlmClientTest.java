@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.adapters.out.llm;
 
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.application.port.out.LlmException;
 import fr.heliocraft.refinr.domain.model.Readiness;
 import fr.heliocraft.refinr.domain.model.Story;
@@ -498,7 +499,7 @@ abstract class AbstractLlmClientTest {
     /** Analyse d'un document portant le marqueur : l'echec attendu, toujours une LlmException. */
     private LlmException failGenerate(LlmClient client, String marker) {
         return assertThrows(LlmException.class, () -> new LlmBacklogGenerator(client, structured())
-                .generate("# Spec confidentielle " + marker + "\nGestion des stocks " + marker));
+                .generate("# Spec confidentielle " + marker + "\nGestion des stocks " + marker, Language.FR));
     }
 
     protected static void assertNoLeak(String marker, CapturedOutput output, Throwable error) {
@@ -559,7 +560,8 @@ abstract class AbstractLlmClientTest {
         story.setTitle("Story " + marker);
         story.setDescription("Description " + marker);
 
-        List<Readiness> verdicts = new LlmReadinessAssessor(leakClient(marker), structured(), 5).assess(List.of(story));
+        List<Readiness> verdicts = new LlmReadinessAssessor(leakClient(marker), structured(), 5).assess(List.of(story),
+                List.of(Language.FR));
 
         assertNull(verdicts.get(0), "no verdict after the failed repairs");
         assertTrue(output.getAll().contains("[mapping: IllegalArgumentException]"), output.getAll());
@@ -575,7 +577,8 @@ abstract class AbstractLlmClientTest {
         Story story = new Story();
         story.setTitle("Story " + marker);
 
-        List<Readiness> verdicts = new LlmReadinessAssessor(leakClient(marker), structured(), 5).assess(List.of(story));
+        List<Readiness> verdicts = new LlmReadinessAssessor(leakClient(marker), structured(), 5).assess(List.of(story),
+                List.of(Language.FR));
 
         assertNull(verdicts.get(0));
         assertTrue(output.getAll().contains("Readiness verdict unavailable for story 1/1"), output.getAll());
@@ -591,7 +594,7 @@ abstract class AbstractLlmClientTest {
         }
 
         LlmException error = assertThrows(LlmException.class, () -> new LlmReadinessAssessor(leakClient(marker),
-                structured(), 5).reassess("Export " + marker, "Description " + marker, "Precision " + marker));
+                structured(), 5).reassess("Export " + marker, "Description " + marker, "Precision " + marker, Language.FR));
 
         assertEquals(LlmException.Reason.INVALID_OUTPUT, error.reason());
         assertNoLeak(marker, output, error);

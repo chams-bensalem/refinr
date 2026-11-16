@@ -546,6 +546,7 @@ Correspondance avec OpenProject :
 | `refinr.llm.verdict.provider` | *(vide)* | Fournisseur dédié au verdict `ai-ready` ; vide = celui de l'analyse |
 | `refinr.llm.verdict.timeout` | `90s` | Délai maximal par appel de verdict |
 | `refinr.llm.verdict.max-output-tokens` | `4096` | Limite de tokens de sortie du verdict |
+| `refinr.llm.output-language` | `auto` | Langue de sortie du backlog et des raisons du verdict : `auto` (détection français / anglais, français par défaut) ou un code ISO 639-1 (`fr`, `en`, `de`…) ; le champ `language` d'une requête est prioritaire |
 | `refinr.llm.verdict.batch-size` | `10` | Stories jugées par appel de verdict (`1` = un appel par story) |
 | `refinr.llm.verdict.cache.ttl` | `24h` | Durée de vie du cache des verdicts réussis (`0s` = pas de cache) |
 | `refinr.llm.verdict.cache.max-entries` | `1000` | Taille maximale du cache des verdicts (LRU) |
@@ -735,11 +736,21 @@ Installation, réglages et utilisation : voir le README du plugin.
 
 Base URL : `http://localhost:8080/api/v1`
 
+**Langue de sortie.** `analyze-preview`, `analyze-and-create` et `reassess-story` acceptent un champ optionnel
+`"language"` dans leur corps JSON, `create-jira` un paramètre de requête optionnel `language` : un code ISO 639-1
+(`fr`, `en`, `de`…, casse ignorée). Toute autre valeur (`xx`, `fr-FR`, une chaîne vide, un texte libre) renvoie `400`
+avec `"language must be an ISO 639-1 code (e.g. fr, en)"` ; la valeur n'est jamais recopiée ni insérée dans un prompt
+(seul le nom de la langue l'est). Priorité : la requête, puis `refinr.llm.output-language`, puis la détection français /
+anglais du document (de chaque story pour `create-jira`, du titre et de la description pour `reassess-story`), français
+par défaut. Seuls le français et l'anglais ont un prompt natif et sont mesurés (`eval/verdict/`) ; les autres langues
+passent par le prompt anglais et sont prises en charge sans être mesurées. Les lignes écrites par Refinr dans les
+tickets et le label `validation-necessaire` ne changent pas.
+
 | Méthode | Endpoint | Corps / paramètres | Description |
 |---|---|---|---|
 | `POST` | `/analyze-and-create` | `{ "documentId": "…", "projectKey": "PROJ" }` ou `{ "content": "…", "title": "…", "projectKey": "PROJ" }` *(documentId : ID de page ou référence XWiki dans la source active ; content : le document lui-même, Markdown ou texte brut, title optionnel ; projectKey optionnel : projet du gestionnaire de tickets actif — clé Jira `^[A-Z][A-Z0-9]{1,9}$`, ou identifiant OpenProject `^[a-z0-9_-]{1,100}$` / id numérique)* | Lit (ou prend le texte), analyse et crée toute la hiérarchie dans le gestionnaire actif |
 | `POST` | `/analyze-preview` | `{ "documentId": "…" }` ou `{ "content": "…", "title": "…" }` | Analyse sans créer de tickets ; `documentUrl` (lien vers la page) ajouté s'il est connu, jamais pour un texte |
-| `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optionnel, même format)* | Crée une structure déjà générée ; le serveur recalcule le verdict (`aiReady` / `aiReadyReason` du client ignorés) |
+| `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optionnel, même format)* · `&language=de` *(optionnel)* | Crée une structure déjà générée ; le serveur recalcule le verdict (`aiReady` / `aiReadyReason` du client ignorés) |
 | `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Réévalue une story `validation-necessaire` (`409` si elle ne l'est pas) |
 | `GET` | `/documents/search` | `?title=…&space=…` *(space optionnel : clé d'espace Confluence, id ou slug de livre BookStack, référence d'espace XWiki)* | Recherche par titre dans la source active, 25 résultats au plus : `{ success, results: [{ id, title, url }] }` |
 | `GET` | `/source` | — | Source documentaire active et limite du texte : `{ "name": "Confluence", "maxContentChars": 200000 }` (`"BookStack"` ou `"XWiki"` ; utilisé par l'interface web) |

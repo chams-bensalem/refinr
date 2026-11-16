@@ -40,7 +40,7 @@ class TextInputServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(generator.generate(any())).thenAnswer(call -> epics());
+        when(generator.generate(any(), any())).thenAnswer(call -> epics());
         when(createBacklog.create(anyList(), any())).thenReturn(created);
     }
 
@@ -66,7 +66,7 @@ class TextInputServiceTest {
     void textOnly() {
         preview(null).previewText(null, "Gestion des stocks");
         preview(null).previewText("  ", "Gestion des stocks");
-        verify(generator, times(2)).generate("Gestion des stocks");
+        verify(generator, times(2)).generate(eq("Gestion des stocks"), any());
         verifyNoInteractions(source);
     }
 
@@ -74,7 +74,7 @@ class TextInputServiceTest {
     @DisplayName("Text + title: '# title' on a single line heads the text sent to the model")
     void textWithTitle() {
         preview(null).previewText("  CDC\n  Stocks\t v2 ", "- Créer un article");
-        verify(generator).generate("# CDC Stocks v2\n\n- Créer un article");
+        verify(generator).generate(eq("# CDC Stocks v2\n\n- Créer un article"), any());
         verifyNoInteractions(source);
     }
 
@@ -99,7 +99,7 @@ class TextInputServiceTest {
         preview(null).previewText("T", "a".repeat(MAX - 5));
         // Lettre hors BMP (U+1D400) : un caractere, deux unites UTF-16
         preview(null).previewText(null, "\uD835\uDC00".repeat(MAX));
-        verify(generator, times(3)).generate(any());
+        verify(generator, times(3)).generate(any(), any());
 
         ContentTooLargeException e = assertThrows(ContentTooLargeException.class,
                 () -> preview(null).previewText(null, atLimit + "a"));
@@ -113,12 +113,12 @@ class TextInputServiceTest {
     @Test
     @DisplayName("analyze-and-create with text: same path (generation, separate verdict, creation in the requested project)")
     void analyzeTextAndCreate() {
-        when(assessor.assess(anyList())).thenReturn(List.of(new Readiness(true, "clear")));
+        when(assessor.assess(anyList(), anyList())).thenReturn(List.of(new Readiness(true, "clear")));
         BacklogCreationResult result = analyze(assessor).analyzeTextAndCreate("Stocks", "Créer un article", "PROJ");
 
         assertSame(created, result);
-        verify(generator).generate("# Stocks\n\nCréer un article");
-        verify(assessor).assess(anyList());
+        verify(generator).generate(eq("# Stocks\n\nCréer un article"), any());
+        verify(assessor).assess(anyList(), anyList());
         verify(createBacklog).create(argThat(epics -> epics.getFirst().getStories().getFirst().getAiReady()), eq("PROJ"));
         verifyNoInteractions(source);
     }
@@ -126,7 +126,7 @@ class TextInputServiceTest {
     @Test
     @DisplayName("Preview with text applies the separate verdict like a document read from the source")
     void previewTextAppliesSeparateVerdict() {
-        when(assessor.assess(anyList())).thenReturn(List.of(new Readiness(false, "vague")));
+        when(assessor.assess(anyList(), anyList())).thenReturn(List.of(new Readiness(false, "vague")));
         List<Epic> epics = preview(assessor).previewText(null, "Créer un article");
         assertEquals(Boolean.FALSE, epics.getFirst().getStories().getFirst().getAiReady());
         verifyNoInteractions(source);
