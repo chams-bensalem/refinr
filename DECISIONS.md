@@ -344,3 +344,34 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
 - **HTTP 400** : on ne cite que nos propres noms de clés ; le champ structuré du fournisseur (`error.param`,
   `google.rpc.BadRequest.fieldViolations[].field`) sert seulement à reconnaître un paramètre envoyé, jamais recopié
   (règle #29). Statut REST inchangé (`502`).
+- **Mesure de fin de G0** (2026-11-16, 12:43–12:59 CET, modèle lu dans `.env` : `describe()` = `google
+  (gemini-3.6-flash)`, vérifié avant le premier appel) : protocole et documents de M0, sauf la page congés (remplacée
+  par les notes de frais, comme en M0) ; température forcée à vide (rien d'envoyé) dans les deux configurations, qui
+  alternent à chaque exécution : `none` (aucun paramètre optionnel envoyé) et `thinking-low`
+  (`extra-body.generationConfig.thinkingConfig.thinkingLevel=low`, seul paramètre optionnel envoyé). 4 exécutions
+  par document prévues (32 requêtes) ; **arrêt au premier `429`** (`RESOURCE_EXHAUSTED`, 21e requête du jour,
+  `thinking-low`, page 4, exécution 3) : 21 requêtes, 20 réussies, 0 réparation, aucun `400` (le paramètre est accepté).
+
+  | document | config | ok | epics min / méd. / max | stories min / méd. / max | tâches min / méd. / max | titres préfixés (exécutions) | durée méd. |
+  |---|---|---|---|---|---|---|---|
+  | BookStack page 4 (cas #28) | `none` | 3/3 | 3 / 4 / 4 | 6 / 7 / 8 | 11 / 11 / 13 | 7 (2/3) | 39,1 s |
+  | | `thinking-low` | 2/3 (+1 `429`) | 2 / 2 / 2 | 4 / 4 / 4 | 7 / 7,5 / 8 | 2 (1/2) | 41,0 s |
+  | XWiki, même spec | `none` | 3/3 | 3 / 3 / 3 | 5 / 5 / 7 | 11 / 11 / 13 | 3 (1/3) | 35,8 s |
+  | | `thinking-low` | 2/2 | 3 / 3 / 3 | 4 / 5 / 6 | 8 / 9,5 / 11 | 0 (0/2) | 25,7 s |
+  | notes de frais | `none` | 3/3 | 3 / 3 / 4 | 10 / 11 / 12 | 19 / 20 / 25 | 10 (3/3) | 27,3 s |
+  | | `thinking-low` | 2/2 | 3 / 3,5 / 4 | 9 / 9,5 / 10 | 16 / 17,5 / 19 | 7 (2/2) | 22,2 s |
+  | besoin court | `none` | 3/3 | 1 / 1 / 1 | 2 / 2 / 3 | 5 / 5 / 6 | 0 (0/3) | 22,0 s |
+  | | `thinking-low` | 2/2 | 1 / 1 / 1 | 1 / 1 / 1 | 2 / 2,5 / 3 | 0 (0/2) | 17,0 s |
+  | **tous** | `none` | 12/12 | 1 / 3 / 4 | 2 / 6,5 / 12 | 5 / 11 / 25 | 20 (6/12) | 32,2 s |
+  | | `thinking-low` | 8/9 (+1 `429`) | 1 / 2,5 / 4 | 1 / 4 / 10 | 2 / 8 / 19 | 9 (3/8) | 22,2 s |
+
+- **Lecture** (2 ou 3 exécutions par case, écarts à confirmer) : `thinkingLevel=low` est accepté et ne casse rien
+  (aucun échec propre, aucune réparation) ; il produit des backlogs **plus petits** sur tous les documents (stories :
+  médiane 4 contre 6,5 ; page 4 : 2 epics / 4 stories à chaque fois, contre 3–4 / 6–8 ; besoin court : 1 story
+  contre 2–3), donc dans le sens de #28 sans aller jusqu'à l'effondrement à 1 / 1 ; durée médiane plus courte
+  (22 s contre 32 s), mais très dispersée (8 s à 68 s). Le préfixe « Epic: » apparaît dans les deux configurations
+  (toujours sur tous les epics de l'exécution, jamais sur les stories ni les tâches) : sujet de G1, pas de G0.
+  Sans paramètre optionnel, la page 4 donne 3–4 epics / 6–8 stories, au moins autant qu'en M0 (température 0.2
+  envoyée mais ignorée).
+- **Pas de changement de la documentation** : `thinkingLevel=low` reste un exemple de syntaxe Google (« à vérifier
+  dans la doc du fournisseur »), pas un réglage recommandé.
