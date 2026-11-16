@@ -11,9 +11,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import java.util.Arrays;
 import java.util.List;
 
@@ -153,5 +158,74 @@ class LlmReadinessAssessorTest {
     void ambiguousVerdictIsNotReady() {
         assertFalse(LlmReadinessAssessor.readiness(
                 JsonMapper.builder().build().readTree("{\"aiReady\":\"yes\",\"aiReadyReason\":\"x\"}")).aiReady());
+    }
+
+    // ---------- lot tronque par la limite de tokens de sortie (4c) ----------
+
+    /** Reponse openai-compatible coupee par la limite de tokens ({@code finish_reason: length}). */
+    private static MockResponse truncatedAnswer() {
+        return new MockResponse().setHeader("Content-Type", "application/json")
+                .setBody("{\"choices\":[{\"finish_reason\":\"length\",\"message\":{\"role\":\"assistant\",\"content\":\"{\\\"verdicts\\\":[\"}}]}");
+    }
+
+    private String nextPrompt() throws InterruptedException {
+        return server.takeRequest(5, TimeUnit.SECONDS).getBody().readUtf8();
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    @DisplayName("(a) A truncated batch is split in two halves, each asked again; verdicts keep the original order")
+    void truncatedBatchIsSplitInHalves(CapturedOutput output) throws Exception {
+        server.enqueue(truncatedAnswer());
+        server.enqueue(verdicts(verdict("s1", true, "clair A"), verdict("s2", false, "flou B")));
+        server.enqueue(verdicts(verdict("s1", false, "flou C"), verdict("s2", true, "clair D")));
+
+        List<Readiness> result = assessor(4).assess(List.of(story("A"), story("B"), story("C"), story("D")));
+
+        assertEquals(List.of(new Readiness(true, "clair A"), new Readiness(false, "flou B"),
+                new Readiness(false, "flou C"), new Readiness(true, "clair D")), result);
+        assertEquals(3, server.getRequestCount());
+        String first = nextPrompt(), half1 = nextPrompt(), half2 = nextPrompt();
+        assertTrue(first.contains("Description de A") && first.contains("Description de D"), "whole batch first");
+        assertTrue(half1.contains("Description de A") && half1.contains("Description de B") && !half1.contains("Description de C"));
+        assertTrue(half2.contains("Description de C") && half2.contains("Description de D") && !half2.contains("Description de B"));
+        assertTrue(output.getAll().contains("Verdict batch of 4 story(ies) truncated by the token limit, splitting into 2 + 2"));
+        assertFalse(output.getAll().contains("Description de"), "sizes and cause only in the logs");
+    }
+
+    @Test
+    @DisplayName("(b) Truncation repeated down to a single story: that story alone falls back, the others keep their verdict")
+    void repeatedTruncationEndsWithSingleStoryFallback() {
+        server.enqueue(truncatedAnswer());                                   // A, B, C
+        server.enqueue(truncatedAnswer());                                   // A, B (moitie arrondie au superieur)
+        server.enqueue(truncatedAnswer());                                   // A seule : repli
+        server.enqueue(verdicts(verdict("s1", true, "clair B")));            // B seule
+        server.enqueue(verdicts(verdict("s1", false, "flou C")));            // C seule
+
+        List<Readiness> result = assessor(3).assess(List.of(story("A"), story("B"), story("C")));
+
+        assertEquals(Arrays.asList(null, new Readiness(true, "clair B"), new Readiness(false, "flou C")), result);
+        assertEquals(5, server.getRequestCount());
+    }
+
+    @Test
+    @DisplayName("(c) A single story truncated at once falls back, without any other call")
+    void singleTruncatedStoryFallsBack() {
+        server.enqueue(truncatedAnswer());
+
+        assertEquals(Arrays.asList((Readiness) null), assessor(1).assess(List.of(story("A"))));
+        assertEquals(1, server.getRequestCount());
+    }
+
+    @Test
+    @DisplayName("(d) A timeout on a batch is not split: the batch falls back after one request")
+    void timeoutIsNotSplit() {
+        server.enqueue(verdicts(verdict("s1", true, "x")).setHeadersDelay(3, TimeUnit.SECONDS));
+        LlmReadinessAssessor assessor = new LlmReadinessAssessor(LlmClients.create(LlmTestSettings.of(
+                LlmProvider.OPENAI_COMPATIBLE, server.url("/v1").toString(), Duration.ofMillis(300), 1000)),
+                new StructuredOutput(2), 2);
+
+        assertEquals(Arrays.asList(null, null), assessor.assess(List.of(story("A"), story("B"))));
+        assertEquals(1, server.getRequestCount());
     }
 }

@@ -20,7 +20,9 @@ import java.util.Map;
 
 /**
  * Verdict de preparation par le fournisseur de verdict (ou d'analyse s'il n'y en a pas de distinct), par lots de
- * {@code batchSize} stories : un appel par lot ({@code batchSize = 1} : un appel par story). Les stories sans
+ * {@code batchSize} stories : un appel par lot ({@code batchSize = 1} : un appel par story). Un lot dont la reponse est
+ * coupee par la limite de tokens de sortie est coupe en deux (premiere moitie arrondie au superieur) et chaque moitie
+ * est redemandee, jusqu'a la story seule ; une story seule encore coupee n'a pas de verdict. Les stories sans
  * verdict dans la reponse sont redemandees une fois, seules ; sinon pas de verdict (null) pour elles.
  */
 public class LlmReadinessAssessor implements ReadinessAssessorPort {
@@ -32,6 +34,9 @@ public class LlmReadinessAssessor implements ReadinessAssessorPort {
     private final int batchSize;
     private final JsonNode schema = LlmSchemas.load(LlmSchemas.READINESS);
     private final JsonNode batchSchema = LlmSchemas.load(LlmSchemas.READINESS_BATCH);
+
+    /** Garde-fou : profondeur maximale du decoupage d'un lot tronque (un lot de 256 stories atteint la story seule). */
+    static final int MAX_SPLIT_DEPTH = 8;
 
     public LlmReadinessAssessor(LlmClient client, StructuredOutput output, int batchSize) {
         if (batchSize < 1) {
@@ -69,6 +74,10 @@ public class LlmReadinessAssessor implements ReadinessAssessorPort {
 
     /** Juge les stories d'indices {@code indexes} en un appel ; renvoie les indices restes sans verdict. */
     private List<Integer> assessBatch(List<Story> stories, List<Integer> indexes, Readiness[] verdicts) {
+        return assessBatch(stories, indexes, verdicts, 0);
+    }
+
+    private List<Integer> assessBatch(List<Story> stories, List<Integer> indexes, Readiness[] verdicts, int depth) {
         List<Story> batch = indexes.stream().map(stories::get).toList();
         List<String> ids = new ArrayList<>();
         for (int i = 0; i < batch.size(); i++) {
@@ -81,6 +90,15 @@ public class LlmReadinessAssessor implements ReadinessAssessorPort {
                     LlmSchemas.READINESS_BATCH, LlmSchemas.forProvider(batchSchema));
             byId = output.call(client, request, batchSchema, LlmReadinessAssessor::verdictsById);
         } catch (LlmException e) {
+            if (e.reason() == LlmException.Reason.TRUNCATED && indexes.size() > 1 && depth < MAX_SPLIT_DEPTH) {
+                // Taille et cause seulement : jamais le contenu des stories ni de la reponse
+                int half = (indexes.size() + 1) / 2;
+                log.warn("Verdict batch of {} story(ies) truncated by the token limit, splitting into {} + {}",
+                        indexes.size(), half, indexes.size() - half);
+                List<Integer> missing = new ArrayList<>(assessBatch(stories, indexes.subList(0, half), verdicts, depth + 1));
+                missing.addAll(assessBatch(stories, indexes.subList(half, indexes.size()), verdicts, depth + 1));
+                return missing;
+            }
             log.warn("Readiness verdicts unavailable for {} story(ies): {}", batch.size(), e.getMessage());
             return List.of();
         }
