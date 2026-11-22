@@ -8,37 +8,47 @@
         "backend",
         "api"
       ],
-      "stories": [
+      "features": [
         {
-          "title": "Track Stock",
-          "description": "Story description",
-          "acceptanceCriteria": [
-            "AC1",
-            "AC2"
-          ],
-          "priority": "Medium",
+          "name": "Stock",
+          "description": "Suivi du stock",
+          "priority": "High",
           "labels": [
-            "api"
+            "backend"
           ],
-          "tasks": [
+          "stories": [
             {
-              "title": "Create service",
-              "description": "Task description",
-              "labels": [
-                "backend"
+              "title": "Track Stock",
+              "description": "Story description",
+              "acceptanceCriteria": [
+                "AC1",
+                "AC2"
               ],
-              "estimatedHours": 4
+              "priority": "Medium",
+              "labels": [
+                "api"
+              ],
+              "tasks": [
+                {
+                  "title": "Create service",
+                  "description": "Task description",
+                  "labels": [
+                    "backend"
+                  ],
+                  "estimatedHours": 4
+                }
+              ],
+              "dependencies": [
+                "PROJ-0"
+              ],
+              "asA": "Developer",
+              "iWant": "track stock levels",
+              "soThat": "avoid stock-outs",
+              "estimatedStoryPoints": 5,
+              "aiReady": true,
+              "aiReadyReason": "Perimetre clair"
             }
-          ],
-          "dependencies": [
-            "PROJ-0"
-          ],
-          "asA": "Developer",
-          "iWant": "track stock levels",
-          "soThat": "avoid stock-outs",
-          "estimatedStoryPoints": 5,
-          "aiReady": true,
-          "aiReadyReason": "Perimetre clair"
+          ]
         }
       ]
     }

@@ -123,7 +123,8 @@ class FullFlowIntegrationTest {
 
     private static String epic(String name, String... stories) {
         return "{\"name\":\"" + name + "\",\"description\":\"d\",\"priority\":\"High\",\"labels\":[\"backend\"],"
-                + "\"stories\":[" + String.join(",", stories) + "]}";
+                + "\"features\":[{\"name\":\"" + name + "\",\"description\":\"d\",\"stories\":["
+                + String.join(",", stories) + "]}]}";
     }
 
     private static void jiraCreates(int issues) {

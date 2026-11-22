@@ -7,6 +7,7 @@ import fr.heliocraft.refinr.domain.model.Readiness;
 import fr.heliocraft.refinr.domain.model.ReadinessSource;
 import fr.heliocraft.refinr.domain.service.ReadinessPolicy;
 import fr.heliocraft.refinr.domain.model.Epic;
+import fr.heliocraft.refinr.domain.model.Feature;
 import fr.heliocraft.refinr.domain.model.Story;
 import fr.heliocraft.refinr.domain.model.Task;
 
@@ -32,8 +33,26 @@ final class GeneratedBacklogMapper {
         epic.setDescription(dto.getDescription());
         epic.setPriority(dto.getPriority());
         epic.setLabels(dto.getLabels());
-        epic.setStories(map(dto.getStories(), GeneratedBacklogMapper::toDomain));
+        if (dto.getFeatures() != null && !dto.getFeatures().isEmpty()) {
+            epic.setFeatures(map(dto.getFeatures(), GeneratedBacklogMapper::toDomain));
+        } else {
+            // Epic sans features (ancien modele, modele peu discipline) : une Feature implicite plutot qu'un refus
+            epic.setStories(map(dto.getStories(), GeneratedBacklogMapper::toDomain));
+        }
         return epic;
+    }
+
+    static Feature toDomain(GeneratedFeature dto) {
+        if (dto == null) {
+            return null;
+        }
+        Feature feature = new Feature();
+        feature.setName(dto.getName());
+        feature.setDescription(dto.getDescription());
+        feature.setPriority(dto.getPriority());
+        feature.setLabels(dto.getLabels());
+        feature.setStories(map(dto.getStories(), GeneratedBacklogMapper::toDomain));
+        return feature;
     }
 
     static Story toDomain(GeneratedStory dto) {

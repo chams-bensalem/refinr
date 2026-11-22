@@ -86,8 +86,9 @@ class LlmPromptsTest {
             frRules += rules(frBlocks.get(i));
             enRules += rules(enBlocks.get(i));
         }
-        assertEquals(29, frRules);
-        assertEquals(29, enRules);
+        // 33 regles : 29 + 4 regles de taille du niveau Feature (generation-v2)
+        assertEquals(33, frRules);
+        assertEquals(33, enRules);
     }
 
     @Test

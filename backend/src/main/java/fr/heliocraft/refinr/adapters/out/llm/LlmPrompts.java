@@ -42,6 +42,8 @@ final class LlmPrompts {
 
     /** Version des prompts de verdict : fait partie de la cle du cache (un prompt modifie invalide le cache). */
     static final String VERDICT_PROMPT_VERSION = "verdict-v3.2";
+    /** Version du prompt de generation (prompt 1), relevee dans les mesures ; le verdict garde sa propre version. */
+    static final String GENERATION_PROMPT_VERSION = "generation-v2";
 
     private LlmPrompts() {}
 

@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Chams Bensalem -->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
-# Prompts LLM de Refinr, version française (verdict-v3.2)
+# Prompts LLM de Refinr, version française (verdict-v3.2, generation-v2)
 
 Source : arbitrage PO du 2026-11-16 (v3, v3.1 : bloc READINESS revu après la mesure v3 ; v3.2 : consigne de langue
 explicite). Chargé tel quel par `LlmPrompts` : seuls les cinq blocs de code comptent, dans cet ordre. Toute
@@ -41,7 +41,7 @@ aiReadyReason : une phrase. Si false, la question bloquante principale à poser 
 ## Prompt 1 : génération du backlog
 
 ```
-MISSION : transformer la spécification ci-dessous en backlog Scrum Epic → User Story → Sous-tâche, exploitable par des développeurs humains ou des agents de code.
+MISSION : transformer la spécification ci-dessous en backlog Scrum Epic → Feature → User Story → Sous-tâche, exploitable par des développeurs humains ou des agents de code.
 
 RÈGLES GÉNÉRALES
 - Rédige tout le contenu en {{LANGUAGE}} : titres, descriptions, critères d'acceptation, sous-tâches et raisons.
@@ -50,10 +50,16 @@ RÈGLES GÉNÉRALES
 - Ne génère pas de code source.
 
 TAILLE, PROPORTIONNELLE À LA SPÉCIFICATION
-- Besoin court (quelques phrases, une seule fonctionnalité) : 1 epic, 1 à 5 stories, 1 à 4 sous-tâches par story.
-- Cahier des charges complet : un epic par module réellement décrit, 3 à 8 stories par epic, 2 à 5 sous-tâches par story.
+- Epic : le produit ou un grand domaine fonctionnel. Une spécification qui décrit un seul produit donne en général un seul epic ; plusieurs epics seulement pour des domaines réellement distincts (par exemple un cahier des charges qui couvre plusieurs applications).
+- Feature : un module ou une capacité utilisateur décrite dans la spécification (« Réservation », « Notifications », « Administration »…).
+- Story : une action de l'utilisateur dans cette capacité.
+- Besoin court (une seule fonctionnalité) : 1 epic, 1 seule feature, 1 à 5 stories, 1 à 4 sous-tâches par story.
+- Cahier des charges complet : 2 à 5 sous-tâches par story.
+- Ne crée jamais de feature à une seule story dans un epic qui en a plusieurs, ni de découpage artificiel.
 
-EPICS : un domaine fonctionnel cohérent, avec un nom court, une description fondée sur la spécification, une priorité (High, Medium, Low) et des labels techniques.
+EPICS : un nom court, une description fondée sur la spécification, une priorité (High, Medium, Low) et des labels techniques.
+
+FEATURES : un nom court (celui du module ou de la capacité), une description fondée sur la spécification, une priorité (High, Medium, Low) et des labels techniques. La seule feature d'un besoin court reprend le nom de l'epic.
 
 STORIES
 - Atomiques, livrables et aussi indépendantes que possible. Pas de doublon, pas de story purement technique sans valeur fonctionnelle.
@@ -79,7 +85,7 @@ SPÉCIFICATION :
 {{DOCUMENT}}
 
 Réponds UNIQUEMENT par le JSON, sans markdown ni texte autour, selon cette structure :
-{"epics":[{"name":"","description":"","priority":"Medium","labels":[],"stories":[{"asA":"","iWant":"","soThat":"","title":"","description":"","acceptanceCriteria":[],"estimatedStoryPoints":3,"priority":"Medium","labels":[],"dependencies":[],"aiReady":false,"aiReadyReason":"","tasks":[{"title":"","description":"","estimatedHours":2,"labels":[]}]}]}]}
+{"epics":[{"name":"","description":"","priority":"Medium","labels":[],"features":[{"name":"","description":"","priority":"Medium","labels":[],"stories":[{"asA":"","iWant":"","soThat":"","title":"","description":"","acceptanceCriteria":[],"estimatedStoryPoints":3,"priority":"Medium","labels":[],"dependencies":[],"aiReady":false,"aiReadyReason":"","tasks":[{"title":"","description":"","estimatedHours":2,"labels":[]}]}]}]}]}
 ```
 
 ## Prompt 2 : verdict séparé par lots
