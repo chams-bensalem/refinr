@@ -469,6 +469,11 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
     en heure murale. Les trois clients partagent `LlmClient.post()`, dont `Mono.timeout` porte sur le corps reçu en
     entier, donc sur la durée totale de l'appel ; un test sur chaque client (en-têtes immédiats, puis corps envoyé à
     1 octet / 100 ms) le prouve. La mesure lance Java sous `caffeinate -i` et marque `suspended` un appel trop long.
+- **Gemini : reprise de la mesure v2 abandonnée** (2026-11-16). La référence de départ n'est plus nécessaire : les
+  seuils de la politique d'erreur sont absolus, pas relatifs à v2. Le dossier partiel
+  `eval/verdict/results/2026-11-16-google-gemini-3.6-flash/` (10 stories, arrêt sur 429) reste comme trace. Gemini
+  est mesuré seulement en `verdict-v3.2`, × 3 exécutions sur les 80 stories, avec son compteur (40 requêtes par jour,
+  arrêt sur 429, reprise le lendemain) ; les résultats entrent dans la matrice de compatibilité.
 - **Langue de sortie et `verdict-v3.2`** (4b, 2026-11-16) :
   - deux prompts seulement, en ressources (`llm/prompts/prompts.fr.md`, `prompts.en.md`, cinq blocs chacun, mêmes
     sections, marqueurs, 29 règles et JSON, vérifiés par un test de parité) ; le français a son prompt, l'anglais et
@@ -482,3 +487,17 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
   - version `verdict-v3.2` : le bloc READINESS est inchangé ; seules les consignes de langue changent (prompts 2 et 3),
     et le prompt anglais est nouveau. Mesure française : contrôle léger (Haiku × 1 sur 80 stories, mêmes critères que
     v3.1), mesure complète seulement en cas d'écart ; mesure anglaise nouvelle sur `holdout.en.jsonl` (15 stories).
+- **Mesure Haiku v3.1 r2 abandonnée** (2026-11-16) : elle est remplacée par la mesure `verdict-v3.2` complète (Haiku × 5
+  et Opus × 1 sur les 80 stories françaises, puis le jeu anglais), le bloc READINESS étant le même en v3.1 et v3.2.
+- **Opus v3.2 : règle fixée avant de compléter à 3 exécutions** (2026-11-22). L'exécution 1 juge prête v020
+  (`not-ready` / `sure`, étiquette arbitrée après avoir vu les réponses des modèles). Deux exécutions de plus sur les
+  80 stories françaises, dans le même dossier ; aucun réétiquetage, aucune retouche du prompt. Règle :
+  - v020 jugée prête 2 fois ou plus sur 3 : échec du seuil bloquant pour Opus, noté dans la matrice de compatibilité
+    avec le contexte (étiquette arbitrée après avoir vu les réponses des modèles) ;
+  - v020 jugée prête au plus 1 fois sur 3 : seuil tenu, l'exécution initiale est notée comme un écart isolé ;
+  - tout autre faux `ai-ready` sur une étiquette `sure` : arrêt et retour au mainteneur.
+  - **Résultat** (2026-11-22, 3 exécutions) : v020 jugée prête 3 fois sur 3 → **échec du seuil bloquant pour Opus 5.5
+    en `verdict-v3.2`**, avec le contexte ci-dessus (avant arbitrage, `labels.csv` seul, le seuil est tenu). Aucun autre
+    faux `ai-ready` sur une étiquette `sure` (jeu d'origine et deux contrôles). Faux `validation-necessaire` sur
+    `ready` / `sure` : 0 sur 18, 0 sur 8, 0 sur 8 ; stabilité 94 % (origine), 100 % et 93 % (contrôles) ; coût des deux
+    exécutions ajoutées 0,66 USD.
