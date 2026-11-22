@@ -32,13 +32,26 @@ final class BacklogResponses {
 
     private BacklogResponses() {}
 
-    /** 200 : apercu genere. */
-    static ResponseEntity<Map<String, Object>> preview(List<Epic> epics) {
+    /** 200 : apercu genere ; {@code warnings} seulement s'il y en a (ex. gestionnaire sans niveau Feature). */
+    static ResponseEntity<Map<String, Object>> preview(List<Epic> epics, List<String> warnings) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("success", true);
         body.put("message", "Preview generated successfully");
         body.put("epics", RestBacklogMapper.toDto(epics));
+        putWarnings(body, warnings);
         return ResponseEntity.ok(body);
+    }
+
+    /** Ajout retrocompatible (1.5) : present seulement quand la liste n'est pas vide. */
+    private static void putWarnings(Map<String, Object> body, List<String> warnings) {
+        if (warnings != null && !warnings.isEmpty()) {
+            body.put("warnings", List.copyOf(warnings));
+        }
+    }
+
+    /** 422 : des Features explicites, pas de niveau Feature dans le gestionnaire, et la politique est le refus. */
+    static ResponseEntity<Map<String, Object>> featureLevelMissing(String message) {
+        return ResponseEntity.status(HttpStatus.valueOf(422)).body(ErrorResponses.error(message));
     }
 
     /**
@@ -64,6 +77,7 @@ final class BacklogResponses {
         body.put("created", result.created());
         body.put("failed", result.failed());
         body.put("epics", RestBacklogMapper.toDto(result.epics()));
+        putWarnings(body, result.warnings());
         return ResponseEntity.status(status).body(body);
     }
 

@@ -11,6 +11,7 @@ import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
 import fr.heliocraft.refinr.application.port.in.DescribeSource;
 import fr.heliocraft.refinr.application.port.in.DocumentNotFoundException;
 import fr.heliocraft.refinr.application.port.in.DocumentSourceUnavailableException;
+import fr.heliocraft.refinr.application.port.in.FeatureLevelMissingException;
 import fr.heliocraft.refinr.application.port.in.DescribeTracker;
 import fr.heliocraft.refinr.application.port.in.InvalidRequestException;
 import fr.heliocraft.refinr.application.port.in.ModelOutputException;
@@ -119,6 +120,8 @@ public class BacklogController {
             return modelOutputFailure(e);
         } catch (ModelUnavailableException e) {
             return modelUnavailable(e);
+        } catch (FeatureLevelMissingException e) {
+            return BacklogResponses.featureLevelMissing(e.getMessage());
         } catch (Exception e) {
             log.error("Error processing request", e);
             return BacklogResponses.internalError(BacklogResponses.CREATION_FAILED);
@@ -193,13 +196,16 @@ public class BacklogController {
             if (AnalysisRequests.isTextInput(request)) {
                 // Pas de documentUrl : le texte n'a pas d'adresse dans la source active
                 AnalysisRequests.logTextInput(log, "Preview", request);
-                return BacklogResponses.preview(previewBacklog.previewText(request.get(AnalysisRequests.TITLE),
-                        request.get(AnalysisRequests.CONTENT), language));
+                List<Epic> epics = previewBacklog.previewText(request.get(AnalysisRequests.TITLE),
+                        request.get(AnalysisRequests.CONTENT), language);
+                return BacklogResponses.preview(epics, describeTracker.featureWarnings(epics, null));
             }
             String documentId = AnalysisRequests.documentId(request);
             log.info("Preview request for {} document: {}", describeSource.displayName(), documentId);
             List<Epic> epics = previewBacklog.preview(documentId, language);
-            return BacklogResponses.withDocumentUrl(BacklogResponses.preview(epics), describeSource.documentUrl(documentId));
+            return BacklogResponses.withDocumentUrl(
+                    BacklogResponses.preview(epics, describeTracker.featureWarnings(epics, null)),
+                    describeSource.documentUrl(documentId));
 
         } catch (InvalidRequestException e) {
             return invalidRequest(e);
@@ -238,10 +244,14 @@ public class BacklogController {
         log.info("Received request to create {} epics in {}", request.size(), describeTracker.displayName());
 
         try {
-            List<Epic> epics = RestBacklogMapper.toDomain(request);
+            List<String> shapeWarnings = new java.util.ArrayList<>();
+            List<Epic> epics = RestBacklogMapper.toDomain(request, shapeWarnings);
             // Verdict recalcule sur le contenu final : aiReady / aiReadyReason envoyes par le client sont ignores
-            return BacklogResponses.creation(createEditedBacklog.create(epics, projectKey, verdictLanguage));
+            return BacklogResponses.creation(createEditedBacklog.create(epics, projectKey, verdictLanguage)
+                    .withWarnings(shapeWarnings));
 
+        } catch (FeatureLevelMissingException e) {
+            return BacklogResponses.featureLevelMissing(e.getMessage());
         } catch (Exception e) {
             log.error("Error creating issues in {}", describeTracker.displayName(), e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to create the issues"));
