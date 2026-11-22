@@ -217,6 +217,11 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
         if (!accepting) {
             throw new RejectedException(SHUTTING_DOWN);
         }
+        // File deja pleine : refus avant d'enregistrer le job, pour ne pas evincer pour rien un job termine du stockage
+        if (workers.getQueue().remainingCapacity() == 0 && workers.getActiveCount() >= settings.maxConcurrent()) {
+            log.warn("Job rejected: the queue is full");
+            throw new RejectedException(QUEUE_FULL);
+        }
         String id = UUID.randomUUID().toString();
         JobView view = JobView.queued(id, type, documentId, clock.instant());
         if (!store.save(view)) {
@@ -401,34 +406,31 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
 
         /** Delai maximal ecoule : echec (504) et interruption, sauf si la creation des tickets a commence. */
         private void expire() {
-            Thread running;
             synchronized (this) {
                 if (finished || view.step() == JobView.Step.CREATING_ISSUES) {
                     return;
                 }
                 stopRequested = true;
-                running = thread;
                 finish(v -> v.failed(Failure.of(Kind.TIMEOUT), clock.instant()));
+                // Sous le verrou : le fil ne peut pas etre passe a un autre job entre-temps
+                if (thread != null) {
+                    thread.interrupt();
+                }
             }
             log.warn("Job {} exceeded its maximum duration ({})", shortId(id), settings.maxDuration());
-            if (running != null) {
-                running.interrupt();
-            }
         }
 
         /** Arret du serveur : interrompt le job s'il n'a pas commence la creation des tickets. */
         boolean stopForShutdown() {
-            Thread running;
             synchronized (this) {
                 if (finished || view.step() == JobView.Step.CREATING_ISSUES) {
                     return false;
                 }
                 stopRequested = true;
-                running = thread;
                 finish(v -> v.failed(Failure.of(Kind.INTERRUPTED), clock.instant()));
-            }
-            if (running != null) {
-                running.interrupt();
+                if (thread != null) {
+                    thread.interrupt();
+                }
             }
             return true;
         }
