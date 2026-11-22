@@ -6,7 +6,6 @@ package fr.heliocraft.refinr.adapters.in.rest;
 import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.adapters.in.rest.dto.EpicDto;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
-import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.ContentTooLargeException;
 import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
 import fr.heliocraft.refinr.application.port.in.DescribeSource;
@@ -33,7 +32,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -47,15 +45,8 @@ public class BacklogController {
 
     private static final Logger log = LoggerFactory.getLogger(BacklogController.class);
 
-    // Identifiant du document a analyser : champ neutre, et ancien nom garde comme alias (clients existants)
-    static final String DOCUMENT_ID = "documentId";
-    static final String LEGACY_DOCUMENT_ID = "confluencePageId";
-    // Document fourni en texte (Markdown ou texte brut), exclusif de l'identifiant, et son titre optionnel
-    static final String CONTENT = "content";
-    static final String TITLE = "title";
-    /** Langue de sortie optionnelle : code ISO 639-1 (casse ignoree) ; jamais recopiee dans un prompt ni une reponse. */
-    static final String LANGUAGE = "language";
-    static final String INVALID_LANGUAGE = LANGUAGE + " " + Language.INVALID;
+    static final String LANGUAGE = AnalysisRequests.LANGUAGE;
+    static final String INVALID_LANGUAGE = AnalysisRequests.INVALID_LANGUAGE;
 
     // Alias deprecie de GET /documents/search (RFC 9745 : date de depreciation, RFC 8288 : remplacant)
     static final String LEGACY_SEARCH_DEPRECATION = "@1794528000";
@@ -89,54 +80,11 @@ public class BacklogController {
         this.describeSource = describeSource;
     }
 
-    /**
-     * Identifiant du document : {@code documentId}, ou son alias {@code confluencePageId}. Valeurs vides ignorees ;
-     * deux valeurs differentes -> 400. Absent : renvoye tel quel, le cas d'usage repond 400 « documentId is required ».
-     */
-    private static String documentId(Map<String, String> request) {
-        String id = request.get(DOCUMENT_ID);
-        String legacy = request.get(LEGACY_DOCUMENT_ID);
-        boolean hasId = id != null && !id.isBlank();
-        boolean hasLegacy = legacy != null && !legacy.isBlank();
-        if (hasId && hasLegacy && !id.equals(legacy)) {
-            throw new InvalidRequestException(DOCUMENT_ID + " and " + LEGACY_DOCUMENT_ID + " differ");
-        }
-        return hasId ? id : hasLegacy ? legacy : id;
-    }
-
-    /**
-     * Vrai si le document est fourni en texte : {@code content} present (meme vide : refuse ensuite comme document
-     * vide). Combine a un identifiant non vide -> 400 ; {@code title} sans {@code content} -> 400.
-     */
-    private static boolean isTextInput(Map<String, String> request) {
-        if (request.get(CONTENT) == null) {
-            if (isPresent(request.get(TITLE))) {
-                throw new InvalidRequestException(TITLE + " is only accepted with " + CONTENT);
-            }
-            return false;
-        }
-        if (isPresent(request.get(DOCUMENT_ID)) || isPresent(request.get(LEGACY_DOCUMENT_ID))) {
-            throw new InvalidRequestException(CONTENT + " cannot be combined with " + DOCUMENT_ID + " or " + LEGACY_DOCUMENT_ID);
-        }
-        return true;
-    }
-
-    private static boolean isPresent(String value) {
-        return value != null && !value.isBlank();
-    }
-
-    /** Journal du mode texte : taille seulement, jamais le contenu ni le titre. */
-    private static void logTextInput(String action, Map<String, String> request) {
-        String content = request.get(CONTENT);
-        log.info("{} request for provided text: {} characters, title: {}", action,
-                content.codePointCount(0, content.length()), isPresent(request.get(TITLE)) ? "yes" : "no");
-    }
-
     @PostMapping("/analyze-and-create")
     public ResponseEntity<Map<String, Object>> analyzeAndCreate(@RequestBody Map<String, String> request) {
         // Projet cible optionnel (sinon le projet par defaut du gestionnaire de tickets actif) : cle Jira ou identifiant
         // OpenProject selon tracker.provider ; permet a un outil appelant de remplir un projet qu'il vient de creer.
-        String projectKey = request.get("projectKey");
+        String projectKey = request.get(AnalysisRequests.PROJECT_KEY);
         if (!isValidProjectKey(projectKey)) {
             return invalidProjectKey(projectKey);
         }
@@ -148,16 +96,16 @@ public class BacklogController {
         }
 
         try {
-            if (isTextInput(request)) {
+            if (AnalysisRequests.isTextInput(request)) {
                 // Pas de documentUrl : le texte n'a pas d'adresse dans la source active
-                logTextInput("Analyze", request);
-                return creationResponse(analyzeDocument.analyzeTextAndCreate(request.get(TITLE), request.get(CONTENT),
-                        projectKey, language));
+                AnalysisRequests.logTextInput(log, "Analyze", request);
+                return BacklogResponses.creation(analyzeDocument.analyzeTextAndCreate(
+                        request.get(AnalysisRequests.TITLE), request.get(AnalysisRequests.CONTENT), projectKey, language));
             }
-            String documentId = documentId(request);
+            String documentId = AnalysisRequests.documentId(request);
             log.info("Received request to analyze {} document: {}", describeSource.displayName(), documentId);
-            return withDocumentUrl(creationResponse(analyzeDocument.analyzeAndCreate(documentId, projectKey, language)),
-                    documentId);
+            return BacklogResponses.withDocumentUrl(BacklogResponses.creation(
+                    analyzeDocument.analyzeAndCreate(documentId, projectKey, language)), describeSource.documentUrl(documentId));
 
         } catch (InvalidRequestException e) {
             return invalidRequest(e);
@@ -173,61 +121,18 @@ public class BacklogController {
             return modelUnavailable(e);
         } catch (Exception e) {
             log.error("Error processing request", e);
-            return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to analyze the document and create the issues"));
+            return BacklogResponses.internalError(BacklogResponses.CREATION_FAILED);
         }
-    }
-
-    /**
-     * Reponse de creation : 200 si tout est cree, 207 si la creation est partielle, 502 si rien n'a pu etre cree.
-     * Toujours les listes created / failed et les epics (avec la cle des tickets crees).
-     */
-    private static ResponseEntity<Map<String, Object>> creationResponse(BacklogCreationResult result) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        HttpStatus status;
-        if (result.isComplete()) {
-            status = HttpStatus.OK;
-            body.put("success", true);
-            body.put("message", "Successfully created " + result.created().size() + " issues");
-        } else if (!result.created().isEmpty()) {
-            status = HttpStatus.MULTI_STATUS;
-            body.put("success", false);
-            body.put("message", "Partially created: " + result.created().size() + " issues created, "
-                    + result.failed().size() + " not created");
-        } else {
-            status = HttpStatus.BAD_GATEWAY;
-            body.putAll(ErrorResponses.error("No issue could be created"));
-        }
-        body.put("created", result.created());
-        body.put("failed", result.failed());
-        body.put("epics", RestBacklogMapper.toDto(result.epics()));
-        return ResponseEntity.status(status).body(body);
-    }
-
-    /**
-     * Ajoute {@code documentUrl} (lien vers le document dans la source active) quand il est connu : ajout
-     * retrocompatible, absent si la source ne sait pas construire le lien.
-     */
-    private ResponseEntity<Map<String, Object>> withDocumentUrl(ResponseEntity<Map<String, Object>> response,
-                                                                String documentId) {
-        String url = describeSource.documentUrl(documentId);
-        if (url == null || response.getBody() == null) {
-            return response;
-        }
-        Map<String, Object> body = new LinkedHashMap<>(response.getBody());
-        body.put("documentUrl", url);
-        return ResponseEntity.status(response.getStatusCode()).body(body);
     }
 
     /** 502 : le modele n'a pas produit de resultat exploitable (sortie invalide apres relances, ou tronquee). */
     private static ResponseEntity<Map<String, Object>> modelOutputFailure(ModelOutputException e) {
         log.warn("Unusable model output: {}", e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ErrorResponses.error(e.isTruncated()
-                ? "The AI model output was truncated: increase max-output-tokens"
-                : "The AI model did not produce a valid result, even after retries"));
+        return BacklogResponses.modelOutputFailure(e.isTruncated());
     }
 
-    static final String RATE_LIMITED = "The AI provider quota or rate limit was reached";
-    static final String OVERLOADED = "The AI provider is temporarily overloaded";
+    static final String RATE_LIMITED = BacklogResponses.RATE_LIMITED;
+    static final String OVERLOADED = BacklogResponses.OVERLOADED;
 
     /**
      * Fournisseur du modele indisponible apres les nouveaux essais : 503 pour un quota ou une limite de debit (429) et
@@ -239,38 +144,32 @@ public class BacklogController {
         log.warn("LLM provider unavailable: {}", e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
         boolean rateLimited = e instanceof ModelRateLimitedException;
         if (!rateLimited && !(e instanceof ModelOverloadedException)) {
-            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ErrorResponses.error("The AI provider is unavailable"));
+            return BacklogResponses.modelUnavailable();
         }
-        Map<String, Object> body = ErrorResponses.error(rateLimited ? RATE_LIMITED : OVERLOADED);
-        ResponseEntity.BodyBuilder response = ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE);
-        e.retryAfter().ifPresent(delay -> {
-            body.put("retryAfterSeconds", delay.toSeconds());
-            response.header(HttpHeaders.RETRY_AFTER, String.valueOf(delay.toSeconds()));
-        });
-        return response.body(body);
+        return BacklogResponses.modelBusy(rateLimited, e.retryAfter());
     }
 
     /** 404 : document absent ou non visible pour le compte ; message sur ecrit par l'adaptateur (ni URL ni corps brut). */
     private static ResponseEntity<Map<String, Object>> documentNotFound(DocumentNotFoundException e) {
         log.warn("Document not found: {}", e.getMessage());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponses.error(e.getMessage()));
+        return BacklogResponses.documentNotFound(e.getMessage());
     }
 
     /** 502 : la source documentaire n'a pas pu repondre (identifiants, droits, indisponibilite, delai), message sur. */
     private static ResponseEntity<Map<String, Object>> sourceUnavailable(DocumentSourceUnavailableException e) {
         log.warn("Document source unavailable: {}", e.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ErrorResponses.error(e.getMessage()));
+        return BacklogResponses.sourceUnavailable(e.getMessage());
     }
 
     /** 400 : entree refusee par le cas d'usage ; son message, ecrit par l'application, est renvoye tel quel. */
     private static ResponseEntity<Map<String, Object>> invalidRequest(InvalidRequestException e) {
-        return ResponseEntity.badRequest().body(ErrorResponses.error(e.getMessage()));
+        return BacklogResponses.invalidRequest(e.getMessage());
     }
 
     /** 413 : texte fourni au-dela de refinr.document.max-content-chars ; le message ne cite que la limite. */
     private static ResponseEntity<Map<String, Object>> contentTooLarge(ContentTooLargeException e) {
         log.warn("Provided text rejected: {}", e.getMessage());
-        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(ErrorResponses.error(e.getMessage()));
+        return BacklogResponses.contentTooLarge(e.getMessage());
     }
 
     /** Absent ou vide : projet par defaut ; sinon au format du gestionnaire de tickets actif (ex. PROJ pour Jira). */
@@ -291,17 +190,17 @@ public class BacklogController {
             return invalidLanguage();
         }
         try {
-            if (isTextInput(request)) {
+            if (AnalysisRequests.isTextInput(request)) {
                 // Pas de documentUrl : le texte n'a pas d'adresse dans la source active
-                logTextInput("Preview", request);
-                return ResponseEntity.ok(previewBody(previewBacklog.previewText(request.get(TITLE), request.get(CONTENT),
-                        language)));
+                AnalysisRequests.logTextInput(log, "Preview", request);
+                return BacklogResponses.preview(previewBacklog.previewText(request.get(AnalysisRequests.TITLE),
+                        request.get(AnalysisRequests.CONTENT), language));
             }
-            String documentId = documentId(request);
+            String documentId = AnalysisRequests.documentId(request);
             log.info("Preview request for {} document: {}", describeSource.displayName(), documentId);
             List<Epic> epics = previewBacklog.preview(documentId, language);
-            return withDocumentUrl(ResponseEntity.ok(previewBody(epics)), documentId);
-            
+            return BacklogResponses.withDocumentUrl(BacklogResponses.preview(epics), describeSource.documentUrl(documentId));
+
         } catch (InvalidRequestException e) {
             return invalidRequest(e);
         } catch (ContentTooLargeException e) {
@@ -316,16 +215,8 @@ public class BacklogController {
             return modelUnavailable(e);
         } catch (Exception e) {
             log.error("Error generating preview", e);
-            return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to generate the preview"));
+            return BacklogResponses.internalError(BacklogResponses.PREVIEW_FAILED);
         }
-    }
-
-    private static Map<String, Object> previewBody(List<Epic> epics) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
-        body.put("message", "Preview generated successfully");
-        body.put("epics", RestBacklogMapper.toDto(epics));
-        return body;
     }
 
     @PostMapping("/create-jira")
@@ -349,7 +240,7 @@ public class BacklogController {
         try {
             List<Epic> epics = RestBacklogMapper.toDomain(request);
             // Verdict recalcule sur le contenu final : aiReady / aiReadyReason envoyes par le client sont ignores
-            return creationResponse(createEditedBacklog.create(epics, projectKey, verdictLanguage));
+            return BacklogResponses.creation(createEditedBacklog.create(epics, projectKey, verdictLanguage));
 
         } catch (Exception e) {
             log.error("Error creating issues in {}", describeTracker.displayName(), e);
@@ -430,7 +321,7 @@ public class BacklogController {
 
     /** Langue demandee, ou null si absente ; IllegalArgumentException si ce n'est pas un code ISO 639-1 connu. */
     static Language language(String raw) {
-        return raw == null ? null : Language.of(raw);
+        return AnalysisRequests.language(raw);
     }
 
     /** 400 qui nomme le parametre, sans recopier la valeur recue. */
