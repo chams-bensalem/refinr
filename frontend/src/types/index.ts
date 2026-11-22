@@ -53,17 +53,32 @@ export interface Story {
     epicKey?: string | null;
 }
 
-export interface Epic {
-    name: string;
+/** Feature d'un epic (Refinr >= 1.5) ; implicit : seule Feature de son epic, pas un niveau distinct. */
+export interface Feature {
+    name?: string | null;
     description?: string | null;
     priority?: string | null;
     labels?: string[] | null;
+    implicit?: boolean | null;
     stories?: Story[] | null;
     jiraKey?: string | null;
     jiraUrl?: string | null;
 }
 
-export type IssueType = 'epic' | 'story' | 'subtask';
+export interface Epic {
+    name: string;
+    description?: string | null;
+    priority?: string | null;
+    labels?: string[] | null;
+    /** Refinr >= 1.5 : stories regroupees par Feature. */
+    features?: Feature[] | null;
+    /** Toutes les stories de l'epic, a plat (forme d'avant la 1.5, toujours renvoyee). */
+    stories?: Story[] | null;
+    jiraKey?: string | null;
+    jiraUrl?: string | null;
+}
+
+export type IssueType = 'epic' | 'feature' | 'story' | 'subtask';
 
 export interface CreatedIssue {
     type: IssueType;
@@ -86,6 +101,8 @@ export interface PreviewResponse {
     epics: Epic[];
     /** Lien vers le document analyse dans la source active, si la source sait le construire. */
     documentUrl?: string | null;
+    /** Avertissements (Refinr >= 1.5), ex. gestionnaire sans niveau Feature ; absent si vide. */
+    warnings?: string[] | null;
 }
 
 /** Reponse de analyze-and-create / create-jira : 200 (tout cree) ou 207 (creation partielle). */
@@ -95,6 +112,8 @@ export interface CreationResponse {
     created: CreatedIssue[];
     failed: FailedIssue[];
     epics: Epic[];
+    /** Avertissements (Refinr >= 1.5) ; absent si vide. */
+    warnings?: string[] | null;
 }
 
 /** Corps d'erreur des endpoints du backlog (/api/v1/*) : jamais le message brut d'une exception. */

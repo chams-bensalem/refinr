@@ -8,6 +8,7 @@ import type { CreationResponse, IssueType } from '../types';
 
 const TYPE_LABELS: Record<IssueType, string> = {
     epic: 'Epic',
+    feature: 'Feature',
     story: 'Story',
     subtask: 'Subtask',
 };
@@ -68,6 +69,12 @@ export default function Results() {
                         </div>
                     </div>
                 )}
+
+                {(results.warnings ?? []).map((warning) => (
+                    <p key={warning} className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-800">
+                        {warning}
+                    </p>
+                ))}
 
                 <div className="grid md:grid-cols-3 gap-6">
                     {stats.map((stat) => (
