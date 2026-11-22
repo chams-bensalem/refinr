@@ -741,7 +741,8 @@ story awaiting validation from the note. It contains no LLM or tracker logic: ev
   host name to `REFINR_ALLOWED_HOSTS`. The API key (`X-API-Key`) is kept in Obsidian's secret storage, never in the
   vault.
 
-Installation, settings and usage: see the plugin's README.
+Install it from the Obsidian community catalog: [community.obsidian.md/plugins/refinr](https://community.obsidian.md/plugins/refinr)
+(or *Settings → Community plugins → Browse*, search for “Refinr”). Settings and usage: see the plugin's README.
 
 ## 📡 API reference
 
@@ -956,9 +957,8 @@ Docker and GitHub Actions updates weekly.
 - [x] **v1.1** — **OpenProject** as an issue tracker (`tracker.provider=openproject`, a new `IssueTrackerPort` adapter).
 - [x] **v1.2** — **BookStack** and **XWiki** as document sources (`source.provider`, new `DocumentSourcePort`
   adapters), neutral `documentId` and `/documents/search`.
-- [ ] **v1.3** — document provided as **text** (`content`, pasted text in the web UI) and an **Obsidian plugin**
-  (text input shipped in 1.3.0; Obsidian plugin being published, in its own repository, see
-  [Integrations](#-integrations)).
+- [x] **v1.3** — document provided as **text** (`content`, pasted text in the web UI) and an **Obsidian plugin**
+  (in its own repository, listed in the Obsidian community catalog, see [Integrations](#-integrations)).
 - [ ] File upload (Markdown, Word, PDF).
 - [ ] Administration console (sources and trackers configured from the UI, several sources per instance).
 - [ ] **Linear** and **GitHub Issues** as issue trackers.

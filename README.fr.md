@@ -759,7 +759,9 @@ tout est fait par Refinr.
   ajoutez ce nom d'hôte à `REFINR_ALLOWED_HOSTS`. La clé d'API (`X-API-Key`) est rangée dans le stockage de secrets
   d'Obsidian, jamais dans le coffre.
 
-Installation, réglages et utilisation : voir le README du plugin.
+Installez-le depuis le catalogue communautaire d'Obsidian : [community.obsidian.md/plugins/refinr](https://community.obsidian.md/plugins/refinr)
+(ou *Paramètres → Modules complémentaires → Parcourir*, recherche « Refinr »). Réglages et utilisation : voir le README
+du plugin.
 
 ## 📡 Référence de l'API
 
@@ -983,9 +985,8 @@ semaine les mises à jour Maven, npm, Docker et GitHub Actions.
   `IssueTrackerPort`).
 - [x] **v1.2** — **BookStack** et **XWiki** comme sources documentaires (`source.provider`, nouveaux adaptateurs de
   `DocumentSourcePort`), `documentId` et `/documents/search` neutres.
-- [ ] **v1.3** — document fourni en **texte** (`content`, texte collé dans l'interface web) et **plugin Obsidian**
-  (entrée texte livrée en 1.3.0 ; plugin Obsidian en cours de publication, dans son propre dépôt, cf.
-  [Intégrations](#-intégrations)).
+- [x] **v1.3** — document fourni en **texte** (`content`, texte collé dans l'interface web) et **plugin Obsidian**
+  (dans son propre dépôt, publié dans le catalogue communautaire d'Obsidian, cf. [Intégrations](#-intégrations)).
 - [ ] Envoi de fichier (Markdown, Word, PDF).
 - [ ] Console d'administration (sources et gestionnaires configurés depuis l'interface, plusieurs sources par instance).
 - [ ] **Linear** et **GitHub Issues** comme gestionnaires de tickets.
