@@ -638,7 +638,7 @@ ollama serve && ollama pull qwen3:8b                 # 1. local LLM (example mod
 (cd frontend && npm install && npm run dev)           # 3. UI  → http://localhost:3000 (Vite proxies /api)
 ```
 
-Production build: `(cd backend && mvn clean package && java -jar target/refinr-1.3.0.jar)` and
+Production build: `(cd backend && mvn clean package && java -jar target/refinr-1.4.0.jar)` and
 `(cd frontend && npm run build)` (output in `frontend/dist/`).
 
 ---
@@ -734,7 +734,8 @@ of this REST API: it sends the active note of an Obsidian vault to your Refinr s
 configured on the server (Jira or OpenProject), records what was created in the note's frontmatter, and reassesses a
 story awaiting validation from the note. It contains no LLM or tracker logic: everything is done by Refinr.
 
-- **Requires Refinr 1.3.0 or later**: the plugin sends the note as text (`content`, frontmatter removed, embeds
+- **Requires Refinr 1.3.0 or later** (1.4.0 for the output language, the verdict source and the human validation of
+  plugin 0.2.0): the plugin sends the note as text (`content`, frontmatter removed, embeds
   expanded) to `analyze-preview`, and reads the text limit from `GET /api/v1/source` (`maxContentChars`).
 - **Desktop only** for now (Windows, macOS, Linux; Obsidian 1.13.0 or later): mobile has not been tested yet.
 - Refinr accepts only `localhost`, `127.0.0.1` and `[::1]` by default: to reach it through another address, add that
@@ -939,7 +940,7 @@ Docker and GitHub Actions updates weekly.
 
 ## 🗺️ Limitations & roadmap
 
-**Current limitations (v1.3)**
+**Current limitations (v1.4)**
 
 - Creation is not transactional: a failure midway leaves the issues already created (partial response
   `created` / `failed`; re-send only what failed).
@@ -959,6 +960,9 @@ Docker and GitHub Actions updates weekly.
   adapters), neutral `documentId` and `/documents/search`.
 - [x] **v1.3** — document provided as **text** (`content`, pasted text in the web UI) and an **Obsidian plugin**
   (in its own repository, listed in the Obsidian community catalog, see [Integrations](#-integrations)).
+- [x] **v1.4** — verdict accuracy **measured** (reference set, `scripts/eval-verdict.sh`, compatibility matrix),
+  output **language**, provider quota or overload → `503` + `Retry-After`, verdict source `aiReadySource` and human
+  validation (`validate-story`).
 - [ ] File upload (Markdown, Word, PDF).
 - [ ] Administration console (sources and trackers configured from the UI, several sources per instance).
 - [ ] **Linear** and **GitHub Issues** as issue trackers.
