@@ -62,6 +62,25 @@ with `LLM_ANALYSIS_BASE_URL=http://ollama:11434/v1`. More in [Docker Compose](#d
 also covered by tests against a simulated HTTP server (success, `401`, `429` + retry, invalid JSON + repair, timeout).
 Tried an untested provider? Please report back — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+### Verdict accuracy: compatibility matrix
+
+Measured with `scripts/eval-verdict.sh` on the reference set of `eval/verdict/` (50 stories + two control sets of 15,
+French; control 1 also translated to English), prompt **`verdict-v3.2`**, production batches of 10. This measures the
+**verdict only** (not the generation). Thresholds: **0 false `ai-ready`** on `not-ready` / `sure` labels (blocking),
+false `validation-necessaire` ≤ 25 % on `ready` / `sure`, stability ≥ 90 % (non-blocking).
+**The reference labels were set by an AI acting as PO: Anthropic results are indicative** (Claude judged against
+Claude's labels). Story **v020** was relabeled after seeing the models' answers (`ready` → `not-ready`); this
+adjudication is **contested** (two models disagree with it, 3 times out of 3), so both references are shown.
+
+| Model | Prompt | Languages | Date | Runs | False `ai-ready`, original labels | False `ai-ready`, adjudicated labels | False `validation-necessaire` (`ready` / `sure`) | Stability |
+|---|---|---|---|---|---|---|---|---|
+| Claude Haiku 5.5 | `verdict-v3.2` | fr, en | 2026-11-16 | 5 (fr), 5 (en) | 0 % (0/20; controls 0/10; en 0/5) | 0 % (0/21) | 11 % (2/18); controls 0 % and 13 %; en 0 % | 78 % (controls 87 %, 93 %; en 80 %) |
+| Claude Opus 5.5 | `verdict-v3.2` | fr, en | 2026-11-16, 2026-11-22 | 3 (fr), 1 (en) | 0 % (0/20; controls 0/10; en 0/5) | 5 % (1/21: v020, contested) | 0 % (0/18); controls 0 %; en 0 % | 94 % (controls 100 %, 93 %; en not measured) |
+| Gemini 3.6 Flash | `verdict-v3.2` | fr | 2026-11-22 | **partial: 2 runs out of 3** (22 batches of 24) | 0 % (0/20; controls 0/10); **v030 unresolved** (ready 1 time out of 2, no majority) | 5 % (1/21: v020, contested); v030 unresolved | 0 % (0/18); controls 0 % | 90 % (controls 100 %, 100 %), partial |
+
+Details per run, disagreements and costs: `eval/verdict/results/` and `DECISIONS.md`. A model or prompt not listed
+here has not been measured.
+
 ---
 
 ## 📚 Contents

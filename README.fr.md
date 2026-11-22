@@ -62,6 +62,26 @@ avec `LLM_ANALYSIS_BASE_URL=http://ollama:11434/v1`. Détails : [Avec Docker Com
 ailleurs couvert par des tests sur serveur HTTP simulé (succès, `401`, `429` + nouvel essai, JSON invalide + relance,
 délai dépassé). Un retour sur un fournisseur non testé est bienvenu : voir [CONTRIBUTING.md](CONTRIBUTING.md).
 
+### Justesse du verdict : matrice de compatibilité
+
+Mesurée avec `scripts/eval-verdict.sh` sur le jeu de référence de `eval/verdict/` (50 stories + deux jeux de contrôle
+de 15, en français ; le contrôle 1 aussi traduit en anglais), prompt **`verdict-v3.2`**, lots de 10 comme en
+production. Seul le **verdict** est mesuré (pas la génération). Seuils : **0 faux `ai-ready`** sur les étiquettes
+`not-ready` / `sure` (bloquant), faux `validation-necessaire` ≤ 25 % sur les `ready` / `sure`, stabilité ≥ 90 % (non
+bloquant). **Les étiquettes de référence ont été posées par une IA en position de PO : les mesures Anthropic sont
+indicatives** (Claude évalué contre des étiquettes de Claude). La story **v020** a été réétiquetée après avoir vu les
+réponses des modèles (`ready` → `not-ready`) ; cet arbitrage est **contesté** (deux modèles le contredisent, 3 fois sur
+3) : les deux références sont affichées.
+
+| Modèle | Prompt | Langues | Date | Exécutions | Faux `ai-ready`, étiquettes d'origine | Faux `ai-ready`, étiquettes arbitrées | Faux `validation-necessaire` (`ready` / `sure`) | Stabilité |
+|---|---|---|---|---|---|---|---|---|
+| Claude Haiku 5.5 | `verdict-v3.2` | fr, en | 2026-11-16 | 5 (fr), 5 (en) | 0 % (0/20 ; contrôles 0/10 ; en 0/5) | 0 % (0/21) | 11 % (2/18) ; contrôles 0 % et 13 % ; en 0 % | 78 % (contrôles 87 %, 93 % ; en 80 %) |
+| Claude Opus 5.5 | `verdict-v3.2` | fr, en | 2026-11-16, 2026-11-22 | 3 (fr), 1 (en) | 0 % (0/20 ; contrôles 0/10 ; en 0/5) | 5 % (1/21 : v020, contestée) | 0 % (0/18) ; contrôles 0 % ; en 0 % | 94 % (contrôles 100 %, 93 % ; en non mesurée) |
+| Gemini 3.6 Flash | `verdict-v3.2` | fr | 2026-11-22 | **partielle : 2 exécutions sur 3** (22 lots sur 24) | 0 % (0/20 ; contrôles 0/10) ; **v030 non tranchée** (prête 1 fois sur 2, sans majorité) | 5 % (1/21 : v020, contestée) ; v030 non tranchée | 0 % (0/18) ; contrôles 0 % | 90 % (contrôles 100 %, 100 %), partielle |
+
+Détail par exécution, désaccords et coûts : `eval/verdict/results/` et `DECISIONS.md`. Un modèle ou un prompt absent
+de ce tableau n'a pas été mesuré.
+
 ---
 
 ## 📚 Sommaire
