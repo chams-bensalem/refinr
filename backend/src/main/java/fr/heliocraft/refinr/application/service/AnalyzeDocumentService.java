@@ -5,7 +5,9 @@ package fr.heliocraft.refinr.application.service;
 
 import fr.heliocraft.refinr.domain.service.OutputLanguagePolicy;
 import fr.heliocraft.refinr.domain.model.Language;
+import fr.heliocraft.refinr.application.port.in.AnalysisProgress;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
+import fr.heliocraft.refinr.application.port.in.JobView;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.CreateBacklog;
 import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
@@ -49,31 +51,50 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
 
     @Override
     public BacklogCreationResult analyzeAndCreate(String documentId, String project, Language language) {
+        return analyzeAndCreate(documentId, project, language, AnalysisProgress.NONE);
+    }
+
+    @Override
+    public BacklogCreationResult analyzeAndCreate(String documentId, String project, Language language,
+                                                  AnalysisProgress progress) {
         DocumentAnalysis.requireValidId(documentSource, documentId);
         log.info("Step 1: Reading source document...");
+        progress.step(JobView.Step.READING_DOCUMENT);
         String content = SourceFailures.translate(() -> documentSource.getDocumentContent(documentId));
-        return analyzeAndCreateFrom(content, project, language);
+        return analyzeAndCreateFrom(content, project, language, progress);
     }
 
     @Override
     public BacklogCreationResult analyzeTextAndCreate(String title, String content, String project, Language language) {
+        return analyzeTextAndCreate(title, content, project, language, AnalysisProgress.NONE);
+    }
+
+    @Override
+    public BacklogCreationResult analyzeTextAndCreate(String title, String content, String project, Language language,
+                                                      AnalysisProgress progress) {
         // Texte fourni : aucun appel a la source active
         log.info("Step 1: Using the provided text...");
-        return analyzeAndCreateFrom(DocumentAnalysis.providedText(title, content, maxContentChars), project, language);
+        return analyzeAndCreateFrom(DocumentAnalysis.providedText(title, content, maxContentChars), project, language,
+                progress);
     }
 
     /** Chemin commun aux deux entrees : texte utile, generation, verdict distinct eventuel, creation. */
-    private BacklogCreationResult analyzeAndCreateFrom(String content, String project, Language requested) {
+    private BacklogCreationResult analyzeAndCreateFrom(String content, String project, Language requested,
+                                                       AnalysisProgress progress) {
         DocumentAnalysis.requireUsefulText(content);
 
         log.info("Step 2: Analyzing document with AI...");
         // Langue resolue une fois sur le document : la generation et le verdict distinct la partagent
         Language language = languagePolicy.resolve(requested, content);
+        progress.step(JobView.Step.GENERATING);
         List<Epic> epics = LlmFailures.translate(() -> generator.generate(content, language));
         if (separateAssessor != null) {
+            progress.step(JobView.Step.ASSESSING);
             StoryVerdicts.apply(epics, separateAssessor, story -> language);
         }
 
+        // Dernier point d'arret possible : une creation commencee va toujours au bout
+        progress.step(JobView.Step.CREATING_ISSUES);
         log.info("Step 3: Creating issue hierarchy ({} epics)...", epics.size());
         return createBacklog.create(epics, project);
     }

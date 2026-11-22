@@ -34,4 +34,16 @@ public interface AnalyzeDocument {
 
     /** @param language langue de sortie demandee, ou null : propriete, puis detection */
     BacklogCreationResult analyzeTextAndCreate(String title, String content, String project, Language language);
+
+    /** Meme analyse, avec le suivi des etapes (jobs) ; sans suivi par defaut. */
+    default BacklogCreationResult analyzeAndCreate(String documentId, String project, Language language,
+                                                   AnalysisProgress progress) {
+        return analyzeAndCreate(documentId, project, language);
+    }
+
+    /** Meme analyse d'un texte fourni, avec le suivi des etapes (jobs) ; sans suivi par defaut. */
+    default BacklogCreationResult analyzeTextAndCreate(String title, String content, String project, Language language,
+                                                       AnalysisProgress progress) {
+        return analyzeTextAndCreate(title, content, project, language);
+    }
 }

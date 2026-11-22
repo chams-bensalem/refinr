@@ -30,4 +30,14 @@ public interface PreviewBacklog {
 
     /** @param language langue de sortie demandee, ou null : propriete, puis detection */
     List<Epic> previewText(String title, String content, Language language);
+
+    /** Meme apercu, avec le suivi des etapes (jobs) ; sans suivi par defaut. */
+    default List<Epic> preview(String documentId, Language language, AnalysisProgress progress) {
+        return preview(documentId, language);
+    }
+
+    /** Meme apercu d'un texte fourni, avec le suivi des etapes (jobs) ; sans suivi par defaut. */
+    default List<Epic> previewText(String title, String content, Language language, AnalysisProgress progress) {
+        return previewText(title, content, language);
+    }
 }
