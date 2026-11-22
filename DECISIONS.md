@@ -517,3 +517,19 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
   signale). Faux `validation-necessaire` sur `ready` / `sure` : 0 sur 18 (origine), 0 sur 8 et 0 sur 8 (contrôles) ;
   stabilité 90 % (origine, partielle), 100 % et 100 % (contrôles). Les nouvelles mesures de verdict passent par
   Haiku ou Opus.
+
+## Jobs d'analyse (v1.5, J1)
+
+- **Stockage en mémoire derrière un port** (`JobStorePort`, adaptateur `InMemoryJobStore`), plutôt que persistant
+  (fichiers JSON ou H2 / SQLite) : aucune dépendance, aucune donnée au repos (les résultats sont tirés de specs
+  confidentielles), rien à changer dans Docker ni la CI. Conséquence : jobs perdus au redémarrage, une seule instance.
+  Un stockage persistant n'apporterait pas de reprise (un appel au modèle interrompu est perdu), seulement un état
+  clair après redémarrage. À rediscuter en C1 (job en attente des réponses du PO pendant des heures).
+- **Exécution** : `ThreadPoolExecutor` du JDK (pas de dépendance, application sans Spring), `max-concurrent` fils,
+  file bornée `max-queued` (pleine → `503`) ; `max-duration` ne s'applique qu'avant la création des tickets (une
+  création commencée va au bout, pour ne pas laisser une hiérarchie à moitié créée) ; arrêt progressif
+  (`shutdown-grace`). Aucun nouvel essai propre au job : ceux du fournisseur restent dans les cas d'usage.
+- **`/result` rejoue la réponse synchrone** (mêmes fonctions de réponse, `BacklogResponses`) : les clients gardent leur
+  traitement des réponses ; il suivra le futur contrat epics → features → stories (F1) sans travail propre aux jobs.
+- **Reporté** : `Idempotency-Key` sur `POST /api/v1/jobs/analyze-and-create`, prérequis de U1 et P6 ; pas de job pour
+  `reassess-story`.

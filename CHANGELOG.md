@@ -5,6 +5,20 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ## [Unreleased]
 
+### Added
+- **Jobs d'analyse** : `analyze-preview` et `analyze-and-create` en arrière-plan. `POST /api/v1/jobs/analyze-preview`
+  et `POST /api/v1/jobs/analyze-and-create` (même corps que les endpoints synchrones, mêmes `400` et `413` à la
+  soumission) → `202` avec `Location: /api/v1/jobs/{id}` ; `GET /api/v1/jobs/{id}` : état (`queued`, `running`,
+  `succeeded`, `failed`), étape en cours, dates, `outcome` (`httpStatus`, `retryAfterSeconds`) ;
+  `GET /api/v1/jobs/{id}/result` : la réponse de l'endpoint synchrone, rejouée (statut, `Retry-After`, corps) ;
+  `DELETE /api/v1/jobs/{id}` : annulation d'un job en attente ou effacement d'un job terminé (`409` s'il est en cours).
+  File pleine → `503` ; durée maximale dépassée avant la création des tickets → `504` dans le résultat (une création
+  commencée va toujours au bout). Identifiants UUID aléatoires, `404` pour un job inconnu ou expiré ; les logs
+  n'indiquent que les 8 premiers caractères d'un identifiant. Propriétés `refinr.jobs.max-concurrent` (`2`),
+  `max-queued` (`20`), `max-duration` (`30m`), `retention` (`24h`), `max-retained` (`100`), `shutdown-grace` (`30s`,
+  arrêt progressif). Jobs gardés en mémoire : perdus au redémarrage. **Ajouts rétrocompatibles du contrat REST** ;
+  endpoints synchrones inchangés. CORS : `DELETE` autorisé, en-tête `Location` exposé.
+
 ## [1.4.0] - 2026-11-22
 
 La justesse du verdict `ai-ready` est **mesurée** (jeu de référence de 80 stories, outil `scripts/eval-verdict.sh`,
