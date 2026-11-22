@@ -365,7 +365,7 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
             log.info("Job {} started ({})", shortId(id), view.type().id());
             try {
                 Result result = work.run(this::step);
-                finish(v -> v.succeeded(result.preview(), result.creation(), clock.instant()));
+                finish(v -> v.completed(result.preview(), result.creation(), clock.instant()));
             } catch (Exception e) {
                 boolean stopped;
                 synchronized (this) {

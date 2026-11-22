@@ -836,7 +836,9 @@ English prompt and are supported without being measured. Refinr's own lines in t
   already waiting (no `Retry-After`). `GET /jobs/{id}`: `status` (`queued`, `running`, `succeeded`, `failed`), `step`
   (`reading-document`, `generating`, `assessing`, `creating-issues`), `createdAt` / `startedAt` / `finishedAt`
   (ISO 8601, UTC) and, once finished, `outcome` (`httpStatus`, `retryAfterSeconds` when the provider announced a
-  delay). `GET /jobs/{id}/result` replays the synchronous response, `503` + `Retry-After` included (the delay announced
+  delay). A job is `succeeded` only when its result is a `2xx` (`200`, or `207` for a partial creation) and `failed`
+  from `400` on, for both job types (a creation where no issue could be created, `502`, is `failed`);
+  `outcome.httpStatus` keeps the exact code. `GET /jobs/{id}/result` replays the synchronous response, `503` + `Retry-After` included (the delay announced
   when the job failed); a job over `refinr.jobs.max-duration` gives `504` *The analysis exceeded its maximum
   duration*. `DELETE /jobs/{id}`: `204` for a queued job (it never runs) or a finished one, `409` while it runs. Job
   ids are random UUIDs; an unknown, expired or malformed id → `404` *Unknown or expired job*. Jobs are kept in memory

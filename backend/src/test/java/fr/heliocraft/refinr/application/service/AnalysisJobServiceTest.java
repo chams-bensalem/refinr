@@ -227,6 +227,27 @@ class AnalysisJobServiceTest {
         assertNull(submitted.documentId());
     }
 
+    @Test
+    @DisplayName("Status rule: a creation with no issue created (502) ends failed with its result kept; a partial one succeeds")
+    void nothingCreatedIsFailed() throws Exception {
+        BacklogCreationResult nothing = new BacklogCreationResult(epics("E"), List.of(),
+                List.of(new BacklogCreationResult.FailedIssue("epic", "E", "Rejected (HTTP 400)")));
+        BacklogCreationResult partial = new BacklogCreationResult(epics("E"),
+                List.of(new BacklogCreationResult.CreatedIssue("epic", "E", "PROJ-1")),
+                List.of(new BacklogCreationResult.FailedIssue("story", "S", "Rejected (HTTP 400)")));
+        AnalysisJobService service = service(new FakeAnalyses().then(progress -> nothing).then(progress -> partial));
+
+        JobView failed = service.submitAnalyzeAndCreate("DOC-1", null, null);
+        awaitStatus(service, failed.id(), Status.FAILED);
+        JobView partialJob = service.submitAnalyzeAndCreate("DOC-2", null, null);
+        awaitStatus(service, partialJob.id(), Status.SUCCEEDED);
+
+        JobView failedView = job(service, failed.id());
+        assertNull(failedView.failure());
+        assertSame(nothing, failedView.creation());
+        assertSame(partial, job(service, partialJob.id()).creation());
+    }
+
     static Stream<Arguments> failures() {
         Throwable cause = new IllegalStateException("provider detail");
         return Stream.of(

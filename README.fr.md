@@ -860,7 +860,9 @@ tickets et le label `validation-necessaire` ne changent pas.
   attendent déjà (sans `Retry-After`). `GET /jobs/{id}` : `status` (`queued`, `running`, `succeeded`, `failed`), `step`
   (`reading-document`, `generating`, `assessing`, `creating-issues`), `createdAt` / `startedAt` / `finishedAt`
   (ISO 8601, UTC) et, une fois terminé, `outcome` (`httpStatus`, `retryAfterSeconds` quand le fournisseur a annoncé un
-  délai). `GET /jobs/{id}/result` rejoue la réponse synchrone, `503` + `Retry-After` compris (délai annoncé au moment
+  délai). Un job est `succeeded` seulement si son résultat est un `2xx` (`200`, ou `207` pour une création
+  partielle), et `failed` à partir de `400`, pour les deux types de job (une création où aucun ticket n'a pu être créé,
+  `502`, est `failed`) ; `outcome.httpStatus` garde le code exact. `GET /jobs/{id}/result` rejoue la réponse synchrone, `503` + `Retry-After` compris (délai annoncé au moment
   de l'échec) ; un job au-delà de `refinr.jobs.max-duration` donne `504` *The analysis exceeded its maximum duration*.
   `DELETE /jobs/{id}` : `204` pour un job en attente (il ne s'exécutera pas) ou terminé, `409` s'il est en cours.
   Identifiants de jobs : UUID aléatoires ; identifiant inconnu, expiré ou mal formé → `404` *Unknown or expired job*.

@@ -39,4 +39,9 @@ public record BacklogCreationResult(List<Epic> epics, List<CreatedIssue> created
     public boolean isComplete() {
         return failed.isEmpty();
     }
+
+    /** Aucun ticket cree alors que des elements etaient a creer : echec complet (502 en REST, job « failed »). */
+    public boolean isNothingCreated() {
+        return !isComplete() && created.isEmpty();
+    }
 }
