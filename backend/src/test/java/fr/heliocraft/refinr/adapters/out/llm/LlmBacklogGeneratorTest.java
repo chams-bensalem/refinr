@@ -47,11 +47,11 @@ class LlmBacklogGeneratorTest {
 
     static final String BACKLOG = """
             {"epics":[{"name":"Epic: Prix","description":"Filtre","priority":"High","labels":["frontend"],
-              "stories":[{"asA":"Client","iWant":"filtrer par prix","soThat":"trouver vite","title":"Filtre par prix",
+              "features":[{"name":"Prix","description":"Filtre par prix","stories":[{"asA":"Client","iWant":"filtrer par prix","soThat":"trouver vite","title":"Filtre par prix",
                 "description":"Curseur min/max","acceptanceCriteria":["Given une liste, When je filtre, Then seuls les prix compris restent"],
                 "estimatedStoryPoints":3,"priority":"High","labels":["frontend"],"dependencies":[],
                 "aiReady":true,"aiReadyReason":"Perimetre clair",
-                "tasks":[{"title":"Composant curseur","description":"Slider","estimatedHours":4,"labels":["frontend"]}]}]}]}
+                "tasks":[{"title":"Composant curseur","description":"Slider","estimatedHours":4,"labels":["frontend"]}]}]}]}]}
             """;
 
     @Test

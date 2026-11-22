@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Chams Bensalem -->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
-# Refinr LLM prompts, English version (verdict-v3.2)
+# Refinr LLM prompts, English version (verdict-v3.2, generation-v2)
 
 Faithful translation of `prompts.fr.md` (same sections, same markers, same JSON, same number of rules).
 Source: PO decision of 2026-11-16. Loaded as is by `LlmPrompts`: only the five code blocks count, in this order.
@@ -42,19 +42,25 @@ aiReadyReason: one sentence. If false, the main blocking question to ask the PO,
 ## Prompt 1: backlog generation
 
 ```
-MISSION: turn the specification below into a Scrum backlog Epic → User Story → Sub-task, usable by human developers or coding agents.
+MISSION: turn the specification below into a Scrum backlog Epic → Feature → User Story → Sub-task, usable by human developers or coding agents.
 
 GENERAL RULES
 - Write all content in {{LANGUAGE}}: titles, descriptions, acceptance criteria, sub-tasks and reasons.
-- Use only what the specification says. Do not create any feature that was not requested, and do not turn an assumption into a requirement.
+- Use only what the specification says. Do not create any functionality that was not requested, and do not turn an assumption into a requirement.
 - Do not impose a file name, endpoint, field or technology that the specification does not justify.
 - Do not generate source code.
 
 SIZE, PROPORTIONAL TO THE SPECIFICATION
-- Short need (a few sentences, a single feature): 1 epic, 1 to 5 stories, 1 to 4 sub-tasks per story.
-- Full requirements document: one epic per module actually described, 3 to 8 stories per epic, 2 to 5 sub-tasks per story.
+- Epic: the product or a large functional area. A specification that describes a single product usually gives a single epic; several epics only for truly distinct areas (for example a requirements document covering several applications).
+- Feature: a module or a user capability described in the specification ("Booking", "Notifications", "Administration"…).
+- Story: one user action within that capability.
+- Short need (a single functionality): 1 epic, a single feature, 1 to 5 stories, 1 to 4 sub-tasks per story.
+- Full requirements document: 2 to 5 sub-tasks per story.
+- Never create a feature with a single story in an epic that has several, nor any artificial split.
 
-EPICS: a coherent functional area, with a short name, a description based on the specification, a priority (High, Medium, Low) and technical labels.
+EPICS: a short name, a description based on the specification, a priority (High, Medium, Low) and technical labels.
+
+FEATURES: a short name (that of the module or capability), a description based on the specification, a priority (High, Medium, Low) and technical labels. The single feature of a short need takes the name of the epic.
 
 STORIES
 - Atomic, deliverable and as independent as possible. No duplicates, no purely technical story without functional value.
@@ -80,7 +86,7 @@ SPECIFICATION:
 {{DOCUMENT}}
 
 Answer ONLY with the JSON, without markdown or surrounding text, following this structure:
-{"epics":[{"name":"","description":"","priority":"Medium","labels":[],"stories":[{"asA":"","iWant":"","soThat":"","title":"","description":"","acceptanceCriteria":[],"estimatedStoryPoints":3,"priority":"Medium","labels":[],"dependencies":[],"aiReady":false,"aiReadyReason":"","tasks":[{"title":"","description":"","estimatedHours":2,"labels":[]}]}]}]}
+{"epics":[{"name":"","description":"","priority":"Medium","labels":[],"features":[{"name":"","description":"","priority":"Medium","labels":[],"stories":[{"asA":"","iWant":"","soThat":"","title":"","description":"","acceptanceCriteria":[],"estimatedStoryPoints":3,"priority":"Medium","labels":[],"dependencies":[],"aiReady":false,"aiReadyReason":"","tasks":[{"title":"","description":"","estimatedHours":2,"labels":[]}]}]}]}]}
 ```
 
 ## Prompt 2: separate verdict, in batches

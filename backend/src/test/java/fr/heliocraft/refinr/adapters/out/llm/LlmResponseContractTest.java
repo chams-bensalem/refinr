@@ -59,6 +59,12 @@ class LlmResponseContractTest {
         assertEquals("High", epic.getPriority());
         assertEquals(List.of("backend", "api"), epic.getLabels());
         assertNull(epic.getTrackerKey(), "the model never provides a tracker key");
+        assertEquals(1, epic.getFeatures().size());
+        fr.heliocraft.refinr.domain.model.Feature feature = epic.getFeatures().getFirst();
+        assertEquals("Stock", feature.getName());
+        assertEquals("Suivi du stock", feature.getDescription());
+        assertEquals("High", feature.getPriority());
+        assertEquals(List.of("backend"), feature.getLabels());
 
         Story story = epic.getStories().get(0);
         assertEquals("Developer", story.getAsA());
@@ -87,7 +93,7 @@ class LlmResponseContractTest {
     @DisplayName("An unknown property (here a tracker key) is rejected by the schema: 1 call + 2 repairs, then INVALID_OUTPUT")
     void rejectsUnknownProperty() {
         for (int i = 0; i < 3; i++) {
-            mockWebServer.enqueue(geminiText("{\"epics\":[{\"name\":\"E\",\"description\":\"d\",\"jiraKey\":\"PROJ-1\",\"stories\":[]}]}"));
+            mockWebServer.enqueue(geminiText("{\"epics\":[{\"name\":\"E\",\"description\":\"d\",\"jiraKey\":\"PROJ-1\",\"features\":[{\"name\":\"F\",\"description\":\"d\",\"stories\":[]}]}]}"));
         }
 
         LlmException error = assertThrows(LlmException.class, () -> analyzer.generate("cdc", Language.FR));

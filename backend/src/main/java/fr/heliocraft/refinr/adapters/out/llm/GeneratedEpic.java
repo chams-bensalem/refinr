@@ -15,6 +15,9 @@ public class GeneratedEpic {
     private String priority;
     private List<String> labels = new ArrayList<>();
     
+    private List<GeneratedFeature> features = new ArrayList<>();
+
+    // Forme d'avant le niveau Feature (refusee par le schema, lue par tolerance) : une Feature implicite
     @JsonProperty("stories")
     private List<GeneratedStory> stories = new ArrayList<>();
     
@@ -52,6 +55,14 @@ public class GeneratedEpic {
 
     public void setLabels(List<String> labels) {
         this.labels = labels;
+    }
+
+    public List<GeneratedFeature> getFeatures() {
+        return features;
+    }
+
+    public void setFeatures(List<GeneratedFeature> features) {
+        this.features = features;
     }
 
     public List<GeneratedStory> getStories() {
