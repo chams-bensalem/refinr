@@ -509,3 +509,11 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
   - Effet de bord de `verdict-v3.1` (critère READINESS assoupli), constaté en v3.2 : des stories `not-ready` /
     `hesitant` sont jugées prêtes (v074 pour Opus et Gemini, v070 et v017 pour Gemini). Non bloquant (étiquettes
     `hesitant`), à surveiller en G1 et L2.
+- **Gemini 3.6 Flash `verdict-v3.2` : mesure partielle, abandonnée par décision du mainteneur** (2026-11-22). 22 lots sur
+  24 (exécutions 1 et 2 complètes, exécution 3 arrêtée sur un HTTP 429 au 24ᵉ appel, 20 stories non mesurées) ;
+  aucune reprise. Jeu d'origine, étiquettes arbitrées : 1 faux `ai-ready` sur 21 `not-ready` / `sure` (v020, 3 fois
+  sur 3, arbitrage contesté) ; avec `labels.csv` d'origine : 0 sur 20. **v030 (`not-ready` / `sure`) non tranchée** :
+  jugée prête 1 fois sur 2, sans verdict majoritaire (la règle « plus d'une exécution sur 5 », lue sur la part, la
+  signale). Faux `validation-necessaire` sur `ready` / `sure` : 0 sur 18 (origine), 0 sur 8 et 0 sur 8 (contrôles) ;
+  stabilité 90 % (origine, partielle), 100 % et 100 % (contrôles). Les nouvelles mesures de verdict passent par
+  Haiku ou Opus.
