@@ -14,10 +14,15 @@ import java.util.List;
  * @param created tickets crees, dans l'ordre de creation
  * @param failed  elements non crees, avec une raison sure a afficher
  */
-public record BacklogCreationResult(List<Epic> epics, List<CreatedIssue> created, List<FailedIssue> failed) {
+public record BacklogCreationResult(List<Epic> epics, List<CreatedIssue> created, List<FailedIssue> failed,
+                                    List<String> warnings) {
+
+    public BacklogCreationResult(List<Epic> epics, List<CreatedIssue> created, List<FailedIssue> failed) {
+        this(epics, created, failed, List.of());
+    }
 
     /**
-     * @param type epic, story ou subtask
+     * @param type epic, feature, story ou subtask
      * @param url  adresse web du ticket dans le gestionnaire actif (null si inconnue)
      */
     public record CreatedIssue(String type, String title, String key, String url) {
@@ -27,13 +32,24 @@ public record BacklogCreationResult(List<Epic> epics, List<CreatedIssue> created
         }
     }
 
-    /** @param type epic, story ou subtask */
+    /** @param type epic, feature, story ou subtask */
     public record FailedIssue(String type, String title, String reason) {}
 
     public BacklogCreationResult {
         epics = List.copyOf(epics);
         created = List.copyOf(created);
         failed = List.copyOf(failed);
+        warnings = warnings == null ? List.of() : List.copyOf(warnings);
+    }
+
+    /** Meme resultat avec des avertissements en plus (ex. forme de l'apercu ignoree a la creation). */
+    public BacklogCreationResult withWarnings(List<String> more) {
+        if (more == null || more.isEmpty()) {
+            return this;
+        }
+        List<String> all = new java.util.ArrayList<>(warnings);
+        all.addAll(more);
+        return new BacklogCreationResult(epics, created, failed, all);
     }
 
     public boolean isComplete() {

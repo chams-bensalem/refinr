@@ -4,6 +4,7 @@
 package fr.heliocraft.refinr.application.port.out;
 
 import fr.heliocraft.refinr.domain.model.Epic;
+import fr.heliocraft.refinr.domain.model.Feature;
 import fr.heliocraft.refinr.domain.model.Readiness;
 import fr.heliocraft.refinr.domain.model.Story;
 import fr.heliocraft.refinr.domain.model.Task;
@@ -26,9 +27,36 @@ public interface IssueTrackerPort {
     /** Adresse web du ticket {@code key} pour un navigateur (ex. lien de l'interface), ou null si inconnue. */
     String issueUrl(String key);
 
+    /** Niveau Feature du gestionnaire dans ce projet, entre l'epic et la story. */
+    enum FeatureLevel {
+        /** Pas de niveau Feature : les stories vont sous l'epic (les Features deviennent des labels). */
+        NONE,
+        /** Niveau Feature natif ; une story peut aussi aller directement sous l'epic (Feature implicite sans ticket). */
+        OPTIONAL,
+        /** Niveau Feature natif et obligatoire : le parent d'une story est toujours une Feature. */
+        REQUIRED,
+        /** Niveau inconnu (gestionnaire injoignable ou mal configure) : traite comme {@link #NONE}, sans avertissement. */
+        UNKNOWN;
+
+        public boolean isNative() {
+            return this == OPTIONAL || this == REQUIRED;
+        }
+    }
+
+    /** Niveau Feature dans {@code project} (null ou vide : projet par defaut) ; aucun par defaut. */
+    default FeatureLevel featureLevel(String project) {
+        return FeatureLevel.NONE;
+    }
+
     String createEpic(Epic epic, String project);
 
-    String createStory(Story story, String epicKey, String project);
+    /** Cree une Feature sous l'epic ; appele seulement quand {@link #featureLevel} est natif. */
+    default String createFeature(Feature feature, String epicKey, String project) {
+        throw new IssueTrackerException(displayName() + " has no Feature level");
+    }
+
+    /** @param parentKey cle de la Feature, ou de l'epic quand la story n'a pas de Feature dans le gestionnaire */
+    String createStory(Story story, String parentKey, String project);
 
     String createSubtask(Task task, String storyKey, String project);
 

@@ -7,9 +7,12 @@ import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult.CreatedIssue;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult.FailedIssue;
 import fr.heliocraft.refinr.application.port.in.CreateBacklog;
+import fr.heliocraft.refinr.application.port.in.FeatureLevelMissingException;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerException;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
+import fr.heliocraft.refinr.application.port.out.IssueTrackerPort.FeatureLevel;
 import fr.heliocraft.refinr.domain.model.Epic;
+import fr.heliocraft.refinr.domain.model.Feature;
 import fr.heliocraft.refinr.domain.model.Story;
 import fr.heliocraft.refinr.domain.model.Task;
 import org.slf4j.Logger;
@@ -20,7 +23,14 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * Cree la hierarchie Epic -> Story -> Subtask, dans l'ordre, et affecte a chaque element la cle de son ticket.
+ * Cree la hierarchie Epic -> Feature -> Story -> Subtask, dans l'ordre, et affecte a chaque element la cle de son
+ * ticket. Selon le gestionnaire ({@link IssueTrackerPort#featureLevel}) :
+ * <ul>
+ *   <li>niveau Feature natif : un ticket par Feature explicite ; la Feature implicite (seule de son epic) n'a pas de
+ *   ticket, sauf si le gestionnaire l'exige ({@code REQUIRED} : ticket au nom de l'epic) ;</li>
+ *   <li>pas de niveau Feature : stories sous l'epic, label {@code feature-<nom>} pour une Feature explicite et un
+ *   avertissement, ou refus avant tout appel au gestionnaire ({@link FeatureLevels.Policy#REFUSE}).</li>
+ * </ul>
  * Un echec n'arrete pas la creation : l'element est signale en echec, ses enfants ne sont pas crees (signales
  * aussi), et les elements suivants sont crees normalement.
  */
@@ -29,19 +39,34 @@ public class CreateBacklogService implements CreateBacklog {
     private static final Logger log = LoggerFactory.getLogger(CreateBacklogService.class);
 
     static final String EPIC = "epic";
+    static final String FEATURE = "feature";
     static final String STORY = "story";
     static final String SUBTASK = "subtask";
 
     private final IssueTrackerPort issueTracker;
+    private final FeatureLevels.Policy policy;
 
     public CreateBacklogService(IssueTrackerPort issueTracker) {
+        this(issueTracker, FeatureLevels.Policy.LABEL);
+    }
+
+    public CreateBacklogService(IssueTrackerPort issueTracker, FeatureLevels.Policy policy) {
         this.issueTracker = issueTracker;
+        this.policy = policy;
     }
 
     @Override
     public BacklogCreationResult create(List<Epic> epics, String project) {
         log.info("Creating full hierarchy: {} epics in project {}", epics.size(),
                 project == null || project.isBlank() ? "(default)" : project);
+        FeatureLevel level = FeatureLevels.levelOf(issueTracker, project);
+        // Niveau inconnu a la creation : traite comme absent (labels, avertissement, refus eventuel)
+        FeatureLevel effective = level == FeatureLevel.UNKNOWN ? FeatureLevel.NONE : level;
+        if (!effective.isNative() && policy == FeatureLevels.Policy.REFUSE && FeatureLevels.hasExplicitFeatures(epics)) {
+            log.warn("Creation refused: the tracker has no Feature level and refinr.features.without-level=refuse");
+            throw new FeatureLevelMissingException();
+        }
+        List<String> warnings = FeatureLevels.warnings(epics, effective, policy);
         List<CreatedIssue> created = new ArrayList<>();
         List<FailedIssue> failed = new ArrayList<>();
 
@@ -51,31 +76,64 @@ public class CreateBacklogService implements CreateBacklog {
             String epicKey = attempt(EPIC, epicPosition, epic.getName(), () -> issueTracker.createEpic(epic, project),
                     created, failed);
             if (epicKey == null) {
-                skipStories(epic.getStories(), "Not created: parent epic " + epic.getName() + " failed", failed);
+                skipFeatures(epic, effective, "Not created: parent epic " + epic.getName() + " failed", failed);
                 continue;
             }
             epic.setTrackerKey(epicKey);
 
+            int featureIndex = 0;
             int storyIndex = 0;
-            for (Story story : nonNull(epic.getStories())) {
-                String storyPosition = epicPosition + "." + ++storyIndex;
-                String storyKey = attempt(STORY, storyPosition, story.getTitle(),
-                        () -> issueTracker.createStory(story, epicKey, project), created, failed);
-                if (storyKey == null) {
-                    skipTasks(story.getTasks(), "Not created: parent story " + story.getTitle() + " failed", failed);
+            for (Feature feature : nonNull(epic.getFeatures())) {
+                if (feature == null) {
                     continue;
                 }
-                story.setTrackerKey(storyKey);
-                story.setEpicTrackerKey(epicKey);
+                String featurePosition = epicPosition + "." + ++featureIndex;
+                boolean implicit = epic.isImplicit(feature);
+                String parentKey = epicKey;
+                String featureLabel = null;
+                if (hasTicket(effective, implicit)) {
+                    String featureKey = attempt(FEATURE, featurePosition, featureName(epic, feature),
+                            () -> issueTracker.createFeature(named(epic, feature), epicKey, project), created, failed);
+                    if (featureKey == null) {
+                        skipStories(feature.getStories(), "Not created: parent feature " + featureName(epic, feature)
+                                + " failed", failed);
+                        storyIndex += nonNull(feature.getStories()).size();
+                        continue;
+                    }
+                    feature.setTrackerKey(featureKey);
+                    feature.setTrackerUrl(issueTracker.issueUrl(featureKey));
+                    parentKey = featureKey;
+                } else if (!effective.isNative() && !implicit) {
+                    featureLabel = FeatureLevels.label(feature);
+                }
 
-                int taskIndex = 0;
-                for (Task task : nonNull(story.getTasks())) {
-                    String taskPosition = storyPosition + "." + ++taskIndex;
-                    String taskKey = attempt(SUBTASK, taskPosition, task.getTitle(),
-                            () -> issueTracker.createSubtask(task, storyKey, project), created, failed);
-                    if (taskKey != null) {
-                        task.setTrackerKey(taskKey);
-                        task.setParentTrackerKey(storyKey);
+                for (Story story : nonNull(feature.getStories())) {
+                    String storyPosition = epicPosition + "." + ++storyIndex;
+                    if (story == null) {
+                        continue;
+                    }
+                    if (featureLabel != null) {
+                        addLabel(story, featureLabel);
+                    }
+                    String storyParent = parentKey;
+                    String storyKey = attempt(STORY, storyPosition, story.getTitle(),
+                            () -> issueTracker.createStory(story, storyParent, project), created, failed);
+                    if (storyKey == null) {
+                        skipTasks(story.getTasks(), "Not created: parent story " + story.getTitle() + " failed", failed);
+                        continue;
+                    }
+                    story.setTrackerKey(storyKey);
+                    story.setEpicTrackerKey(epicKey);
+
+                    int taskIndex = 0;
+                    for (Task task : nonNull(story.getTasks())) {
+                        String taskPosition = storyPosition + "." + ++taskIndex;
+                        String taskKey = attempt(SUBTASK, taskPosition, task.getTitle(),
+                                () -> issueTracker.createSubtask(task, storyKey, project), created, failed);
+                        if (taskKey != null) {
+                            task.setTrackerKey(taskKey);
+                            task.setParentTrackerKey(storyKey);
+                        }
                     }
                 }
             }
@@ -86,7 +144,33 @@ public class CreateBacklogService implements CreateBacklog {
         } else {
             log.warn("Hierarchy partially created: {} created, {} not created", created.size(), failed.size());
         }
-        return new BacklogCreationResult(epics, created, failed);
+        return new BacklogCreationResult(epics, created, failed, warnings);
+    }
+
+    /** Ticket de Feature : niveau natif et Feature explicite, ou Feature implicite quand le niveau est obligatoire. */
+    private static boolean hasTicket(FeatureLevel level, boolean implicit) {
+        return level == FeatureLevel.REQUIRED || (level == FeatureLevel.OPTIONAL && !implicit);
+    }
+
+    /** Nom de la Feature, ou celui de l'epic pour une Feature sans nom (Feature implicite de l'ancienne forme). */
+    private static String featureName(Epic epic, Feature feature) {
+        return feature.getName() != null && !feature.getName().isBlank() ? feature.getName() : epic.getName();
+    }
+
+    /** La Feature envoyee au gestionnaire porte toujours un nom (celui de l'epic a defaut). */
+    private static Feature named(Epic epic, Feature feature) {
+        if (feature.getName() == null || feature.getName().isBlank()) {
+            feature.setName(epic.getName());
+        }
+        return feature;
+    }
+
+    private static void addLabel(Story story, String label) {
+        List<String> labels = new ArrayList<>(nonNull(story.getLabels()));
+        if (!labels.contains(label)) {
+            labels.add(label);
+        }
+        story.setLabels(labels);
     }
 
     /**
@@ -111,8 +195,24 @@ public class CreateBacklogService implements CreateBacklog {
         return null;
     }
 
+    /** Epic en echec : ses Features (si elles auraient eu un ticket), stories et sous-taches sont signalees. */
+    private static void skipFeatures(Epic epic, FeatureLevel level, String reason, List<FailedIssue> failed) {
+        for (Feature feature : nonNull(epic.getFeatures())) {
+            if (feature == null) {
+                continue;
+            }
+            if (hasTicket(level, epic.isImplicit(feature))) {
+                failed.add(new FailedIssue(FEATURE, featureName(epic, feature), reason));
+            }
+            skipStories(feature.getStories(), reason, failed);
+        }
+    }
+
     private static void skipStories(List<Story> stories, String reason, List<FailedIssue> failed) {
         for (Story story : nonNull(stories)) {
+            if (story == null) {
+                continue;
+            }
             failed.add(new FailedIssue(STORY, story.getTitle(), reason));
             skipTasks(story.getTasks(), reason, failed);
         }

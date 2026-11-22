@@ -176,7 +176,9 @@ class ConfigurationDefaultsTest {
     void outputLanguageIsAligned() throws Exception {
         String key = fr.heliocraft.refinr.domain.service.OutputLanguagePolicy.PROPERTY;
         assertEquals("refinr.llm.output-language", key);
-        java.lang.reflect.Parameter parameter = UseCaseConfig.class.getConstructors()[0].getParameters()[2];
+        java.lang.reflect.Parameter parameter = java.util.Arrays.stream(UseCaseConfig.class.getConstructors())
+                .filter(c -> c.isAnnotationPresent(org.springframework.beans.factory.annotation.Autowired.class))
+                .findFirst().orElseThrow().getParameters()[2];
         assertEquals("${" + key + ":auto}", parameter.getAnnotation(org.springframework.beans.factory.annotation.Value.class).value());
         assertEquals("auto", exampleDefault(key));
         assertEquals("auto", envExample("LLM_OUTPUT_LANGUAGE"));

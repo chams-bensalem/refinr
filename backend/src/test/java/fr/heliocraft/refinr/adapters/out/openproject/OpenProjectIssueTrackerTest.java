@@ -148,6 +148,74 @@ class OpenProjectIssueTrackerTest {
         return task;
     }
 
+    static final String TYPES_WITH_FEATURE = """
+            {"_embedded":{"elements":[
+              {"id":1,"name":"Task","_links":{"self":{"href":"/api/v3/types/1"}}},
+              {"id":4,"name":"Feature","_links":{"self":{"href":"/api/v3/types/4"}}},
+              {"id":5,"name":"Epic","_links":{"self":{"href":"/api/v3/types/5"}}},
+              {"id":6,"name":"User story","_links":{"self":{"href":"/api/v3/types/6"}}}]}}""";
+
+    @Nested
+    class FeatureLevelOfTheProject {
+
+        @Test
+        @DisplayName("Feature type enabled in the project: native and optional level; feature under the epic, story under the feature")
+        void featureTypeEnabled() throws Exception {
+            server.enqueue(json(200, TYPES_WITH_FEATURE));
+            server.enqueue(json(200, FORM));
+            server.enqueue(created(20));
+            server.enqueue(created(21));
+            fr.heliocraft.refinr.domain.model.Feature feature = new fr.heliocraft.refinr.domain.model.Feature();
+            feature.setName("Booking");
+            feature.setDescription("Book a room.");
+            feature.setPriority("High");
+            feature.setLabels(List.of("backend"));
+
+            assertEquals(fr.heliocraft.refinr.application.port.out.IssueTrackerPort.FeatureLevel.OPTIONAL,
+                    tracker.featureLevel(null));
+            assertEquals("20", tracker.createFeature(feature, "10", null));
+            assertEquals("21", tracker.createStory(story(true), "20", null));
+
+            assertEquals("/api/v3/projects/refinr-spike/types", next().getPath());
+            next();
+            JsonNode created = body(next());
+            assertEquals("Booking", created.at("/subject").asString());
+            assertEquals("/api/v3/types/4", created.at("/_links/type/href").asString());
+            assertEquals("/api/v3/work_packages/10", created.at("/_links/parent/href").asString());
+            assertEquals("/api/v3/priorities/9", created.at("/_links/priority/href").asString());
+            assertTrue(created.at("/description/raw").asString().contains("backend"), created.toString());
+            JsonNode story = body(next());
+            assertEquals("/api/v3/types/6", story.at("/_links/type/href").asString());
+            assertEquals("/api/v3/work_packages/20", story.at("/_links/parent/href").asString());
+        }
+
+        @Test
+        @DisplayName("Feature type not enabled in the project: no feature level, no error; creating a feature is refused clearly")
+        void featureTypeNotEnabled() {
+            server.enqueue(json(200, TYPES));
+            server.enqueue(json(200, FORM));
+
+            assertEquals(fr.heliocraft.refinr.application.port.out.IssueTrackerPort.FeatureLevel.NONE,
+                    tracker.featureLevel(null));
+            fr.heliocraft.refinr.domain.model.Feature feature = new fr.heliocraft.refinr.domain.model.Feature();
+            feature.setName("Booking");
+            fr.heliocraft.refinr.application.port.out.IssueTrackerException error = assertThrows(
+                    fr.heliocraft.refinr.application.port.out.IssueTrackerException.class,
+                    () -> tracker.createFeature(feature, "10", null));
+            assertTrue(error.getMessage().contains("'Feature' is not enabled in project refinr-spike"), error.getMessage());
+            assertEquals(2, server.getRequestCount(), "nothing posted");
+        }
+
+        @Test
+        @DisplayName("Project not set up (types unreadable): feature level unknown, never an exception")
+        void unknownWhenTheSetupFails() {
+            server.enqueue(json(404, "{\"_type\":\"Error\",\"message\":\"not found\"}"));
+
+            assertEquals(fr.heliocraft.refinr.application.port.out.IssueTrackerPort.FeatureLevel.UNKNOWN,
+                    tracker.featureLevel(null));
+        }
+    }
+
     @Nested
     class Creation {
 

@@ -25,10 +25,12 @@ import fr.heliocraft.refinr.application.service.CreateBacklogService;
 import fr.heliocraft.refinr.application.service.CreateEditedBacklogService;
 import fr.heliocraft.refinr.application.service.DescribeSourceService;
 import fr.heliocraft.refinr.application.service.DescribeTrackerService;
+import fr.heliocraft.refinr.application.service.FeatureLevels;
 import fr.heliocraft.refinr.application.service.PreviewBacklogService;
 import fr.heliocraft.refinr.application.service.ReassessStoryService;
 import fr.heliocraft.refinr.application.service.ValidateStoryService;
 import fr.heliocraft.refinr.application.service.SearchDocumentsService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -49,10 +51,23 @@ public class UseCaseConfig {
     private final int maxContentChars;
     // Langue de sortie : auto (detection francais / anglais) ou un code ISO 639-1 ; refus au demarrage sinon
     private final OutputLanguagePolicy languagePolicy;
+    // Gestionnaire sans niveau Feature : label (defaut) ou refus ; refus au demarrage d'une autre valeur
+    private final FeatureLevels.Policy featurePolicy;
 
+    public UseCaseConfig(String verdictProvider, int maxContentChars, String outputLanguage) {
+        this(verdictProvider, maxContentChars, outputLanguage, "label");
+    }
+
+    @Autowired
     public UseCaseConfig(@Value("${refinr.llm.verdict.provider:}") String verdictProvider,
                          @Value("${" + MAX_CONTENT_CHARS_PROPERTY + ":" + DEFAULT_MAX_CONTENT_CHARS + "}") int maxContentChars,
-                         @Value("${" + OutputLanguagePolicy.PROPERTY + ":" + OutputLanguagePolicy.AUTO + "}") String outputLanguage) {
+                         @Value("${" + OutputLanguagePolicy.PROPERTY + ":" + OutputLanguagePolicy.AUTO + "}") String outputLanguage,
+                         @Value("${" + FeatureLevels.PROPERTY + ":label}") String featurePolicy) {
+        try {
+            this.featurePolicy = FeatureLevels.Policy.of(featurePolicy);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException(e.getMessage(), e);
+        }
         this.separateVerdict = verdictProvider != null && !verdictProvider.isBlank();
         this.languagePolicy = OutputLanguagePolicy.fromProperty(outputLanguage);
         if (maxContentChars <= 0) {
@@ -64,7 +79,7 @@ public class UseCaseConfig {
 
     @Bean
     public CreateBacklog createBacklog(IssueTrackerPort issueTracker) {
-        return new CreateBacklogService(issueTracker);
+        return new CreateBacklogService(issueTracker, featurePolicy);
     }
 
     @Bean
@@ -98,7 +113,7 @@ public class UseCaseConfig {
 
     @Bean
     public DescribeTracker describeTracker(IssueTrackerPort issueTracker) {
-        return new DescribeTrackerService(issueTracker);
+        return new DescribeTrackerService(issueTracker, featurePolicy);
     }
 
     @Bean
