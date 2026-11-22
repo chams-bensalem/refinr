@@ -24,6 +24,10 @@ services:
     build:
       context: ./backend
     image: ${REFINR_BACKEND_IMAGE:-refinr-backend:local}
+    # Time between SIGTERM and SIGKILL (Docker default: 10 s). On stop the backend lets the analysis jobs that are
+    # creating issues finish within JOBS_SHUTDOWN_GRACE (30 s by default), in parallel with the in-flight HTTP
+    # requests (spring.lifecycle.timeout-per-shutdown-phase, 30 s): keep this above both when you change them.
+    stop_grace_period: 45s
     env_file:
       - path: .env
         required: false

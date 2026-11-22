@@ -582,7 +582,7 @@ Correspondance avec OpenProject :
 | `refinr.jobs.max-duration` | `30m` | Durée maximale d'un job avant la création des tickets ; au-delà, le job échoue (`504` dans son résultat) ; une création commencée va toujours au bout (`JOBS_MAX_DURATION`) |
 | `refinr.jobs.retention` | `24h` | Durée de conservation d'un job terminé et de son résultat, comptée depuis sa fin (`JOBS_RETENTION`) |
 | `refinr.jobs.max-retained` | `100` | Nombre maximal de jobs gardés (en cours et terminés, au moins `max-concurrent` + `max-queued`) ; plein, le job terminé le plus ancien est retiré (`JOBS_MAX_RETAINED`) |
-| `refinr.jobs.shutdown-grace` | `30s` | À l'arrêt : plus de nouveau job, les jobs qui créent les tickets ont ce délai pour finir, les autres sont interrompus (`JOBS_SHUTDOWN_GRACE`) |
+| `refinr.jobs.shutdown-grace` | `30s` | À l'arrêt : plus de nouveau job, les jobs qui créent les tickets ont ce délai pour finir (compté depuis le début de l'arrêt, en même temps que les requêtes HTTP en cours), les autres sont interrompus ; garder le délai d'arrêt du conteneur au-dessus (`JOBS_SHUTDOWN_GRACE`) |
 
 `.env.example` liste toutes les variables d'environnement. Le frontend n'en demande aucune : il lit l'URL de l'API au
 chargement de la page dans `/config.js` (`REFINR_API_BASE_URL` dans l'image Docker, défaut `/api/v1`, même origine).
@@ -634,6 +634,13 @@ curl localhost:8080/api/v1/health
 
 Dans un conteneur, `localhost` désigne le conteneur lui-même : un Ollama lancé sur votre machine est à
 `http://host.docker.internal:11434/v1`.
+
+**Arrêt** : `docker compose stop` laisse au backend `stop_grace_period` (45 s dans `docker-compose.yml`, 10 s par
+défaut chez Docker) avant de le tuer. Pendant ce temps, les jobs d'analyse qui créent les tickets finissent
+(`JOBS_SHUTDOWN_GRACE`, 30 s) pendant que les requêtes HTTP en cours se terminent
+(`spring.lifecycle.timeout-per-shutdown-phase`, 30 s). **Si vous augmentez `JOBS_SHUTDOWN_GRACE`, gardez
+`stop_grace_period` au-dessus** (de même pour `docker stop -t`, `terminationGracePeriodSeconds` de Kubernetes), sinon
+une création en cours est coupée.
 
 #### Sécurité
 

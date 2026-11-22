@@ -13,8 +13,10 @@ import fr.heliocraft.refinr.application.service.AnalysisJobService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.event.ContextClosedEvent;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -72,5 +74,16 @@ public class JobConfiguration {
                 maxConcurrent, maxQueued, maxDuration, maxRetained);
         return new AnalysisJobService(previewBacklog, analyzeDocument, documentSource, maxContentChars, jobStore,
                 settings, CLOCK);
+    }
+
+    /**
+     * Arret des jobs des le debut de la fermeture du contexte : l'evenement est publie avant l'arret progressif du
+     * serveur web ({@code server.shutdown=graceful}, au plus {@code spring.lifecycle.timeout-per-shutdown-phase} pour
+     * les requetes en cours). Les deux delais courent donc en meme temps ; {@code close()} attend ensuite le reste de
+     * {@code refinr.jobs.shutdown-grace}. Le conteneur doit laisser plus que le plus long des deux (stop_grace_period).
+     */
+    @Bean
+    ApplicationListener<ContextClosedEvent> analysisJobsShutdown(AnalysisJobService analysisJobs) {
+        return event -> analysisJobs.beginShutdown();
     }
 }

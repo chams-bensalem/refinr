@@ -51,8 +51,9 @@ import java.util.function.UnaryOperator;
  * Analyses en arriere-plan : au plus {@code maxConcurrent} jobs a la fois, {@code maxQueued} en attente (au-dela :
  * refus), chacun borne a {@code maxDuration} avant la creation des tickets (une creation commencee va toujours au
  * bout). Les nouveaux essais du fournisseur et le decoupage des lots tronques restent ceux des cas d'usage ; un job
- * n'en ajoute aucun. Arret progressif ({@link #close()}) : plus de soumission, les jobs en attente et ceux qui n'ont pas
- * commence la creation sont interrompus, ceux qui creent les tickets ont {@code shutdownGrace} pour finir.
+ * n'en ajoute aucun. Arret progressif ({@link #beginShutdown()}, puis {@link #close()}) : plus de soumission, les
+ * jobs en attente et ceux qui n'ont pas commence la creation sont interrompus, ceux qui creent les tickets ont
+ * {@code shutdownGrace} pour finir, compte depuis le debut de l'arret.
  * <p>
  * Journaux : type, etat, etape, duree et les 8 premiers caracteres de l'identifiant ; jamais le contenu du document,
  * le resultat ni l'identifiant complet (sans cle d'API, il suffit a lire le resultat).
@@ -95,6 +96,8 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
     private final ScheduledExecutorService watchdog;
     private final Map<String, Job> active = new ConcurrentHashMap<>();
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final AtomicBoolean terminated = new AtomicBoolean();
+    private volatile long shutdownStartNanos;
     private volatile boolean accepting = true;
 
     public AnalysisJobService(PreviewBacklog previewBacklog, AnalyzeDocument analyzeDocument,
@@ -173,14 +176,16 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
     }
 
     /**
-     * Arret progressif : plus de soumission ; jobs en attente et jobs qui n'ont pas commence la creation des tickets
-     * interrompus tout de suite ; jobs en creation attendus au plus {@code shutdownGrace}, puis interrompus.
+     * Debut de l'arret progressif, sans attendre : plus de soumission ; jobs en attente et jobs qui n'ont pas commence
+     * la creation des tickets interrompus tout de suite ; les jobs en creation continuent. Appele des le debut de la
+     * fermeture du contexte (avant l'arret du serveur web), pour que le delai {@code shutdownGrace} coure en meme temps
+     * que celui des requetes HTTP en cours. Idempotent.
      */
-    @Override
-    public void close() {
+    public void beginShutdown() {
         if (!closed.compareAndSet(false, true)) {
             return;
         }
+        shutdownStartNanos = System.nanoTime();
         accepting = false;
         List<Runnable> queued = new ArrayList<>();
         workers.getQueue().drainTo(queued);
@@ -199,8 +204,23 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
             }
         }
         workers.shutdown();
+        log.info("Analysis jobs stopping: {} interrupted, jobs creating issues get up to {} to finish", interrupted,
+                settings.shutdownGrace());
+    }
+
+    /**
+     * Fin de l'arret progressif : {@link #beginShutdown()} si ce n'est pas deja fait, puis attente des jobs en creation
+     * jusqu'a {@code shutdownGrace} apres le debut de l'arret, puis interruption. Idempotent.
+     */
+    @Override
+    public void close() {
+        beginShutdown();
+        if (!terminated.compareAndSet(false, true)) {
+            return;
+        }
+        long remainingNanos = settings.shutdownGrace().toNanos() - (System.nanoTime() - shutdownStartNanos);
         try {
-            if (!workers.awaitTermination(settings.shutdownGrace().toMillis(), TimeUnit.MILLISECONDS)) {
+            if (!workers.awaitTermination(Math.max(0, remainingNanos), TimeUnit.NANOSECONDS)) {
                 log.warn("Analysis jobs still creating issues after the shutdown grace period ({}): interrupted",
                         settings.shutdownGrace());
                 workers.shutdownNow();
@@ -210,7 +230,7 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
             Thread.currentThread().interrupt();
         }
         watchdog.shutdownNow();
-        log.info("Analysis jobs stopped ({} interrupted)", interrupted);
+        log.info("Analysis jobs stopped");
     }
 
     private JobView submit(JobView.Type type, String documentId, Work work) {
