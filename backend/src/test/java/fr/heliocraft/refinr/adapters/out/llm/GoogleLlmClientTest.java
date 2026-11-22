@@ -95,4 +95,39 @@ class GoogleLlmClientTest extends AbstractStructuredErrorLlmClientTest {
 
         assertThrows(fr.heliocraft.refinr.application.port.out.LlmException.class, () -> client().complete(request()));
     }
+
+    // ---------- delai annonce par google.rpc.RetryInfo (B1) ----------
+
+    private static MockResponse quotaWithRetryInfo(String retryDelay) {
+        return new MockResponse().setResponseCode(429).addHeader("Content-Type", "application/json").setBody(
+                "{\"error\":{\"code\":429,\"status\":\"RESOURCE_EXHAUSTED\",\"message\":\"quota for fake-api-key\","
+                        + "\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\"},"
+                        + "{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"" + retryDelay + "\"}]}}");
+    }
+
+    @Test
+    @DisplayName("HTTP 429 with google.rpc.RetryInfo beyond retry-max-delay: RATE_LIMITED with that delay, 1 request")
+    void retryInfoIsRead() {
+        server.enqueue(quotaWithRetryInfo("45s"));
+
+        fr.heliocraft.refinr.application.port.out.LlmException error = assertThrows(
+                fr.heliocraft.refinr.application.port.out.LlmException.class, () -> client().complete(request()));
+
+        assertEquals(fr.heliocraft.refinr.application.port.out.LlmException.Reason.RATE_LIMITED, error.reason());
+        assertEquals(java.util.Optional.of(java.time.Duration.ofSeconds(45)), error.retryAfter());
+        assertEquals(1, server.getRequestCount());
+        assertFalse(error.getMessage().contains("fake-api-key"), error.getMessage());
+    }
+
+    @Test
+    @DisplayName("RetryInfo: fractional delay rounded up, unreadable delay ignored, Retry-After header preferred")
+    void retryInfoFormats() {
+        LlmClient client = client();
+        String body = "{\"error\":{\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"%s\"}]}}";
+        assertEquals(java.time.Duration.ofSeconds(2), client.requestedDelay(null, body.formatted("1.5s")));
+        assertEquals(java.time.Duration.ofSeconds(1), client.requestedDelay(null, body.formatted("0.2s")));
+        assertNull(client.requestedDelay(null, body.formatted("soon")));
+        assertNull(client.requestedDelay(null, "{\"error\":{\"details\":[]}}"));
+        assertEquals(java.time.Duration.ofSeconds(9), client.requestedDelay("9", body.formatted("45s")));
+    }
 }

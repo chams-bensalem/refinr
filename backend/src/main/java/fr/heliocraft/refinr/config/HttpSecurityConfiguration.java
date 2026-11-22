@@ -13,6 +13,7 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
@@ -73,6 +74,8 @@ public class HttpSecurityConfiguration {
             cors.setAllowedOrigins(origins);
             cors.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
             cors.setAllowedHeaders(List.of("Content-Type", ApiKeyFilter.HEADER));
+            // Lu par l'interface web et le plugin sur un 503 (quota, surcharge du fournisseur)
+            cors.setExposedHeaders(List.of(HttpHeaders.RETRY_AFTER));
             cors.setAllowCredentials(false);
             cors.setMaxAge(3600L);
             source.registerCorsConfiguration("/api/**", cors);

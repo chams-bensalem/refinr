@@ -1069,7 +1069,7 @@ class BacklogControllerTest {
     }
 
     @Test
-    @DisplayName("No leak: HTTP 429 whose body echoes the prompt and the key (status and message unchanged)")
+    @DisplayName("No leak: HTTP 429 whose body echoes the prompt and the key (503, generic message)")
     void noLeakOnRateLimit(CapturedOutput output) throws Exception {
         String marker = "LEAK-MARKER-" + UUID.randomUUID();
         try (MockWebServer server = new MockWebServer()) {
@@ -1080,8 +1080,10 @@ class BacklogControllerTest {
 
             String body = mockMvc.perform(post("/api/v1/analyze-preview").contentType(MediaType.APPLICATION_JSON)
                             .content(json("content", "# Spec\nGestion des stocks " + marker)))
-                    .andExpect(status().isBadGateway())
-                    .andExpect(jsonPath("$.error").value("The AI provider is unavailable"))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.error").value(BacklogController.RATE_LIMITED))
+                    .andExpect(jsonPath("$.retryAfterSeconds").doesNotExist())
+                    .andExpect(header().doesNotExist("Retry-After"))
                     .andReturn().getResponse().getContentAsString();
 
             assertNoLeak(marker, body, output);
@@ -1102,11 +1104,83 @@ class BacklogControllerTest {
 
             String body = mockMvc.perform(post("/api/v1/reassess-story").contentType(MediaType.APPLICATION_JSON)
                             .content(json("issueKey", "TEST-7", "precision", "Precision " + marker)))
-                    .andExpect(status().isBadGateway())
-                    .andExpect(jsonPath("$.error").value("The AI provider is unavailable"))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.error").value(BacklogController.OVERLOADED))
                     .andReturn().getResponse().getContentAsString();
 
             assertNoLeak(marker, body, output);
+        }
+    }
+
+    // ---------- quota et surcharge du fournisseur : 503 + Retry-After (B1) ----------
+
+    @Test
+    @DisplayName("Quota (429) with a known delay: 503, Retry-After header and retryAfterSeconds, on preview and analyze-and-create, nothing created")
+    void rateLimitIs503WithRetryAfter() throws Exception {
+        when(confluenceService.getDocumentContent("123")).thenReturn("cdc");
+        when(generator.generate(eq("cdc"), any())).thenThrow(new LlmException(LlmException.Reason.RATE_LIMITED,
+                "The google LLM provider is rate limiting the requests (HTTP 429)", Duration.ofSeconds(42)));
+
+        for (String endpoint : List.of("/api/v1/analyze-preview", "/api/v1/analyze-and-create")) {
+            mockMvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content("{\"confluencePageId\":\"123\"}"))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(header().string("Retry-After", "42"))
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").value("The AI provider quota or rate limit was reached"))
+                    .andExpect(jsonPath("$.retryAfterSeconds").value(42));
+        }
+        verifyNoInteractions(jiraService);
+    }
+
+    @Test
+    @DisplayName("Overload (503 / 529) without a delay: 503 with its own message, neither Retry-After nor retryAfterSeconds")
+    void overloadIs503WithoutDelay() throws Exception {
+        when(generator.generate(any(), any())).thenThrow(new LlmException(LlmException.Reason.OVERLOADED,
+                "The anthropic LLM provider is unavailable (HTTP 529)"));
+
+        mockMvc.perform(post("/api/v1/analyze-preview").contentType(MediaType.APPLICATION_JSON)
+                        .content(json("content", "# Spec\nGestion des stocks")))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().doesNotExist("Retry-After"))
+                .andExpect(jsonPath("$.error").value("The AI provider is temporarily overloaded"))
+                .andExpect(jsonPath("$.retryAfterSeconds").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("Reassessment: quota gives 503 with Retry-After, and the story is not written")
+    void reassessIs503OnRateLimit() throws Exception {
+        when(jiraService.findStory("TEST-7")).thenReturn(new TrackedStory("TEST-7", "Export PDF", "Exporter",
+                List.of("validation-necessaire")));
+        when(assessor.reassess(any(), any(), any(), any())).thenThrow(new LlmException(LlmException.Reason.RATE_LIMITED,
+                "HTTP 429", Duration.ofSeconds(3600)));
+
+        mockMvc.perform(post("/api/v1/reassess-story").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"issueKey\":\"TEST-7\",\"precision\":\"format A4\"}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("Retry-After", "3600"))
+                .andExpect(jsonPath("$.retryAfterSeconds").value(3600));
+
+        verify(jiraService, never()).applyReassessment(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("create-jira with a 429 on the verdicts: 200, issues created with the fallback verdict (never 503)")
+    void createJiraWithRateLimitedVerdictsUsesTheFallback() throws Exception {
+        try (MockWebServer server = new MockWebServer()) {
+            server.enqueue(new MockResponse().setResponseCode(429).addHeader("Retry-After", "60"));
+            LlmReadinessAssessor real = new LlmReadinessAssessor(llmClient(server, "x"), new StructuredOutput(1), 5);
+            when(assessor.assess(any(), any())).thenAnswer(call -> real.assess(call.getArgument(0), call.getArgument(1)));
+            when(jiraService.createEpic(any(Epic.class), any())).thenReturn("TEST-1");
+            when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("TEST-2");
+            when(jiraService.createSubtask(any(Task.class), anyString(), any())).thenReturn("TEST-3");
+
+            mockMvc.perform(post("/api/v1/create-jira").contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
+                    .andExpect(status().isOk())
+                    .andExpect(header().doesNotExist("Retry-After"))
+                    .andExpect(jsonPath("$.epics[0].stories[0].aiReady").value(false))
+                    .andExpect(jsonPath("$.epics[0].stories[0].aiReadyReason")
+                            .value(org.hamcrest.Matchers.startsWith("verdict indisponible")));
+            assertEquals(1, server.getRequestCount());
         }
     }
 

@@ -4,12 +4,17 @@
 package fr.heliocraft.refinr.application.service;
 
 import fr.heliocraft.refinr.application.port.in.ModelOutputException;
+import fr.heliocraft.refinr.application.port.in.ModelOverloadedException;
+import fr.heliocraft.refinr.application.port.in.ModelRateLimitedException;
 import fr.heliocraft.refinr.application.port.in.ModelUnavailableException;
 import fr.heliocraft.refinr.application.port.out.LlmException;
 
 import java.util.function.Supplier;
 
-/** Traduit un echec du modele (sortie invalide ou tronquee, fournisseur indisponible) en erreur du cas d'usage. */
+/**
+ * Traduit un echec du modele en erreur du cas d'usage : sortie invalide ou tronquee, quota ou limite de debit (429),
+ * surcharge (503, 529), autre indisponibilite. Le delai annonce par le fournisseur est conserve.
+ */
 final class LlmFailures {
 
     private LlmFailures() {}
@@ -24,7 +29,11 @@ final class LlmFailures {
             if (e.reason() == LlmException.Reason.TRUNCATED) {
                 throw new ModelOutputException(true, e);
             }
-            throw new ModelUnavailableException(e);
+            throw switch (e.reason()) {
+                case RATE_LIMITED -> new ModelRateLimitedException(e, e.retryAfter().orElse(null));
+                case OVERLOADED -> new ModelOverloadedException(e, e.retryAfter().orElse(null));
+                default -> new ModelUnavailableException(e);
+            };
         }
     }
 }

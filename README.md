@@ -549,7 +549,7 @@ How the backlog maps to OpenProject:
 | `refinr.llm.analysis.retry-base-delay` | `2s` | Delay before the first retry |
 | `refinr.llm.analysis.retry-multiplier` | `4` | Factor between two delays (defaults: 2 s then 8 s) |
 | `refinr.llm.analysis.retry-jitter` | `0.2` | Random share of the delay (± 20 %) |
-| `refinr.llm.analysis.retry-max-delay` | `30s` | Cap of a delay, including a provider `Retry-After` (which wins over the backoff) |
+| `refinr.llm.analysis.retry-max-delay` | `30s` | Cap of the backoff delay; a delay announced by the provider (`Retry-After`, Gemini `RetryInfo`) is waited if it is not longer, otherwise the call fails at once (`503` with `Retry-After`) |
 | `refinr.llm.max-repair-attempts` | `2` | Repair attempts with the list of errors when the output breaks the JSON Schema, then `502` |
 | `refinr.llm.verdict.provider` | *(empty)* | Dedicated `ai-ready` verdict provider; empty = the analysis one |
 | `refinr.llm.verdict.timeout` | `90s` | Maximum duration of a verdict call |
@@ -764,6 +764,12 @@ English prompt and are supported without being measured. Refinr's own lines in t
 - **CORS**: only the origins in `refinr.cors.allowed-origins`. **Host**: a `Host` not in `refinr.security.allowed-hosts` gets `403`.
 - **Errors**: `{ "success": false, "error": "<generic message>", "correlationId": "…" }` — never the raw exception;
   the `correlationId` points to the details in the logs.
+- **AI provider quota or overload** (`analyze-preview`, `analyze-and-create`, `reassess-story`): provider HTTP `429` →
+  `503` *The AI provider quota or rate limit was reached*; HTTP `503` / `529` → `503` *The AI provider is temporarily
+  overloaded*; after the retries, or at once when the provider asks to wait longer than `retry-max-delay`. When the
+  provider announces a delay (`Retry-After`, Gemini `RetryInfo`), the response carries a `Retry-After` header (seconds,
+  exposed to browsers by CORS) and a `retryAfterSeconds` field; never otherwise. Any other provider failure stays
+  `502`. Verdicts never fail: `create-jira` still answers `200` with the fallback verdict.
 - **Document errors** (`analyze-*`): `400` missing or malformed `documentId`, or empty document; `404` page not found
   or not visible to the Refinr account; `502` source unavailable (credentials or rights refused, error, timeout) —
   with a safe message naming the page and the HTTP status, never a URL or a raw body.
@@ -786,6 +792,7 @@ English prompt and are supported without being measured. Refinr's own lines in t
 | `400` | Invalid `projectKey`, or empty document / no text to analyze | `false` |
 | `413` | Text longer than `refinr.document.max-content-chars`, or body over `refinr.http.max-body-bytes` (nothing created, no LLM call) | `false` |
 | `502` | No issue could be created, unusable LLM output (invalid after repairs, or truncated), or LLM provider unavailable | `false` |
+| `503` | AI provider quota or overload (`analyze-and-create` only; nothing created), with `Retry-After` and `retryAfterSeconds` when the provider announces a delay | `false` |
 
 A failure does not stop the creation: the item is listed in `failed` (with a reason: HTTP status and the tracker's
 validation errors), so are its children (`Not created: parent … failed`), and the next items are still created.
@@ -813,7 +820,7 @@ after a server-side success would duplicate the issue; failures go to `failed` a
 |---|---|---|
 | Confluence page read | ✅ on HTTP `429` and `500` | 2 retries, after 1 s then 2 s (`503` and other errors: no retry) |
 | BookStack / XWiki read and search | ✅ on HTTP `429` and `5xx` | 2 retries, after 1 s then 2 s; 30 s timeout per call |
-| LLM calls (analysis, verdict, reassessment), every provider | ✅ on HTTP `429`, `5xx` (including Gemini `503` and Anthropic `529`) and unreachable provider | 2 retries, `Retry-After` first (capped at 30 s), otherwise 2 s then 8 s ± 20 % (`refinr.llm.*.max-retries`, `retry-base-delay`, `retry-multiplier`, `retry-jitter`, `retry-max-delay`); never after a timeout (300 s analysis, 90 s verdict) nor on another `4xx` (`401`: key refused) |
+| LLM calls (analysis, verdict, reassessment), every provider | ✅ on HTTP `429`, `5xx` (including Gemini `503` and Anthropic `529`) and unreachable provider | 2 retries, after the delay announced by the provider (`Retry-After`, Gemini `RetryInfo`) if it is at most `retry-max-delay` (30 s), immediate failure (`503`) if it is longer, otherwise 2 s then 8 s ± 20 % (`refinr.llm.*.max-retries`, `retry-base-delay`, `retry-multiplier`, `retry-jitter`, `retry-max-delay`); never after a timeout (300 s analysis, 90 s verdict) nor on another `4xx` (`401`: key refused) |
 | Invalid LLM output (unreadable JSON or schema violation) | ✅ repair **with the list of errors** | `refinr.llm.max-repair-attempts` (2) attempts, then `502` (`create-jira`: `validation-necessaire`) |
 | Truncated LLM output (token limit) | ❌ | Explicit `502`: raise `max-output-tokens` |
 | Confluence search | ❌ | |
@@ -898,7 +905,8 @@ Docker and GitHub Actions updates weekly.
 | `issuetype … invalid` | `Epic` / `Story` / `Subtask` missing | Check the Jira project's issue types |
 | `502` *did not produce a valid result* | Output breaks the schema even after repairs | Use a more capable model |
 | `502` *output was truncated* | Token limit reached | Raise `refinr.llm.analysis.max-output-tokens` |
-| `502` *The AI provider is unavailable* | Unreachable, key refused, quota or timeout (after retries) | See `GET /api/v1/health` and the logs (`correlationId`) |
+| `502` *The AI provider is unavailable* | Unreachable, key refused or timeout (after retries) | See `GET /api/v1/health` and the logs (`correlationId`) |
+| `503` *quota or rate limit was reached* / *temporarily overloaded* | Provider `429`, or `503` / `529` | Retry after `Retry-After` (`retryAfterSeconds`) when given; for a daily quota, wait for its reset or raise it |
 | `ai: UP` but every analysis fails with *does not know the model or endpoint (HTTP 404)* | Model retired for generation: the Google health check only reads the model (`GET /v1beta/models/{model}`), which can still answer for a retired model | Switch `LLM_ANALYSIS_MODEL` to a current model (for example `gemini-3.6-flash`) |
 | `ai` busy: *HTTP 503* | Provider overloaded (high demand) | Retry a few minutes later |
 | Startup refused: *Missing configuration for tracker.provider=…* | A property of the chosen tracker is absent (local `application.properties` older than 1.1) | Copy the `tracker.provider` and `openproject.*` lines from `application-example.properties` |
