@@ -41,3 +41,4 @@ frontend/*.tsbuildinfo
 
 # --- Verdict evaluation state (daily call counters, spend ledger) ---
 eval/verdict/.state/
+eval/verdict/results/**/STOP-*
