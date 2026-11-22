@@ -54,7 +54,7 @@ with `LLM_ANALYSIS_BASE_URL=http://ollama:11434/v1`. More in [Docker Compose](#d
 |---|---|---|
 | Ollama (local, for example `qwen3:8b`) | `openai-compatible` | ✅ tested against the real API |
 | Google Gemini | `google` | ✅ tested against the real API (for example with `gemini-3.6-flash`) |
-| Anthropic Claude | `anthropic` | ⚠️ not tested against the real API (simulated HTTP server only) |
+| Anthropic Claude | `anthropic` | ✅ tested against the real API (for example with `claude-haiku-5-5` and `claude-opus-5-5`) |
 | OpenAI | `openai-compatible` | ⚠️ not tested against the real API (simulated HTTP server only) |
 | DeepSeek, Mistral, Groq, OpenRouter, LiteLLM, vLLM | `openai-compatible` | ⚠️ not tested against the real API (same client as OpenAI / Ollama) |
 
@@ -303,7 +303,7 @@ LLM_ANALYSIS_BASE_URL=
 LLM_ANALYSIS_MODEL=gemini-3.6-flash
 LLM_ANALYSIS_API_KEY=your-gemini-api-key
 
-# Anthropic (empty base URL = official endpoint; the model is an example; not tested against the real API yet)
+# Anthropic (empty base URL = official endpoint; the model is an example)
 LLM_ANALYSIS_PROVIDER=anthropic
 LLM_ANALYSIS_BASE_URL=
 LLM_ANALYSIS_MODEL=claude-opus-5-5
