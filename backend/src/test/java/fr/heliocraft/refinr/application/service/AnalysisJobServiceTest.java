@@ -484,6 +484,36 @@ class AnalysisJobServiceTest {
     }
 
     @Test
+    @DisplayName("beginShutdown returns at once and refuses submissions; close then waits only for the rest of the grace")
+    void graceIsCountedFromTheStartOfTheShutdown() throws Exception {
+        CountDownLatch creating = new CountDownLatch(1);
+        CountDownLatch never = new CountDownLatch(1);
+        AnalysisJobService service = service(new FakeAnalyses().then(progress -> {
+            progress.step(Step.CREATING_ISSUES);
+            creating.countDown();
+            never.await(10, TimeUnit.SECONDS);
+            return creation();
+        }), 1, 5, Duration.ofMinutes(5), Duration.ofMillis(1500));
+        JobView submitted = service.submitAnalyzeAndCreate("DOC-1", null, null);
+        assertTrue(creating.await(5, TimeUnit.SECONDS));
+
+        long begin = System.nanoTime();
+        service.beginShutdown();
+        assertTrue(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - begin) < 500, "beginShutdown does not wait");
+        assertEquals(AnalysisJobService.SHUTTING_DOWN,
+                assertThrows(RejectedException.class, () -> service.submitPreview("DOC-2", null)).getMessage());
+        assertEquals(Status.RUNNING, job(service, submitted.id()).status());
+
+        Thread.sleep(1000);
+        long close = System.nanoTime();
+        service.close();
+        long closeMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - close);
+
+        assertTrue(closeMillis < 1200, "close waited " + closeMillis + " ms, not the full grace again");
+        awaitStatus(service, submitted.id(), Status.FAILED);
+    }
+
+    @Test
     @DisplayName("Shutdown grace exceeded: a creation still running is interrupted")
     void shutdownGraceExceeded() throws Exception {
         CountDownLatch creating = new CountDownLatch(1);

@@ -570,7 +570,7 @@ How the backlog maps to OpenProject:
 | `refinr.jobs.max-duration` | `30m` | Maximum duration of a job before the issues are created; above it the job fails (`504` in its result); a creation that has started always goes to the end (`JOBS_MAX_DURATION`) |
 | `refinr.jobs.retention` | `24h` | How long a finished job and its result are kept, counted from its end (`JOBS_RETENTION`) |
 | `refinr.jobs.max-retained` | `100` | Jobs kept at most (running and finished, at least `max-concurrent` + `max-queued`); when full, the oldest finished job is dropped (`JOBS_MAX_RETAINED`) |
-| `refinr.jobs.shutdown-grace` | `30s` | On shutdown: no new job, jobs creating issues get this long to finish, the others are interrupted (`JOBS_SHUTDOWN_GRACE`) |
+| `refinr.jobs.shutdown-grace` | `30s` | On shutdown: no new job, jobs creating issues get this long to finish (counted from the start of the shutdown, in parallel with the in-flight HTTP requests), the others are interrupted; keep the container's stop grace period above it (`JOBS_SHUTDOWN_GRACE`) |
 
 `.env.example` lists every environment variable. The frontend needs none: it reads the API base URL at page load
 from `/config.js` (`REFINR_API_BASE_URL` in the Docker image, default `/api/v1`, same origin).
@@ -621,6 +621,12 @@ curl localhost:8080/api/v1/health
 
 Inside a container `localhost` is the container itself: an Ollama running on your machine is at
 `http://host.docker.internal:11434/v1`.
+
+**Stopping**: `docker compose stop` gives the backend `stop_grace_period` (45 s in `docker-compose.yml`, Docker's
+default is 10 s) before killing it. In that time the analysis jobs creating issues finish (`JOBS_SHUTDOWN_GRACE`,
+30 s) while the in-flight HTTP requests complete (`spring.lifecycle.timeout-per-shutdown-phase`, 30 s). **If you raise
+`JOBS_SHUTDOWN_GRACE`, keep `stop_grace_period` above it** (same for `docker stop -t`, Kubernetes
+`terminationGracePeriodSeconds`), otherwise a creation in progress is cut short.
 
 #### Security
 
