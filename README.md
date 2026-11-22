@@ -200,7 +200,8 @@ sequenceDiagram
 4. **Create** — each Epic, Story then Sub-task is created in Jira with an ADF description and the `ai-ready` or
    `validation-necessaire` label on stories.
 5. **Reassess** — `POST /reassess-story` re-reads a `validation-necessaire` story, re-judges it with the clarification
-   you give, and updates its description and label.
+   you give, and updates its description and label. **Validate** — `POST /validate-story` marks a
+   `validation-necessaire` story `ai-ready` on a human decision, without any LLM call.
 
 ---
 
@@ -698,7 +699,15 @@ jq -n --rawfile content spec.md '{title: "Inventory management", content: $conte
 ```bash
 curl -s -X POST http://localhost:8080/api/v1/reassess-story -H "Content-Type: application/json" \
   -d '{"issueKey": "PROJ-42", "precision": "Login uses GitLab OAuth2; the mock-up is approved."}'
-# { "success": true, "issueKey": "PROJ-42", "aiReady": true, "aiReadyReason": "Scope and criteria are now complete." }
+# { "success": true, "issueKey": "PROJ-42", "aiReady": true, "aiReadyReason": "Scope and criteria are now complete.", "aiReadySource": "model" }
+```
+
+Or validate it yourself, without any LLM call (same guard: `409` if the story is not `validation-necessaire`):
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/validate-story -H "Content-Type: application/json" \
+  -d '{"issueKey": "PROJ-42"}'
+# { "success": true, "issueKey": "PROJ-42", "aiReady": true, "aiReadyReason": "validee par un humain, sans appel au modele", "aiReadySource": "human" }
 ```
 
 ### Feed your coding agent
@@ -754,6 +763,7 @@ English prompt and are supported without being measured. Refinr's own lines in t
 | `POST` | `/analyze-preview` | `{ "documentId": "…" }` or `{ "content": "…", "title": "…" }` | Analyzes without creating issues; `documentUrl` (link to the page) added when known, never for a text |
 | `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optional, same format)* · `&language=de` *(optional)* | Creates a generated structure; the server recomputes the verdict (client `aiReady` / `aiReadyReason` ignored) |
 | `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Reassesses a `validation-necessaire` story (`409` if it is not one) |
+| `POST` | `/validate-story` | `{ "issueKey": "PROJ-42" }` | Marks a `validation-necessaire` story `ai-ready` on a human decision, no LLM call (`409` if it is not one); verdict line added to the issue |
 | `GET` | `/documents/search` | `?title=…&space=…` *(space optional: Confluence space key, BookStack book ID or slug, XWiki space reference)* | Title search in the active source, 25 results at most: `{ success, results: [{ id, title, url }] }` |
 | `GET` | `/source` | — | Active document source and text limit: `{ "name": "Confluence", "maxContentChars": 200000 }` (`"BookStack"` or `"XWiki"`; used by the web UI) |
 | `GET` | `/tracker` | — | Active issue tracker: `{ "name": "Jira" }` or `{ "name": "OpenProject" }` (used by the web UI) |
@@ -764,6 +774,10 @@ English prompt and are supported without being measured. Refinr's own lines in t
 - **CORS**: only the origins in `refinr.cors.allowed-origins`. **Host**: a `Host` not in `refinr.security.allowed-hosts` gets `403`.
 - **Errors**: `{ "success": false, "error": "<generic message>", "correlationId": "…" }` — never the raw exception;
   the `correlationId` points to the details in the logs.
+- **Verdict source** `aiReadySource` (since 1.4, on every story of `analyze-preview`, `analyze-and-create` and
+  `create-jira`, and in `reassess-story` / `validate-story`): `model` (verdict of the model), `fallback` (no reliable
+  verdict: never `ai-ready`, reason `verdict indisponible (<cause>) : validation humaine necessaire`) or `human`
+  (`validate-story`). Server-side only: a value sent by the client is ignored.
 - **AI provider quota or overload** (`analyze-preview`, `analyze-and-create`, `reassess-story`): provider HTTP `429` →
   `503` *The AI provider quota or rate limit was reached*; HTTP `503` / `529` → `503` *The AI provider is temporarily
   overloaded*; after the retries, or at once when the provider asks to wait longer than `retry-max-delay`. When the

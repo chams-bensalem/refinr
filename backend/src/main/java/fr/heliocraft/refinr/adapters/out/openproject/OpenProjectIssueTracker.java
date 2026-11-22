@@ -261,10 +261,21 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
      */
     @Override
     public void applyReassessment(TrackedStory story, String precision, Readiness readiness) {
+        applyVerdict(story, precision, readiness);
+    }
+
+    /** Validation humaine directe : ligne du verdict seule en commentaire, puis verdict ecrit dans le champ liste. */
+    @Override
+    public void applyHumanValidation(TrackedStory story, Readiness readiness) {
+        applyVerdict(story, null, readiness);
+    }
+
+    private void applyVerdict(TrackedStory story, String precision, Readiness readiness) {
         String key = story.key();
         String verdict = ReadinessPolicy.verdictLabel(readiness.aiReady());
-        log.info("Applying reassessment to {}: {}", key, verdict);
-        comment(key, StoryMarkdown.precisionLine(precision) + "\n\n" + StoryMarkdown.reassessedReadinessLine(readiness));
+        log.info("Applying {} to {}: {}", precision != null ? "reassessment" : "human validation", key, verdict);
+        String line = StoryMarkdown.reassessedReadinessLine(readiness);
+        comment(key, precision != null ? StoryMarkdown.precisionLine(precision) + "\n\n" + line : line);
         try {
             patchVerdict(key, verdict);
         } catch (WebClientResponseException e) {

@@ -14,6 +14,7 @@ import fr.heliocraft.refinr.application.port.in.DescribeSource;
 import fr.heliocraft.refinr.application.port.in.DescribeTracker;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
+import fr.heliocraft.refinr.application.port.in.ValidateStory;
 import fr.heliocraft.refinr.application.port.in.SearchDocuments;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -63,6 +64,7 @@ class HttpSecurityConfigurationTest {
         @MockitoBean PreviewBacklog previewBacklog;
         @MockitoBean CreateEditedBacklog createEditedBacklog;
         @MockitoBean ReassessStory reassessStory;
+        @MockitoBean ValidateStory validateStory;
         @MockitoBean SearchDocuments searchDocuments;
         @MockitoBean DescribeTracker describeTracker;
         @MockitoBean DescribeSource describeSource;

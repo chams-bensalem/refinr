@@ -10,8 +10,10 @@ import fr.heliocraft.refinr.application.port.in.DescribeSource;
 import fr.heliocraft.refinr.application.port.in.DescribeTracker;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
+import fr.heliocraft.refinr.application.port.in.ValidateStory;
 import fr.heliocraft.refinr.application.port.in.SearchDocuments;
 import fr.heliocraft.refinr.domain.model.Epic;
+import fr.heliocraft.refinr.domain.model.ReadinessSource;
 import fr.heliocraft.refinr.domain.model.Story;
 import fr.heliocraft.refinr.domain.model.Task;
 import org.junit.jupiter.api.DisplayName;
@@ -69,6 +71,9 @@ class RestJsonContractTest {
 
     @MockitoBean
     private ReassessStory reassessStory;
+
+    @MockitoBean
+    private ValidateStory validateStory;
 
     @MockitoBean
     private SearchDocuments searchDocuments;
@@ -208,6 +213,7 @@ class RestJsonContractTest {
         story.setDependencies(List.of("PROJ-0"));
         story.setAiReady(true);
         story.setAiReadyReason("Perimetre clair");
+        story.setAiReadySource(ReadinessSource.MODEL);
         story.setTrackerKey("PROJ-2");
         story.setTrackerUrl("https://your-site.atlassian.net/browse/PROJ-2");
         story.setEpicTrackerKey("PROJ-1");

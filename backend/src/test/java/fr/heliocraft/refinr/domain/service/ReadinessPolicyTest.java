@@ -4,6 +4,7 @@
 package fr.heliocraft.refinr.domain.service;
 
 import fr.heliocraft.refinr.domain.model.Readiness;
+import fr.heliocraft.refinr.domain.model.ReadinessSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -31,10 +32,31 @@ class ReadinessPolicyTest {
     }
 
     @Test
-    @DisplayName("Without a reliable verdict a story is never ai-ready")
+    @DisplayName("Without a reliable verdict a story is never ai-ready; source fallback; the text is frozen until v2.0")
     void unavailableVerdictRequiresHumanValidation() {
-        assertEquals(new Readiness(false, "verdict indisponible (TimeoutException) : validation humaine necessaire"),
-            ReadinessPolicy.unavailable("TimeoutException"));
+        // Texte fige : le plugin 0.1.0 le reconnait par une regex exacte (src/verdict.ts) ; ne change qu'en v2.0
+        assertEquals(new Readiness(false, "verdict indisponible (TimeoutException) : validation humaine necessaire",
+                ReadinessSource.FALLBACK), ReadinessPolicy.unavailable("TimeoutException"));
+        assertTrue(ReadinessPolicy.unavailable("no verdict").aiReadyReason()
+                .matches("^verdict indisponible \\(no verdict\\) : validation humaine necessaire$"));
+    }
+
+    @Test
+    @DisplayName("Readiness: two-argument constructor means model; source required; REST ids model / fallback / human")
+    void readinessSource() {
+        assertEquals(ReadinessSource.MODEL, new Readiness(true, "ok").source());
+        assertThrows(IllegalArgumentException.class, () -> new Readiness(true, "ok", null));
+        assertEquals(List.of("model", "fallback", "human"),
+                java.util.Arrays.stream(ReadinessSource.values()).map(ReadinessSource::id).toList());
+    }
+
+    @Test
+    @DisplayName("Human validation: ai-ready, source human, fixed reason")
+    void humanValidation() {
+        Readiness verdict = ReadinessPolicy.humanValidation();
+        assertTrue(verdict.aiReady());
+        assertEquals(ReadinessSource.HUMAN, verdict.source());
+        assertEquals("validee par un humain, sans appel au modele", verdict.aiReadyReason());
     }
 
     @Test

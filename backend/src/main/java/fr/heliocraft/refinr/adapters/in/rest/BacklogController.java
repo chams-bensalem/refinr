@@ -20,6 +20,7 @@ import fr.heliocraft.refinr.application.port.in.ModelRateLimitedException;
 import fr.heliocraft.refinr.application.port.in.ModelUnavailableException;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
+import fr.heliocraft.refinr.application.port.in.ValidateStory;
 import fr.heliocraft.refinr.application.port.in.SearchDocuments;
 import fr.heliocraft.refinr.application.port.in.StoryNotAwaitingValidationException;
 import fr.heliocraft.refinr.domain.model.DocumentSummary;
@@ -64,6 +65,7 @@ public class BacklogController {
     private final PreviewBacklog previewBacklog;
     private final CreateEditedBacklog createEditedBacklog;
     private final ReassessStory reassessStory;
+    private final ValidateStory validateStory;
     private final SearchDocuments searchDocuments;
     private final DescribeTracker describeTracker;
     private final DescribeSource describeSource;
@@ -73,6 +75,7 @@ public class BacklogController {
             PreviewBacklog previewBacklog,
             CreateEditedBacklog createEditedBacklog,
             ReassessStory reassessStory,
+            ValidateStory validateStory,
             SearchDocuments searchDocuments,
             DescribeTracker describeTracker,
             DescribeSource describeSource) {
@@ -80,6 +83,7 @@ public class BacklogController {
         this.previewBacklog = previewBacklog;
         this.createEditedBacklog = createEditedBacklog;
         this.reassessStory = reassessStory;
+        this.validateStory = validateStory;
         this.searchDocuments = searchDocuments;
         this.describeTracker = describeTracker;
         this.describeSource = describeSource;
@@ -381,7 +385,8 @@ public class BacklogController {
                     "success", true,
                     "issueKey", issueKey,
                     "aiReady", verdict.aiReady(),
-                    "aiReadyReason", verdict.aiReadyReason() != null ? verdict.aiReadyReason() : ""
+                    "aiReadyReason", verdict.aiReadyReason() != null ? verdict.aiReadyReason() : "",
+                    "aiReadySource", verdict.source().id()
             ));
         } catch (StoryNotAwaitingValidationException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponses.error(e.getMessage()));
@@ -392,6 +397,34 @@ public class BacklogController {
         } catch (Exception e) {
             log.error("Error reassessing story {}", issueKey, e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to reassess the story"));
+        }
+    }
+
+    /**
+     * Validation humaine directe d'une story en attente de validation : marquee {@code ai-ready} sans appel au modele
+     * ({@code aiReadySource: "human"}), ligne de verdict ajoutee au ticket. 409 si la story n'attend pas de validation.
+     */
+    @PostMapping("/validate-story")
+    public ResponseEntity<Map<String, Object>> validateStory(@RequestBody Map<String, String> request) {
+        String issueKey = request.get("issueKey");
+        if (issueKey == null || issueKey.isBlank()) {
+            return ResponseEntity.badRequest().body(ErrorResponses.error("issueKey is required"));
+        }
+        log.info("Human validation request for {}", issueKey);
+        try {
+            Readiness verdict = validateStory.validate(issueKey);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "issueKey", issueKey,
+                    "aiReady", verdict.aiReady(),
+                    "aiReadyReason", verdict.aiReadyReason(),
+                    "aiReadySource", verdict.source().id()
+            ));
+        } catch (StoryNotAwaitingValidationException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponses.error(e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error validating story {}", issueKey, e);
+            return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to validate the story"));
         }
     }
 

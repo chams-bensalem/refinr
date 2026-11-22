@@ -12,6 +12,7 @@ import fr.heliocraft.refinr.application.port.in.DescribeSource;
 import fr.heliocraft.refinr.application.port.in.DescribeTracker;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
+import fr.heliocraft.refinr.application.port.in.ValidateStory;
 import fr.heliocraft.refinr.application.port.in.SearchDocuments;
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
 import fr.heliocraft.refinr.application.port.out.HealthCheckable;
@@ -26,6 +27,7 @@ import fr.heliocraft.refinr.application.service.DescribeSourceService;
 import fr.heliocraft.refinr.application.service.DescribeTrackerService;
 import fr.heliocraft.refinr.application.service.PreviewBacklogService;
 import fr.heliocraft.refinr.application.service.ReassessStoryService;
+import fr.heliocraft.refinr.application.service.ValidateStoryService;
 import fr.heliocraft.refinr.application.service.SearchDocumentsService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -87,6 +89,11 @@ public class UseCaseConfig {
     @Bean
     public ReassessStory reassessStory(IssueTrackerPort issueTracker, ReadinessAssessorPort assessor) {
         return new ReassessStoryService(issueTracker, assessor, languagePolicy);
+    }
+
+    @Bean
+    public ValidateStory validateStory(IssueTrackerPort issueTracker) {
+        return new ValidateStoryService(issueTracker);
     }
 
     @Bean

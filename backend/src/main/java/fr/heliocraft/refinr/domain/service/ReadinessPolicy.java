@@ -4,6 +4,7 @@
 package fr.heliocraft.refinr.domain.service;
 
 import fr.heliocraft.refinr.domain.model.Readiness;
+import fr.heliocraft.refinr.domain.model.ReadinessSource;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -54,6 +55,16 @@ public final class ReadinessPolicy {
 
     /** Verdict par defaut quand aucun verdict fiable n'a pu etre obtenu : jamais ai-ready. */
     public static Readiness unavailable(String cause) {
-        return new Readiness(false, "verdict indisponible (" + cause + ") : validation humaine necessaire");
+        // Texte fige jusqu'en v2.0 : le plugin 0.1.0 le reconnait par une regex exacte
+        return new Readiness(false, "verdict indisponible (" + cause + ") : validation humaine necessaire",
+                ReadinessSource.FALLBACK);
+    }
+
+    /** Raison du verdict d'une validation humaine directe (ecrite dans le ticket). */
+    public static final String HUMAN_VALIDATION_REASON = "validee par un humain, sans appel au modele";
+
+    /** Verdict d'une validation humaine directe : ai-ready, sans appel au modele. */
+    public static Readiness humanValidation() {
+        return new Readiness(true, HUMAN_VALIDATION_REASON, ReadinessSource.HUMAN);
     }
 }

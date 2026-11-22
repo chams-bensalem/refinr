@@ -51,6 +51,7 @@ final class StoryVerdicts {
             }
             story.setAiReady(verdict.aiReady());
             story.setAiReadyReason(verdict.aiReadyReason());
+            story.setAiReadySource(verdict.source());
         }
     }
 }

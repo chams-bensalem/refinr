@@ -329,6 +329,16 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
      */
     @Override
     public void applyReassessment(TrackedStory story, String precision, Readiness readiness) {
+        applyVerdict(story, precision, readiness);
+    }
+
+    @Override
+    public void applyHumanValidation(TrackedStory story, Readiness readiness) {
+        applyVerdict(story, null, readiness);
+    }
+
+    /** Description d'origine + precision (si fournie) + ligne du verdict, et label de verdict remplace. */
+    private void applyVerdict(TrackedStory story, String precision, Readiness readiness) {
         boolean aiReady = readiness.aiReady();
         String verdict = ReadinessPolicy.verdictLabel(aiReady);
         List<Object> content = new ArrayList<>();
@@ -338,7 +348,9 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
         } else if (story.description() != null && !story.description().isBlank()) {
             content.add(adfParagraph(story.description()));
         }
-        content.add(adfParagraph(StoryMarkdown.precisionLine(precision)));
+        if (precision != null) {
+            content.add(adfParagraph(StoryMarkdown.precisionLine(precision)));
+        }
         content.add(adfParagraph(StoryMarkdown.reassessedReadinessLine(readiness)));
         Map<String, Object> description = new HashMap<>();
         description.put("type", "doc");
@@ -346,7 +358,7 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
         description.put("content", content);
         List<String> labels = ReadinessPolicy.replaceVerdictLabel(story.labels(), aiReady);
 
-        log.info("Applying reassessment to {}: {}", story.key(), verdict);
+        log.info("Applying {} to {}: {}", precision != null ? "reassessment" : "human validation", story.key(), verdict);
         try {
             webClient.put()
                     .uri("/rest/api/3/issue/{issueKey}", story.key())

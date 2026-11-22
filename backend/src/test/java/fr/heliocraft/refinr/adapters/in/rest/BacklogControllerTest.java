@@ -1178,10 +1178,82 @@ class BacklogControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(header().doesNotExist("Retry-After"))
                     .andExpect(jsonPath("$.epics[0].stories[0].aiReady").value(false))
+                    .andExpect(jsonPath("$.epics[0].stories[0].aiReadySource").value("fallback"))
                     .andExpect(jsonPath("$.epics[0].stories[0].aiReadyReason")
                             .value(org.hamcrest.Matchers.startsWith("verdict indisponible")));
             assertEquals(1, server.getRequestCount());
         }
+    }
+
+    // ---------- aiReadySource et validation humaine directe (B2) ----------
+
+    @Test
+    @DisplayName("create-jira: the verdict source is the server's; a client aiReadySource (or aiReady) is ignored")
+    void createJiraIgnoresClientVerdictSource() throws Exception {
+        when(assessor.assess(any(), any())).thenReturn(List.of(new Readiness(false, "flou")));
+        when(jiraService.createEpic(any(Epic.class), any())).thenReturn("TEST-1");
+        when(jiraService.createStory(any(Story.class), anyString(), any())).thenReturn("TEST-2");
+
+        mockMvc.perform(post("/api/v1/create-jira").contentType(MediaType.APPLICATION_JSON).content(
+                        "[{\"name\":\"E\",\"stories\":[{\"title\":\"S\",\"aiReady\":true,\"aiReadySource\":\"human\"}]}]"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.epics[0].stories[0].aiReady").value(false))
+                .andExpect(jsonPath("$.epics[0].stories[0].aiReadySource").value("model"));
+    }
+
+    @Test
+    @DisplayName("reassess-story answers aiReadySource model")
+    void reassessAnswersModelSource() throws Exception {
+        when(jiraService.findStory("TEST-7")).thenReturn(new TrackedStory("TEST-7", "Export PDF", "Exporter",
+                List.of("validation-necessaire")));
+        when(assessor.reassess(any(), any(), any(), any())).thenReturn(new Readiness(true, "clair"));
+
+        mockMvc.perform(post("/api/v1/reassess-story").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"issueKey\":\"TEST-7\",\"precision\":\"format A4\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.aiReadySource").value("model"));
+    }
+
+    @Test
+    @DisplayName("validate-story: story awaiting validation marked ai-ready by a human, no LLM call, aiReadySource human")
+    void validateStoryMarksReadyWithoutLlm() throws Exception {
+        TrackedStory story = new TrackedStory("TEST-7", "Export PDF", "Exporter", List.of("validation-necessaire"));
+        when(jiraService.findStory("TEST-7")).thenReturn(story);
+
+        mockMvc.perform(post("/api/v1/validate-story").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"issueKey\":\"TEST-7\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.issueKey").value("TEST-7"))
+                .andExpect(jsonPath("$.aiReady").value(true))
+                .andExpect(jsonPath("$.aiReadySource").value("human"))
+                .andExpect(jsonPath("$.aiReadyReason").value("validee par un humain, sans appel au modele"));
+
+        verify(jiraService).applyHumanValidation(eq(story), argThat(v -> v.aiReady() && v.source() == ReadinessSource.HUMAN));
+        verifyNoInteractions(assessor, generator);
+    }
+
+    @Test
+    @DisplayName("validate-story: 409 when the story is not awaiting validation, nothing written")
+    void validateStoryRefusesStoryNotAwaitingValidation() throws Exception {
+        when(jiraService.findStory("TEST-7")).thenReturn(new TrackedStory("TEST-7", "Export PDF", "Exporter",
+                List.of("ai-ready")));
+
+        mockMvc.perform(post("/api/v1/validate-story").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"issueKey\":\"TEST-7\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false));
+
+        verify(jiraService, never()).applyHumanValidation(any(), any());
+    }
+
+    @Test
+    @DisplayName("validate-story: 400 without issueKey")
+    void validateStoryRequiresIssueKey() throws Exception {
+        mockMvc.perform(post("/api/v1/validate-story").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("issueKey is required"));
+        verifyNoInteractions(jiraService);
     }
 
     // ---------- langue de sortie (champ language, parametre de create-jira) ----------

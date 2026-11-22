@@ -45,6 +45,8 @@ export interface Story {
     /** Verdict calcule par le serveur (ignore s'il est renvoye par le client). */
     aiReady?: boolean | null;
     aiReadyReason?: string | null;
+    /** Origine du verdict (Refinr >= 1.4) : model, fallback (repli, jamais ai-ready) ou human ; absente avant. */
+    aiReadySource?: 'model' | 'fallback' | 'human' | null;
     tasks?: Task[] | null;
     jiraKey?: string | null;
     jiraUrl?: string | null;

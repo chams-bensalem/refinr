@@ -46,7 +46,8 @@
           "soThat": "avoid stock-outs",
           "estimatedStoryPoints": 5,
           "aiReady": true,
-          "aiReadyReason": "Perimetre clair"
+          "aiReadyReason": "Perimetre clair",
+          "aiReadySource": "model"
         }
       ],
       "jiraKey": "PROJ-1",

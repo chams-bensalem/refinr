@@ -29,6 +29,16 @@ un fournisseur.
   Le français et l'anglais ont un prompt natif (`llm/prompts/prompts.fr.md`, `prompts.en.md`) et sont mesurés ; les
   autres langues passent par le prompt anglais, prises en charge sans être mesurées.
 
+- **Origine du verdict `aiReadySource`** (#32) sur chaque story de `analyze-preview`, `analyze-and-create` et
+  `create-jira`, et dans la réponse de `reassess-story` (`model`) : `model`, `fallback` (repli, jamais `ai-ready` ;
+  texte de la raison inchangé, `verdict indisponible (<cause>) : validation humaine necessaire`) ou `human`. Valeur
+  envoyée par le client ignorée. Ajout rétrocompatible du contrat REST. L'interface web affiche un badge « verdict
+  indisponible » pour un repli.
+- **Validation humaine directe** : `POST /api/v1/validate-story` `{ "issueKey": "…" }` marque `ai-ready` une story
+  `validation-necessaire`, sans appel à l'IA (`aiReadySource: "human"`) ; mêmes gardes que la réévaluation (`409` si
+  la story n'attend pas de validation), ligne de verdict ajoutée au ticket (Jira : description, OpenProject :
+  commentaire) et label remplacé. Nouvel endpoint, ajout rétrocompatible.
+
 ### Changed
 - **Quota et surcharge du fournisseur IA → `503`** (#32) sur `analyze-preview`, `analyze-and-create` et
   `reassess-story` : un HTTP `429` du fournisseur donne `503` *The AI provider quota or rate limit was reached*, un

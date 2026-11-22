@@ -351,6 +351,25 @@ class JiraIssueTrackerTest {
     }
 
     @Test
+    @DisplayName("Human validation: verdict line without any precision line, label swapped to ai-ready")
+    void shouldApplyHumanValidation() throws InterruptedException {
+        mockWebServer.enqueue(new MockResponse().setResponseCode(204));
+        TrackedStory story = new TrackedStory(
+            "TEST-7", "Export PDF", "Exporter en PDF", List.of("backend", "validation-necessaire"));
+
+        jiraService.applyHumanValidation(story, fr.heliocraft.refinr.domain.service.ReadinessPolicy.humanValidation());
+
+        RecordedRequest request = mockWebServer.takeRequest();
+        assertEquals("PUT", request.getMethod());
+        String body = request.getBody().readUtf8();
+        assertTrue(body.contains("Exporter en PDF"));
+        assertTrue(body.contains("AI readiness (ai-ready): validee par un humain, sans appel au modele"));
+        assertFalse(body.contains("Precision de l'utilisateur"));
+        assertTrue(body.contains("\"ai-ready\""));
+        assertFalse(body.contains("\"validation-necessaire\""));
+    }
+
+    @Test
     @DisplayName("A still-not-ready story keeps the validation label, never ai-ready")
     void shouldKeepValidationLabelWhenStillNotReady() throws InterruptedException {
         mockWebServer.enqueue(new MockResponse().setResponseCode(204));

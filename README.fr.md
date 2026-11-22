@@ -206,7 +206,8 @@ sequenceDiagram
 4. **Création** — chaque Epic, Story puis Sous-tâche est créée dans Jira avec une description ADF et le label
    `ai-ready` ou `validation-necessaire` sur les stories.
 5. **Réévaluation** — `POST /reassess-story` relit une story `validation-necessaire`, la rejuge avec la précision
-   fournie et met à jour sa description et son label.
+   fournie et met à jour sa description et son label. **Validation** — `POST /validate-story` marque `ai-ready` une
+   story `validation-necessaire` sur décision humaine, sans appel à l'IA.
 
 ---
 
@@ -712,7 +713,15 @@ jq -n --rawfile content cdc.md '{title: "Gestion des stocks", content: $content}
 ```bash
 curl -s -X POST http://localhost:8080/api/v1/reassess-story -H "Content-Type: application/json" \
   -d '{"issueKey": "PROJ-42", "precision": "La connexion passe par OAuth2 GitLab ; la maquette est validée."}'
-# { "success": true, "issueKey": "PROJ-42", "aiReady": true, "aiReadyReason": "Périmètre et critères désormais complets." }
+# { "success": true, "issueKey": "PROJ-42", "aiReady": true, "aiReadyReason": "Périmètre et critères désormais complets.", "aiReadySource": "model" }
+```
+
+Ou validez-la vous-même, sans appel à l'IA (même garde : `409` si la story n'est pas `validation-necessaire`) :
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/validate-story -H "Content-Type: application/json" \
+  -d '{"issueKey": "PROJ-42"}'
+# { "success": true, "issueKey": "PROJ-42", "aiReady": true, "aiReadyReason": "validee par un humain, sans appel au modele", "aiReadySource": "human" }
 ```
 
 ### Alimenter votre agent de code
@@ -772,6 +781,7 @@ tickets et le label `validation-necessaire` ne changent pas.
 | `POST` | `/analyze-preview` | `{ "documentId": "…" }` ou `{ "content": "…", "title": "…" }` | Analyse sans créer de tickets ; `documentUrl` (lien vers la page) ajouté s'il est connu, jamais pour un texte |
 | `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optionnel, même format)* · `&language=de` *(optionnel)* | Crée une structure déjà générée ; le serveur recalcule le verdict (`aiReady` / `aiReadyReason` du client ignorés) |
 | `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Réévalue une story `validation-necessaire` (`409` si elle ne l'est pas) |
+| `POST` | `/validate-story` | `{ "issueKey": "PROJ-42" }` | Marque `ai-ready` une story `validation-necessaire` sur décision humaine, sans appel à l'IA (`409` si elle ne l'est pas) ; ligne de verdict ajoutée au ticket |
 | `GET` | `/documents/search` | `?title=…&space=…` *(space optionnel : clé d'espace Confluence, id ou slug de livre BookStack, référence d'espace XWiki)* | Recherche par titre dans la source active, 25 résultats au plus : `{ success, results: [{ id, title, url }] }` |
 | `GET` | `/source` | — | Source documentaire active et limite du texte : `{ "name": "Confluence", "maxContentChars": 200000 }` (`"BookStack"` ou `"XWiki"` ; utilisé par l'interface web) |
 | `GET` | `/tracker` | — | Gestionnaire de tickets actif : `{ "name": "Jira" }` ou `{ "name": "OpenProject" }` (utilisé par l'interface web) |
@@ -784,6 +794,10 @@ tickets et le label `validation-necessaire` ne changent pas.
   `refinr.security.allowed-hosts` reçoit `403`.
 - **Erreurs** : `{ "success": false, "error": "<message générique>", "correlationId": "…" }` — jamais l'exception
   brute ; le `correlationId` mène au détail dans les logs.
+- **Origine du verdict** `aiReadySource` (depuis la 1.4, sur chaque story de `analyze-preview`, `analyze-and-create` et
+  `create-jira`, et dans `reassess-story` / `validate-story`) : `model` (verdict du modèle), `fallback` (aucun verdict
+  fiable : jamais `ai-ready`, raison `verdict indisponible (<cause>) : validation humaine necessaire`) ou `human`
+  (`validate-story`). Calculée par le serveur : une valeur envoyée par le client est ignorée.
 - **Quota ou surcharge du fournisseur IA** (`analyze-preview`, `analyze-and-create`, `reassess-story`) : HTTP `429` du
   fournisseur → `503` *The AI provider quota or rate limit was reached* ; HTTP `503` / `529` → `503` *The AI provider
   is temporarily overloaded* ; après les nouveaux essais, ou aussitôt quand le fournisseur demande d'attendre plus que
