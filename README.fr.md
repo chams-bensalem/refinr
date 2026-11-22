@@ -651,7 +651,7 @@ ollama serve && ollama pull qwen3:8b                 # 1. LLM local (modèle d'e
 (cd frontend && npm install && npm run dev)           # 3. UI  → http://localhost:3000 (Vite proxifie /api)
 ```
 
-Build de production : `(cd backend && mvn clean package && java -jar target/refinr-1.3.0.jar)` et
+Build de production : `(cd backend && mvn clean package && java -jar target/refinr-1.4.0.jar)` et
 `(cd frontend && npm run build)` (résultat dans `frontend/dist/`).
 
 ---
@@ -750,7 +750,8 @@ configuré sur le serveur (Jira ou OpenProject), consigne ce qui a été créé 
 depuis la note une story en attente de validation. Il ne contient aucune logique d'IA ni de gestionnaire de tickets :
 tout est fait par Refinr.
 
-- **Refinr 1.3.0 ou plus récent requis** : le plugin envoie la note en texte (`content`, frontmatter retiré,
+- **Refinr 1.3.0 ou plus récent requis** (1.4.0 pour la langue de sortie, l'origine du verdict et la validation humaine
+  du plugin 0.2.0) : le plugin envoie la note en texte (`content`, frontmatter retiré,
   inclusions développées) à `analyze-preview`, et lit la limite de taille sur `GET /api/v1/source`
   (`maxContentChars`).
 - **Desktop uniquement** pour l'instant (Windows, macOS, Linux ; Obsidian 1.13.0 ou plus récent) : le mobile n'a pas
@@ -965,7 +966,7 @@ semaine les mises à jour Maven, npm, Docker et GitHub Actions.
 
 ## 🗺️ Limites connues & feuille de route
 
-**Limites actuelles (v1.3)**
+**Limites actuelles (v1.4)**
 
 - La création n'est pas transactionnelle : un échec en cours de route laisse les tickets déjà créés
   (réponse partielle `created` / `failed` ; ne renvoyez que ce qui a échoué).
@@ -987,6 +988,9 @@ semaine les mises à jour Maven, npm, Docker et GitHub Actions.
   `DocumentSourcePort`), `documentId` et `/documents/search` neutres.
 - [x] **v1.3** — document fourni en **texte** (`content`, texte collé dans l'interface web) et **plugin Obsidian**
   (dans son propre dépôt, publié dans le catalogue communautaire d'Obsidian, cf. [Intégrations](#-intégrations)).
+- [x] **v1.4** — justesse du verdict **mesurée** (jeu de référence, `scripts/eval-verdict.sh`, matrice de
+  compatibilité), **langue** de sortie, quota ou surcharge du fournisseur → `503` + `Retry-After`, origine du verdict
+  `aiReadySource` et validation humaine (`validate-story`).
 - [ ] Envoi de fichier (Markdown, Word, PDF).
 - [ ] Console d'administration (sources et gestionnaires configurés depuis l'interface, plusieurs sources par instance).
 - [ ] **Linear** et **GitHub Issues** comme gestionnaires de tickets.

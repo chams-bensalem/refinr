@@ -5,9 +5,15 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ## [Unreleased]
 
-Refinr ne fait plus **aucune hypothèse sur le modèle** (#38) : ni fournisseur, ni modèle, ni température par défaut ;
-les paramètres de génération ne sont envoyés que s'ils sont configurés, et `extra-body` sert à tout paramètre propre à
-un fournisseur.
+## [1.4.0] - 2026-11-23
+
+La justesse du verdict `ai-ready` est **mesurée** (jeu de référence de 80 stories, outil `scripts/eval-verdict.sh`,
+matrice de compatibilité des modèles dans le README) et ses prompts sont révisés (`verdict-v3.2`). Le backlog est écrit
+dans la **langue** du document ou dans celle demandée (français et anglais natifs). Un quota ou une surcharge du
+fournisseur IA donne un **`503` avec `Retry-After`** ; chaque verdict indique son **origine** (`aiReadySource`) et une
+story peut être **validée par un humain** sans appel à l'IA (`validate-story`). Refinr ne fait plus **aucune hypothèse
+sur le modèle** (#38) : ni fournisseur, ni modèle, ni température par défaut ; les paramètres de génération ne sont
+envoyés que s'ils sont configurés, et `extra-body` sert à tout paramètre propre à un fournisseur.
 
 ### Added
 - `extra-body` appliqué par **les trois fournisseurs** (`google` et `anthropic` en plus d'`openai-compatible`), avec des
@@ -316,7 +322,8 @@ Interface web et documentation ; API REST inchangée.
 - Licence AGPL-3.0-only (en-tête SPDX dans chaque fichier source), CLA, README en anglais et en français,
   `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`.
 
-[Unreleased]: https://github.com/chams-bensalem/refinr/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/chams-bensalem/refinr/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/chams-bensalem/refinr/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/chams-bensalem/refinr/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/chams-bensalem/refinr/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/chams-bensalem/refinr/compare/v1.0.1...v1.1.0
