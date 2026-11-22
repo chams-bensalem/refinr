@@ -501,3 +501,11 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
     faux `ai-ready` sur une étiquette `sure` (jeu d'origine et deux contrôles). Faux `validation-necessaire` sur
     `ready` / `sure` : 0 sur 18, 0 sur 8, 0 sur 8 ; stabilité 94 % (origine), 100 % et 93 % (contrôles) ; coût des deux
     exécutions ajoutées 0,66 USD.
+- **Décision PO sur v020 : arbitrage contesté** (2026-11-22). Pas de réétiquetage ni de retouche du prompt. Deux grands
+  modèles (Opus 5.5 et Gemini 3.6 Flash, 3 fois sur 3 chacun) contredisent de façon stable une correction d'étiquette
+  faite après avoir vu leurs réponses, alors que l'étiquette d'origine, posée en aveugle, était `ready` / `sure`.
+  L'arbitrage de v020 est donc considéré comme **contesté**. La matrice de compatibilité affiche les deux références :
+  `labels.csv` d'origine (seuil tenu) et étiquettes arbitrées (seuil échoué sur v020 seule, contestée).
+  - Effet de bord de `verdict-v3.1` (critère READINESS assoupli), constaté en v3.2 : des stories `not-ready` /
+    `hesitant` sont jugées prêtes (v074 pour Opus et Gemini, v070 et v017 pour Gemini). Non bloquant (étiquettes
+    `hesitant`), à surveiller en G1 et L2.
