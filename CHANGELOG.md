@@ -33,7 +33,8 @@ un fournisseur.
   `create-jira`, et dans la réponse de `reassess-story` (`model`) : `model`, `fallback` (repli, jamais `ai-ready` ;
   texte de la raison inchangé, `verdict indisponible (<cause>) : validation humaine necessaire`) ou `human`. Valeur
   envoyée par le client ignorée. Ajout rétrocompatible du contrat REST. L'interface web affiche un badge « verdict
-  indisponible » pour un repli.
+  indisponible » pour un repli. Sans fournisseur de verdict distinct, une story générée sans `aiReady` (modèle qui
+  ne respecte pas le schéma) reçoit désormais le repli (`aiReady: false`, `fallback`) au lieu de `aiReady: null`.
 - **Validation humaine directe** : `POST /api/v1/validate-story` `{ "issueKey": "…" }` marque `ai-ready` une story
   `validation-necessaire`, sans appel à l'IA (`aiReadySource: "human"`) ; mêmes gardes que la réévaluation (`409` si
   la story n'attend pas de validation), ligne de verdict ajoutée au ticket (Jira : description, OpenProject :

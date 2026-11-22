@@ -3,6 +3,9 @@
 
 package fr.heliocraft.refinr.adapters.out.llm;
 
+import fr.heliocraft.refinr.domain.model.Readiness;
+import fr.heliocraft.refinr.domain.model.ReadinessSource;
+import fr.heliocraft.refinr.domain.service.ReadinessPolicy;
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Story;
 import fr.heliocraft.refinr.domain.model.Task;
@@ -49,10 +52,18 @@ final class GeneratedBacklogMapper {
         story.setLabels(dto.getLabels());
         story.setTasks(map(dto.getTasks(), GeneratedBacklogMapper::toDomain));
         story.setDependencies(dto.getDependencies());
-        story.setAiReady(dto.getAiReady());
-        story.setAiReadyReason(dto.getAiReadyReason());
-        // Verdict de la generation (sans fournisseur de verdict distinct) : il vient du modele
-        story.setAiReadySource(fr.heliocraft.refinr.domain.model.ReadinessSource.MODEL);
+        if (dto.getAiReady() == null) {
+            // Modele qui ne respecte pas le schema (aiReady absent) : verdict de repli, jamais ai-ready
+            Readiness fallback = ReadinessPolicy.unavailable("no verdict");
+            story.setAiReady(fallback.aiReady());
+            story.setAiReadyReason(fallback.aiReadyReason());
+            story.setAiReadySource(fallback.source());
+        } else {
+            // Verdict de la generation (sans fournisseur de verdict distinct) : il vient du modele
+            story.setAiReady(dto.getAiReady());
+            story.setAiReadyReason(dto.getAiReadyReason());
+            story.setAiReadySource(ReadinessSource.MODEL);
+        }
         return story;
     }
 
