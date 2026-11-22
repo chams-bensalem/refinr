@@ -841,7 +841,7 @@ public final class VerdictEval {
                     Readiness r = verdicts.get(i);
                     appendLine(runsCsv, "run,seed,batch,position,id,ai_ready,source,reason", Csv.line(List.of(String.valueOf(run),
                             String.valueOf(BASE_SEED + run), String.valueOf(b + 1), String.valueOf(i + 1), ids.get(batch.get(i)),
-                            r == null ? "" : String.valueOf(r.aiReady()), r == null ? "fallback" : "model",
+                            r == null ? "" : String.valueOf(r.aiReady()), r == null ? "fallback" : r.source().id(),
                             r == null || r.aiReadyReason() == null ? "" : r.aiReadyReason())));
                 }
                 long fallbacks = verdicts.stream().filter(v -> v == null).count();

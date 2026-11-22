@@ -51,6 +51,8 @@ final class GeneratedBacklogMapper {
         story.setDependencies(dto.getDependencies());
         story.setAiReady(dto.getAiReady());
         story.setAiReadyReason(dto.getAiReadyReason());
+        // Verdict de la generation (sans fournisseur de verdict distinct) : il vient du modele
+        story.setAiReadySource(fr.heliocraft.refinr.domain.model.ReadinessSource.MODEL);
         return story;
     }
 

@@ -37,4 +37,10 @@ public interface IssueTrackerPort {
 
     /** Ajoute la precision et le nouveau verdict a la story, et remplace son label de verdict. */
     void applyReassessment(TrackedStory story, String precision, Readiness verdict);
+
+    /**
+     * Validation humaine directe : ajoute la ligne du verdict (sans precision) et remplace le label de verdict par
+     * {@code ai-ready}, comme une reevaluation.
+     */
+    void applyHumanValidation(TrackedStory story, Readiness verdict);
 }

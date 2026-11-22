@@ -3,5 +3,20 @@
 
 package fr.heliocraft.refinr.domain.model;
 
-/** Verdict de preparation d'une story pour un agent de code. */
-public record Readiness(boolean aiReady, String aiReadyReason) {}
+/**
+ * Verdict de preparation d'une story pour un agent de code, avec son origine ({@link ReadinessSource}).
+ * Le constructeur a deux arguments donne un verdict du modele.
+ */
+public record Readiness(boolean aiReady, String aiReadyReason, ReadinessSource source) {
+
+    public Readiness {
+        if (source == null) {
+            throw new IllegalArgumentException("readiness source is required");
+        }
+    }
+
+    /** Verdict du modele. */
+    public Readiness(boolean aiReady, String aiReadyReason) {
+        this(aiReady, aiReadyReason, ReadinessSource.MODEL);
+    }
+}

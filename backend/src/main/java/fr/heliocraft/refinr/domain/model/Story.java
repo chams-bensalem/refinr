@@ -25,6 +25,7 @@ public class Story {
     // Jugement de l'analyse : la story est-elle implementable par un agent de code sans decision humaine ?
     private Boolean aiReady;
     private String aiReadyReason;
+    private ReadinessSource aiReadySource;
     private String trackerKey;
     private String trackerUrl;
     private String epicTrackerKey;
@@ -133,6 +134,15 @@ public class Story {
 
     public void setAiReadyReason(String aiReadyReason) {
         this.aiReadyReason = aiReadyReason;
+    }
+
+    /** Origine du verdict ; null tant qu'aucun verdict n'a ete applique. */
+    public ReadinessSource getAiReadySource() {
+        return aiReadySource;
+    }
+
+    public void setAiReadySource(ReadinessSource aiReadySource) {
+        this.aiReadySource = aiReadySource;
     }
 
     public String getTrackerKey() {

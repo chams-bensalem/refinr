@@ -528,6 +528,25 @@ class OpenProjectIssueTrackerTest {
         }
 
         @Test
+        @DisplayName("Human validation: comment with the verdict line only, then PATCH of the verdict")
+        void humanValidationCommentsTheVerdictOnly() throws Exception {
+            TrackedStory story = found();
+            server.enqueue(json(201, "{\"_type\":\"Activity::Comment\",\"id\":65}"));
+            server.enqueue(json(200, workPackage(39, 1, "validation-necessaire")));
+            server.enqueue(json(200, workPackage(39, 2, "ai-ready")));
+
+            tracker.applyHumanValidation(story, fr.heliocraft.refinr.domain.service.ReadinessPolicy.humanValidation());
+
+            RecordedRequest comment = next();
+            assertEquals("AI readiness (ai-ready): validee par un humain, sans appel au modele",
+                    body(comment).at("/comment/raw").asString());
+            next();
+            RecordedRequest patch = next();
+            assertEquals("PATCH", patch.getMethod());
+            assertEquals("/api/v3/custom_options/1", body(patch).at("/_links/customField1/href").asString());
+        }
+
+        @Test
         @DisplayName("409 on PATCH: read again and retry once")
         void conflictRetriedOnce() throws Exception {
             TrackedStory story = found();

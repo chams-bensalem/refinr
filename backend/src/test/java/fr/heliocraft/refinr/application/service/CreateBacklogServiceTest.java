@@ -77,6 +77,11 @@ class CreateBacklogServiceTest {
             throw new UnsupportedOperationException();
         }
 
+        @Override
+        public void applyHumanValidation(TrackedStory story, Readiness verdict) {
+            throw new UnsupportedOperationException();
+        }
+
         private void fail(String title) {
             if (failing.contains(title)) {
                 if (title.startsWith("boom")) {

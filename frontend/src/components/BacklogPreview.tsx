@@ -19,6 +19,19 @@ function ReadinessBadge({ story }: { story: Story }) {
     );
 }
 
+/** Repli (aucun verdict fiable du modele) : badge distinct, pour ne pas le confondre avec un jugement du modele. */
+function FallbackBadge({ story }: { story: Story }) {
+    if (story.aiReadySource !== 'fallback') return null;
+    return (
+        <span
+            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap bg-gray-100 text-gray-700"
+            title="Le modele n'a pas donne de verdict fiable : validation humaine necessaire"
+        >
+            verdict indisponible
+        </span>
+    );
+}
+
 /** Arborescence Epics > Stories > Subtasks d'un apercu, avec le verdict ai-ready de chaque story et sa raison. */
 export default function BacklogPreview({ epics }: { epics: Epic[] }) {
     return (
@@ -45,7 +58,10 @@ export default function BacklogPreview({ epics }: { epics: Epic[] }) {
                                             <span className="ml-2 text-xs font-normal text-gray-500">{story.estimatedStoryPoints} pts</span>
                                         )}
                                     </p>
-                                    <ReadinessBadge story={story} />
+                                    <span className="inline-flex gap-1">
+                                        <FallbackBadge story={story} />
+                                        <ReadinessBadge story={story} />
+                                    </span>
                                 </div>
                                 {story.aiReadyReason && (
                                     <p className={`mt-1 text-sm ${story.aiReady ? 'text-green-700' : 'text-amber-700'}`}>

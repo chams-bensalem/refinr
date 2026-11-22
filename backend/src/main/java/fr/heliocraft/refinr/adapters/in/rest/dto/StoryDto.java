@@ -141,6 +141,18 @@ public class StoryDto {
     @JsonProperty("aiReadyReason")
     private String aiReadyReason;
 
+    // Origine du verdict : model, fallback (repli, jamais ai-ready) ou human ; valeur envoyee par le client ignoree
+    @JsonProperty("aiReadySource")
+    private String aiReadySource;
+
+    public String getAiReadySource() {
+        return aiReadySource;
+    }
+
+    public void setAiReadySource(String aiReadySource) {
+        this.aiReadySource = aiReadySource;
+    }
+
     public Boolean getAiReady() {
         return aiReady;
     }

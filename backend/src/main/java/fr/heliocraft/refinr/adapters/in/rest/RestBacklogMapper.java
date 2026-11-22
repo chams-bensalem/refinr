@@ -61,7 +61,7 @@ public final class RestBacklogMapper {
         story.setLabels(dto.getLabels());
         story.setTasks(map(dto.getTasks(), RestBacklogMapper::toDomain));
         story.setDependencies(dto.getDependencies());
-        // aiReady / aiReadyReason du client ignores : le serveur recalcule le verdict sur le contenu final (create-jira)
+        // aiReady / aiReadyReason / aiReadySource du client ignores : le serveur recalcule le verdict sur le contenu final (create-jira)
         story.setTrackerKey(dto.getJiraKey());
         story.setTrackerUrl(dto.getJiraUrl());
         story.setEpicTrackerKey(dto.getEpicKey());
@@ -116,6 +116,7 @@ public final class RestBacklogMapper {
         dto.setDependencies(story.getDependencies());
         dto.setAiReady(story.getAiReady());
         dto.setAiReadyReason(story.getAiReadyReason());
+        dto.setAiReadySource(story.getAiReadySource() != null ? story.getAiReadySource().id() : null);
         dto.setJiraKey(story.getTrackerKey());
         dto.setJiraUrl(story.getTrackerUrl());
         dto.setEpicKey(story.getEpicTrackerKey());
