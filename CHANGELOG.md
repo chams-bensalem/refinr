@@ -5,7 +5,7 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 
 ## [Unreleased]
 
-## [1.4.0] - 2026-11-23
+## [1.4.0] - 2026-11-22
 
 La justesse du verdict `ai-ready` est **mesurée** (jeu de référence de 80 stories, outil `scripts/eval-verdict.sh`,
 matrice de compatibilité des modèles dans le README) et ses prompts sont révisés (`verdict-v3.2`). Le backlog est écrit
