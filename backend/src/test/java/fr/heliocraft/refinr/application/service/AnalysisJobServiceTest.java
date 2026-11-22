@@ -263,6 +263,9 @@ class AnalysisJobServiceTest {
                         Kind.SOURCE_UNAVAILABLE, "The document source is unavailable", null),
                 Arguments.of(new InvalidRequestException("The document is empty or contains no text to analyze"),
                         Kind.INVALID_REQUEST, "The document is empty or contains no text to analyze", null),
+                Arguments.of(new fr.heliocraft.refinr.application.port.in.FeatureLevelMissingException(),
+                        Kind.FEATURE_LEVEL_MISSING,
+                        fr.heliocraft.refinr.application.port.in.FeatureLevelMissingException.MESSAGE, null),
                 Arguments.of(new IllegalStateException("raw detail https://internal.example.net"), Kind.UNEXPECTED, null, null));
     }
 

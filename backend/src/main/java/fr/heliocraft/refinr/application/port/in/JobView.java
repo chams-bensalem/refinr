@@ -64,6 +64,7 @@ public record JobView(String id, Type type, Status status, Step step, Instant cr
         public enum Kind {
             INVALID_REQUEST, CONTENT_TOO_LARGE, DOCUMENT_NOT_FOUND, SOURCE_UNAVAILABLE,
             MODEL_OUTPUT_INVALID, MODEL_OUTPUT_TRUNCATED, MODEL_RATE_LIMITED, MODEL_OVERLOADED, MODEL_UNAVAILABLE,
+            FEATURE_LEVEL_MISSING,
             TIMEOUT, INTERRUPTED, UNEXPECTED
         }
 

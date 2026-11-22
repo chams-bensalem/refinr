@@ -10,6 +10,7 @@ import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.ContentTooLargeException;
 import fr.heliocraft.refinr.application.port.in.DocumentNotFoundException;
 import fr.heliocraft.refinr.application.port.in.DocumentSourceUnavailableException;
+import fr.heliocraft.refinr.application.port.in.FeatureLevelMissingException;
 import fr.heliocraft.refinr.application.port.in.InvalidRequestException;
 import fr.heliocraft.refinr.application.port.in.JobView;
 import fr.heliocraft.refinr.application.port.in.JobView.Failure;
@@ -277,6 +278,9 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
         }
         if (e instanceof InvalidRequestException) {
             return new Failure(Kind.INVALID_REQUEST, e.getMessage(), null);
+        }
+        if (e instanceof FeatureLevelMissingException) {
+            return new Failure(Kind.FEATURE_LEVEL_MISSING, e.getMessage(), null);
         }
         if (e instanceof ContentTooLargeException) {
             return new Failure(Kind.CONTENT_TOO_LARGE, e.getMessage(), null);
