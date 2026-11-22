@@ -49,8 +49,11 @@ function ErrorBox({ title, error, backLabel, onBack, className = 'border-b borde
 
 function countBacklog(epics: Epic[]) {
     const stories = epics.flatMap((epic) => epic.stories ?? []);
+    // Features explicites seulement : la seule Feature d'un epic n'est pas un niveau distinct
+    const features = epics.reduce((total, epic) => total + ((epic.features ?? []).length > 1 ? (epic.features ?? []).length : 0), 0);
     return {
         epics: epics.length,
+        features,
         stories: stories.length,
         subtasks: stories.reduce((total, story) => total + (story.tasks ?? []).length, 0),
         aiReady: stories.filter((story) => story.aiReady === true).length,
@@ -178,10 +181,16 @@ export default function Analyze() {
                                 </a>
                             )}
                             <p className="text-sm text-gray-600">
-                                {counts.epics} epic(s) · {counts.stories} stories · {counts.subtasks} sub-tasks ·{' '}
+                                {counts.epics} epic(s) ·{counts.features > 0 ? ` ${counts.features} feature(s) ·` : ''} {counts.stories} stories · {counts.subtasks} sub-tasks ·{' '}
                                 <span className="font-semibold text-green-700">{counts.aiReady} ai-ready</span>
                             </p>
                         </div>
+
+                        {(preview.data?.warnings ?? []).map((warning) => (
+                            <p key={warning} className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-800">
+                                {warning}
+                            </p>
+                        ))}
 
                         {epics.length === 0 ? (
                             <p className="text-gray-600">The analysis produced no epic. Check the content of the spec and try again.</p>

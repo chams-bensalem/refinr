@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Chams Bensalem
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Bot, CircleHelp, Layers, ListChecks } from 'lucide-react';
-import type { Epic, Story } from '../types';
+import { Bot, CircleHelp, Boxes, Layers, ListChecks } from 'lucide-react';
+import type { Epic, Feature, Story } from '../types';
 
 /** Verdict affiche : un verdict absent vaut validation-necessaire, comme cote serveur. */
 function ReadinessBadge({ story }: { story: Story }) {
@@ -32,7 +32,70 @@ function FallbackBadge({ story }: { story: Story }) {
     );
 }
 
-/** Arborescence Epics > Stories > Subtasks d'un apercu, avec le verdict ai-ready de chaque story et sa raison. */
+/** Stories d'un epic ou d'une Feature, avec leur verdict ai-ready et sa raison, et leurs sous-taches. */
+function StoryList({ stories }: { stories: Story[] }) {
+    return (
+        <ul className="divide-y divide-gray-100">
+            {stories.map((story, storyIndex) => (
+                <li key={`${story.title}-${storyIndex}`} className="px-5 py-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold text-gray-900">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-blue-700 mr-2">Story</span>
+                            {story.title}
+                            {story.estimatedStoryPoints != null && (
+                                <span className="ml-2 text-xs font-normal text-gray-500">{story.estimatedStoryPoints} pts</span>
+                            )}
+                        </p>
+                        <span className="inline-flex gap-1">
+                            <FallbackBadge story={story} />
+                            <ReadinessBadge story={story} />
+                        </span>
+                    </div>
+                    {story.aiReadyReason && (
+                        <p className={`mt-1 text-sm ${story.aiReady ? 'text-green-700' : 'text-amber-700'}`}>
+                            {story.aiReadyReason}
+                        </p>
+                    )}
+                    {(story.tasks ?? []).length > 0 && (
+                        <ul className="mt-3 ml-1 space-y-1">
+                            {(story.tasks ?? []).map((task, taskIndex) => (
+                                <li key={`${task.title}-${taskIndex}`} className="flex items-center gap-2 text-sm text-gray-700">
+                                    <ListChecks className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                                    <span>{task.title}</span>
+                                    {task.estimatedHours != null && (
+                                        <span className="text-xs text-gray-400">{task.estimatedHours} h</span>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </li>
+            ))}
+        </ul>
+    );
+}
+
+/** Feature explicite : en-tete puis ses stories. */
+function FeatureSection({ feature }: { feature: Feature }) {
+    return (
+        <div className="border-t border-gray-200">
+            <div className="flex items-start gap-3 bg-indigo-50 px-5 py-3">
+                <Boxes className="h-4 w-4 text-indigo-600 mt-0.5 flex-shrink-0" />
+                <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Feature</p>
+                    <h4 className="font-semibold text-gray-900">{feature.name}</h4>
+                    {feature.description && <p className="mt-0.5 text-sm text-gray-600">{feature.description}</p>}
+                </div>
+            </div>
+            <StoryList stories={feature.stories ?? []} />
+        </div>
+    );
+}
+
+/**
+ * Arborescence Epics > Features > Stories > Subtasks d'un apercu. Un epic a plusieurs Features les affiche ; sinon
+ * (Feature implicite, ou serveur d'avant la 1.5) ses stories sont affichees directement, comme avant.
+ */
 export default function BacklogPreview({ epics }: { epics: Epic[] }) {
     return (
         <div className="space-y-6">
@@ -47,43 +110,13 @@ export default function BacklogPreview({ epics }: { epics: Epic[] }) {
                         </div>
                     </header>
 
-                    <ul className="divide-y divide-gray-100">
-                        {(epic.stories ?? []).map((story, storyIndex) => (
-                            <li key={`${story.title}-${storyIndex}`} className="px-5 py-4">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <p className="font-semibold text-gray-900">
-                                        <span className="text-xs font-semibold uppercase tracking-wide text-blue-700 mr-2">Story</span>
-                                        {story.title}
-                                        {story.estimatedStoryPoints != null && (
-                                            <span className="ml-2 text-xs font-normal text-gray-500">{story.estimatedStoryPoints} pts</span>
-                                        )}
-                                    </p>
-                                    <span className="inline-flex gap-1">
-                                        <FallbackBadge story={story} />
-                                        <ReadinessBadge story={story} />
-                                    </span>
-                                </div>
-                                {story.aiReadyReason && (
-                                    <p className={`mt-1 text-sm ${story.aiReady ? 'text-green-700' : 'text-amber-700'}`}>
-                                        {story.aiReadyReason}
-                                    </p>
-                                )}
-                                {(story.tasks ?? []).length > 0 && (
-                                    <ul className="mt-3 ml-1 space-y-1">
-                                        {(story.tasks ?? []).map((task, taskIndex) => (
-                                            <li key={`${task.title}-${taskIndex}`} className="flex items-center gap-2 text-sm text-gray-700">
-                                                <ListChecks className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-                                                <span>{task.title}</span>
-                                                {task.estimatedHours != null && (
-                                                    <span className="text-xs text-gray-400">{task.estimatedHours} h</span>
-                                                )}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </li>
-                        ))}
-                    </ul>
+                    {(epic.features ?? []).length > 1 ? (
+                        (epic.features ?? []).map((feature, featureIndex) => (
+                            <FeatureSection key={`${feature.name}-${featureIndex}`} feature={feature} />
+                        ))
+                    ) : (
+                        <StoryList stories={epic.stories ?? []} />
+                    )}
                 </section>
             ))}
         </div>
