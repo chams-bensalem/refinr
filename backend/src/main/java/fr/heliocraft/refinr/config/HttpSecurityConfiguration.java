@@ -72,10 +72,12 @@ public class HttpSecurityConfiguration {
         if (!origins.isEmpty()) {
             CorsConfiguration cors = new CorsConfiguration();
             cors.setAllowedOrigins(origins);
-            cors.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
+            // DELETE : annulation d'un job (/api/v1/jobs/{id})
+            cors.setAllowedMethods(List.of("GET", "POST", "DELETE", "OPTIONS"));
             cors.setAllowedHeaders(List.of("Content-Type", ApiKeyFilter.HEADER));
-            // Lu par l'interface web et le plugin sur un 503 (quota, surcharge du fournisseur)
-            cors.setExposedHeaders(List.of(HttpHeaders.RETRY_AFTER));
+            // Retry-After : lu par l'interface web et le plugin sur un 503 (quota, surcharge du fournisseur) ;
+            // Location : adresse d'un job cree (202)
+            cors.setExposedHeaders(List.of(HttpHeaders.RETRY_AFTER, HttpHeaders.LOCATION));
             cors.setAllowCredentials(false);
             cors.setMaxAge(3600L);
             source.registerCorsConfiguration("/api/**", cors);

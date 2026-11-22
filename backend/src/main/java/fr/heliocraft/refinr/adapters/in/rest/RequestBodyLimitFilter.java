@@ -87,7 +87,7 @@ public class RequestBodyLimitFilter extends OncePerRequestFilter {
     }
 
     private void reject(HttpServletRequest request, HttpServletResponse response, String size) throws IOException {
-        log.warn("Rejected {} {}: request body over {} bytes ({})", request.getMethod(), request.getRequestURI(),
+        log.warn("Rejected {} {}: request body over {} bytes ({})", request.getMethod(), JobPaths.forLogs(request.getRequestURI()),
                 maxBodyBytes, size);
         response.setStatus(HttpStatus.CONTENT_TOO_LARGE.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);

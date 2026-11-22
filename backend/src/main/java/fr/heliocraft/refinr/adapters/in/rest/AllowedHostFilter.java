@@ -60,7 +60,7 @@ public class AllowedHostFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
             return;
         }
-        log.warn("Rejected {} {}: Host not allowed ({})", request.getMethod(), request.getRequestURI(),
+        log.warn("Rejected {} {}: Host not allowed ({})", request.getMethod(), JobPaths.forLogs(request.getRequestURI()),
                 host == null ? "missing" : host.length() > 100 ? host.substring(0, 100) + "..." : host);
         response.setStatus(HttpStatus.FORBIDDEN.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);

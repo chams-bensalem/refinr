@@ -5,6 +5,7 @@ package fr.heliocraft.refinr.config;
 
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
+import fr.heliocraft.refinr.adapters.in.rest.JobPaths;
 import org.slf4j.MDC;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -26,7 +27,7 @@ public class LoggingFilter implements Filter {
 
         String correlationId = UUID.randomUUID().toString();
         MDC.put("correlationId", correlationId);
-        MDC.put("path", httpRequest.getRequestURI());
+        MDC.put("path", JobPaths.forLogs(httpRequest.getRequestURI()));
         MDC.put("method", httpRequest.getMethod());
 
         try {

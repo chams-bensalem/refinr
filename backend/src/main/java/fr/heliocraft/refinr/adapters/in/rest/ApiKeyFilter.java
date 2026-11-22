@@ -77,7 +77,7 @@ public class ApiKeyFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
             return;
         }
-        log.warn("Rejected {} {}: {} header {}", request.getMethod(), request.getRequestURI(), HEADER,
+        log.warn("Rejected {} {}: {} header {}", request.getMethod(), JobPaths.forLogs(request.getRequestURI()), HEADER,
                 provided == null ? "missing" : "invalid");
         response.setStatus(HttpStatus.UNAUTHORIZED.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);

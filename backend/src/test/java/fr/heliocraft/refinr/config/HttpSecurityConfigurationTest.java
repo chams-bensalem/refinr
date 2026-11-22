@@ -7,6 +7,8 @@ import fr.heliocraft.refinr.adapters.in.rest.HealthCheckController;
 import fr.heliocraft.refinr.adapters.in.rest.SourceController;
 import fr.heliocraft.refinr.adapters.in.rest.TrackerController;
 import fr.heliocraft.refinr.adapters.in.rest.BacklogController;
+import fr.heliocraft.refinr.adapters.in.rest.JobController;
+import fr.heliocraft.refinr.application.port.in.AnalysisJobs;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.CheckHealth;
 import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
@@ -20,6 +22,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -38,6 +43,9 @@ import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -47,8 +55,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** CORS configurable (plus de {@code *}) et cle d'API optionnelle, appliques par les filtres servlet. */
+@ExtendWith(OutputCaptureExtension.class)
 class HttpSecurityConfigurationTest {
 
+    private static final String JOB_ID = "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
     private static final String SEARCH = "/api/v1/confluence/search?spaceKey=SPACE&title=Spec";
     private static final String HEALTH = "/api/v1/health";
     private static final String TRACKER = "/api/v1/tracker";
@@ -56,10 +66,12 @@ class HttpSecurityConfigurationTest {
     private static final String DOCUMENTS_SEARCH = "/api/v1/documents/search?title=Spec";
     private static final String ALLOWED = "http://localhost:3000";
 
-    @WebMvcTest({BacklogController.class, HealthCheckController.class, TrackerController.class, SourceController.class})
+    @WebMvcTest({BacklogController.class, HealthCheckController.class, TrackerController.class, SourceController.class,
+            JobController.class})
     @Import({HttpSecurityConfiguration.class, LoggingFilter.class})
     abstract static class WebLayer {
         @Autowired MockMvc mockMvc;
+        @MockitoBean AnalysisJobs analysisJobs;
         @MockitoBean AnalyzeDocument analyzeDocument;
         @MockitoBean PreviewBacklog previewBacklog;
         @MockitoBean CreateEditedBacklog createEditedBacklog;
@@ -113,6 +125,18 @@ class HttpSecurityConfigurationTest {
         }
 
         @Test
+        @DisplayName("Jobs: preflight allows DELETE (cancel) and an allowed origin can read the Location header")
+        void jobsCors() throws Exception {
+            mockMvc.perform(options("/api/v1/jobs/" + JOB_ID)
+                            .header("Origin", ALLOWED)
+                            .header("Access-Control-Request-Method", "DELETE"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Access-Control-Allow-Methods", containsStringIgnoringCase("DELETE")));
+            mockMvc.perform(get(SEARCH).header("Origin", ALLOWED))
+                    .andExpect(header().string("Access-Control-Expose-Headers", containsStringIgnoringCase("Location")));
+        }
+
+        @Test
         @DisplayName("Preflight of an allowed origin accepts the X-API-Key header")
         void preflightAllowsApiKeyHeader() throws Exception {
             mockMvc.perform(options("/api/v1/analyze-preview")
@@ -163,6 +187,27 @@ class HttpSecurityConfigurationTest {
             mockMvc.perform(post("/api/v1/create-jira").param("language", "xx").contentType("application/json").content("[]"))
                     .andExpect(status().isUnauthorized());
             org.mockito.Mockito.verifyNoInteractions(previewBacklog, createEditedBacklog);
+        }
+
+        @Test
+        @DisplayName("Jobs are protected like the other endpoints: 401 on the five routes without the key, reached with it")
+        void jobsRequireTheKey(CapturedOutput output) throws Exception {
+            String text = "{\"content\":\"# Spec\\nGestion des stocks\"}";
+            mockMvc.perform(post("/api/v1/jobs/analyze-preview").contentType("application/json").content(text))
+                    .andExpect(status().isUnauthorized());
+            mockMvc.perform(post("/api/v1/jobs/analyze-and-create").contentType("application/json").content(text))
+                    .andExpect(status().isUnauthorized());
+            mockMvc.perform(get("/api/v1/jobs/" + JOB_ID)).andExpect(status().isUnauthorized());
+            mockMvc.perform(get("/api/v1/jobs/" + JOB_ID + "/result")).andExpect(status().isUnauthorized());
+            mockMvc.perform(delete("/api/v1/jobs/" + JOB_ID)).andExpect(status().isUnauthorized());
+            mockMvc.perform(get("/api/v1/jobs/" + JOB_ID).header("X-API-Key", "test-api-key-123"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.error").value("Unknown or expired job"));
+            org.mockito.Mockito.verify(analysisJobs, org.mockito.Mockito.times(1)).find(JOB_ID);
+            org.mockito.Mockito.verifyNoMoreInteractions(analysisJobs);
+            // Rejet journalise sans l'identifiant complet du job
+            assertTrue(output.getAll().contains("/api/v1/jobs/" + JOB_ID.substring(0, 8) + "…"), output.getAll());
+            assertFalse(output.getAll().contains(JOB_ID), output.getAll());
         }
 
         @Test
