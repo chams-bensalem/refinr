@@ -32,7 +32,24 @@ class CreateBacklogServiceTest {
         final List<String> calls = new ArrayList<>();
         // Titres dont la creation echoue (IssueTrackerException avec ce message, ou erreur inattendue si "boom")
         final java.util.Set<String> failing = new java.util.HashSet<>();
+        IssueTrackerPort.FeatureLevel level = IssueTrackerPort.FeatureLevel.NONE;
+        // Labels recus par chaque story creee
+        final java.util.Map<String, List<String>> storyLabels = new java.util.LinkedHashMap<>();
         private int next = 1;
+
+        @Override
+        public FeatureLevel featureLevel(String project) {
+            if (level == null) {
+                throw new IllegalStateException("tracker down");
+            }
+            return level;
+        }
+
+        @Override
+        public String createFeature(fr.heliocraft.refinr.domain.model.Feature feature, String epicKey, String project) {
+            fail(feature.getName());
+            return record("feature " + feature.getName() + " parent=" + epicKey + " project=" + project);
+        }
 
         @Override
         public String displayName() {
@@ -58,6 +75,7 @@ class CreateBacklogServiceTest {
         @Override
         public String createStory(Story story, String epicKey, String project) {
             fail(story.getTitle());
+            storyLabels.put(story.getTitle(), story.getLabels());
             return record("story " + story.getTitle() + " parent=" + epicKey + " project=" + project);
         }
 
@@ -237,5 +255,131 @@ class CreateBacklogServiceTest {
         assertFalse(output.getAll().contains("'Story-marker-8e2a'"), output.getAll());
         // Erreur inattendue : ni le titre ni le message brut (le message des erreurs du tracker releve de #33)
         assertFalse(output.getAll().contains("Title-marker-4b1d"), output.getAll());
+    }
+
+    // ---------- niveau Feature (F1) ----------
+
+    private static fr.heliocraft.refinr.domain.model.Feature feature(String name, Story... stories) {
+        fr.heliocraft.refinr.domain.model.Feature feature = new fr.heliocraft.refinr.domain.model.Feature();
+        feature.setName(name);
+        feature.setStories(new ArrayList<>(List.of(stories)));
+        return feature;
+    }
+
+    private static Epic epicWith(String name, fr.heliocraft.refinr.domain.model.Feature... features) {
+        Epic epic = new Epic();
+        epic.setName(name);
+        epic.setFeatures(new ArrayList<>(List.of(features)));
+        return epic;
+    }
+
+    @Test
+    @DisplayName("Native feature level: epic -> feature -> story -> subtask, stories under their feature, no label, no warning")
+    void nativeFeatures() {
+        RecordingTracker tracker = new RecordingTracker();
+        tracker.level = IssueTrackerPort.FeatureLevel.OPTIONAL;
+
+        BacklogCreationResult result = new CreateBacklogService(tracker).create(List.of(
+                epicWith("E", feature("Booking", story("S1", "T1")), feature("Admin", story("S2")))), null);
+
+        assertEquals(List.of(
+                "epic E project=null",
+                "feature Booking parent=PROJ-1 project=null",
+                "story S1 parent=PROJ-2 project=null",
+                "subtask T1 parent=PROJ-3 project=null",
+                "feature Admin parent=PROJ-1 project=null",
+                "story S2 parent=PROJ-5 project=null"), tracker.calls);
+        assertEquals("PROJ-2", result.epics().getFirst().getFeatures().getFirst().getTrackerKey());
+        assertTrue(result.warnings().isEmpty());
+        assertFalse(tracker.storyLabels.get("S1").stream().anyMatch(l -> l.startsWith("feature-")));
+        assertEquals(List.of("epic", "feature", "story", "subtask", "feature", "story"),
+                result.created().stream().map(CreatedIssue::type).toList());
+    }
+
+    @Test
+    @DisplayName("Optional level: the implicit feature (only one of its epic) gets no issue, stories go under the epic")
+    void implicitFeatureHasNoIssue() {
+        RecordingTracker tracker = new RecordingTracker();
+        tracker.level = IssueTrackerPort.FeatureLevel.OPTIONAL;
+
+        new CreateBacklogService(tracker).create(List.of(epicWith("E", feature("Export", story("S1")))), null);
+
+        assertEquals(List.of("epic E project=null", "story S1 parent=PROJ-1 project=null"), tracker.calls);
+    }
+
+    @Test
+    @DisplayName("Required level: the implicit feature gets an issue, named after the epic when it has no name")
+    void requiredLevelCreatesTheImplicitFeature() {
+        RecordingTracker tracker = new RecordingTracker();
+        tracker.level = IssueTrackerPort.FeatureLevel.REQUIRED;
+
+        new CreateBacklogService(tracker).create(List.of(epic("Order export", story("S1"))), null);
+
+        assertEquals(List.of("epic Order export project=null", "feature Order export parent=PROJ-1 project=null",
+                "story S1 parent=PROJ-2 project=null"), tracker.calls);
+    }
+
+    @Test
+    @DisplayName("No feature level: stories under the epic, feature-<name> label for explicit features only, one warning")
+    void noFeatureLevelGivesLabels() {
+        RecordingTracker tracker = new RecordingTracker();
+
+        BacklogCreationResult result = new CreateBacklogService(tracker).create(List.of(
+                epicWith("E", feature("Room Booking", story("S1")), feature("Admin", story("S2"))),
+                epicWith("F", feature("Single", story("S3")))), null);
+
+        assertEquals(List.of("epic E project=null", "story S1 parent=PROJ-1 project=null",
+                "story S2 parent=PROJ-1 project=null", "epic F project=null", "story S3 parent=PROJ-4 project=null"),
+                tracker.calls);
+        assertTrue(tracker.storyLabels.get("S1").contains("feature-room-booking"), tracker.storyLabels.toString());
+        assertTrue(tracker.storyLabels.get("S2").contains("feature-admin"));
+        assertFalse(tracker.storyLabels.get("S3").stream().anyMatch(l -> l.startsWith("feature-")), "implicit: no label");
+        assertEquals(List.of(FeatureLevels.LABELS_WARNING), result.warnings());
+    }
+
+    @Test
+    @DisplayName("No feature level and policy refuse: explicit features are refused before any tracker call; implicit ones pass")
+    void refusePolicy() {
+        RecordingTracker tracker = new RecordingTracker();
+        CreateBacklogService service = new CreateBacklogService(tracker, FeatureLevels.Policy.REFUSE);
+
+        assertThrows(fr.heliocraft.refinr.application.port.in.FeatureLevelMissingException.class, () -> service.create(
+                List.of(epicWith("E", feature("A", story("S1")), feature("B", story("S2")))), null));
+        assertTrue(tracker.calls.isEmpty());
+
+        BacklogCreationResult result = service.create(List.of(epic("E", story("S1"))), null);
+        assertTrue(result.isComplete());
+        assertTrue(result.warnings().isEmpty());
+    }
+
+    @Test
+    @DisplayName("A failed feature skips its stories and subtasks; the next feature is still created")
+    void failedFeatureSkipsItsStories() {
+        RecordingTracker tracker = new RecordingTracker();
+        tracker.level = IssueTrackerPort.FeatureLevel.OPTIONAL;
+        tracker.failing.add("Booking");
+
+        BacklogCreationResult result = new CreateBacklogService(tracker).create(List.of(
+                epicWith("E", feature("Booking", story("S1", "T1")), feature("Admin", story("S2")))), null);
+
+        assertEquals(List.of(
+                new FailedIssue("feature", "Booking", "Rejected by the tracker (HTTP 400): Booking"),
+                new FailedIssue("story", "S1", "Not created: parent feature Booking failed"),
+                new FailedIssue("subtask", "T1", "Not created: parent feature Booking failed")), result.failed());
+        assertEquals(List.of("epic E project=null", "feature Admin parent=PROJ-1 project=null",
+                "story S2 parent=PROJ-2 project=null"), tracker.calls);
+    }
+
+    @Test
+    @DisplayName("Tracker level unknown at creation (tracker down): treated as no feature level, labels and warning")
+    void unknownLevelIsNoLevel() {
+        RecordingTracker tracker = new RecordingTracker();
+        tracker.level = null;
+
+        BacklogCreationResult result = new CreateBacklogService(tracker).create(List.of(
+                epicWith("E", feature("A", story("S1")), feature("B", story("S2")))), null);
+
+        assertTrue(tracker.storyLabels.get("S1").contains("feature-a"));
+        assertEquals(List.of(FeatureLevels.LABELS_WARNING), result.warnings());
     }
 }

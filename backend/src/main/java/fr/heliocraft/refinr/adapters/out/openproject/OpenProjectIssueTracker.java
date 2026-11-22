@@ -8,6 +8,7 @@ import fr.heliocraft.refinr.application.port.out.IssueTrackerException;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
 import fr.heliocraft.refinr.domain.model.ComponentHealth;
 import fr.heliocraft.refinr.domain.model.Epic;
+import fr.heliocraft.refinr.domain.model.Feature;
 import fr.heliocraft.refinr.domain.model.Readiness;
 import fr.heliocraft.refinr.domain.model.Story;
 import fr.heliocraft.refinr.domain.model.Task;
@@ -58,6 +59,7 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
     private static final Logger log = LoggerFactory.getLogger(OpenProjectIssueTracker.class);
 
     static final String HEALTH_NAME = "openproject";
+    static final String DEFAULT_FEATURE_TYPE = "Feature";
     static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final Duration HEALTH_TIMEOUT = Duration.ofSeconds(5);
     private static final Pattern WORK_PACKAGE_ID = Pattern.compile("^[0-9]{1,18}$");
@@ -74,6 +76,8 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
     private final String epicType;
     private final String storyType;
     private final String subtaskType;
+    // Type natif des Features (optionnel : sans lui dans le projet, pas de niveau Feature)
+    private final String featureType;
     private final String readinessField;
     private final boolean storyPointsEnabled;
     private final boolean priorityEnabled;
@@ -93,9 +97,10 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
             @Value("${openproject.readiness-field:Agent readiness}") String readinessField,
             @Value("${openproject.story-points-enabled:true}") boolean storyPointsEnabled,
             @Value("${openproject.priority-enabled:true}") boolean priorityEnabled,
-            @Value("${openproject.web-url:}") String webUrl) {
+            @Value("${openproject.web-url:}") String webUrl,
+            @Value("${openproject.types.feature:" + DEFAULT_FEATURE_TYPE + "}") String featureType) {
         this(baseUrl, apiKey, defaultProject, epicType, storyType, subtaskType, readinessField, storyPointsEnabled,
-                priorityEnabled, TIMEOUT, webUrl);
+                priorityEnabled, TIMEOUT, webUrl, featureType);
     }
 
     /** Delai par appel parametrable pour les tests ; adresse web = base-url. */
@@ -109,6 +114,14 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
     OpenProjectIssueTracker(String baseUrl, String apiKey, String defaultProject, String epicType, String storyType,
                             String subtaskType, String readinessField, boolean storyPointsEnabled,
                             boolean priorityEnabled, Duration timeout, String webUrl) {
+        this(baseUrl, apiKey, defaultProject, epicType, storyType, subtaskType, readinessField, storyPointsEnabled,
+                priorityEnabled, timeout, webUrl, DEFAULT_FEATURE_TYPE);
+    }
+
+    OpenProjectIssueTracker(String baseUrl, String apiKey, String defaultProject, String epicType, String storyType,
+                            String subtaskType, String readinessField, boolean storyPointsEnabled,
+                            boolean priorityEnabled, Duration timeout, String webUrl, String featureType) {
+        this.featureType = featureType == null || featureType.isBlank() ? DEFAULT_FEATURE_TYPE : featureType.strip();
         String site = webUrl == null || webUrl.isBlank() ? baseUrl : webUrl;
         this.siteUrl = site == null ? "" : site.strip().replaceAll("/+$", "");
         this.defaultProject = defaultProject;
@@ -159,13 +172,44 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
         return create("epic", target, epic.getName(), withLabels(epic.getDescription(), epic.getLabels()), links, null);
     }
 
+    /**
+     * Niveau Feature natif si le type {@code openproject.types.feature} est active dans le projet ; une story peut
+     * aussi aller sous l'epic (Feature implicite sans work package). Projet mal configure ou injoignable : inconnu.
+     */
     @Override
-    public String createStory(Story story, String epicKey, String project) {
+    public FeatureLevel featureLevel(String project) {
+        try {
+            return setup(project(project)).typeHref(featureType) != null ? FeatureLevel.OPTIONAL : FeatureLevel.NONE;
+        } catch (IssueTrackerException e) {
+            log.warn("OpenProject feature level unknown: {}", e.getMessage());
+            return FeatureLevel.UNKNOWN;
+        }
+    }
+
+    @Override
+    public String createFeature(Feature feature, String epicKey, String project) {
         String target = project(project);
-        log.info("Creating OpenProject story under epic {}", epicKey);
+        log.info("Creating OpenProject feature under epic {}", epicKey);
+        ProjectSetup setup = setup(target);
+        String typeHref = setup.typeHref(featureType);
+        if (typeHref == null) {
+            throw new IssueTrackerException("OpenProject type '" + featureType + "' is not enabled in project " + target
+                    + " (Project settings > Work packages > Types)");
+        }
+        Map<String, Object> links = baseLinks(target, typeHref);
+        putParent(links, epicKey);
+        putPriority(links, setup, feature.getPriority());
+        return create("feature", target, feature.getName(), withLabels(feature.getDescription(), feature.getLabels()),
+                links, null);
+    }
+
+    @Override
+    public String createStory(Story story, String parentKey, String project) {
+        String target = project(project);
+        log.info("Creating OpenProject story under {}", parentKey);
         ProjectSetup setup = setup(target);
         Map<String, Object> links = baseLinks(target, setup.typeHref(storyType));
-        putParent(links, epicKey);
+        putParent(links, parentKey);
         putPriority(links, setup, story.getPriority());
         // Seul un "true" explicite de l'analyse rend la story codable par l'agent : dans le doute, validation humaine
         links.put(setup.readinessKey(),

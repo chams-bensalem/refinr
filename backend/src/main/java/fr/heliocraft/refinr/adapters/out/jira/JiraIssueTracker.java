@@ -8,6 +8,7 @@ import fr.heliocraft.refinr.application.port.out.HealthCheckable;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
 import fr.heliocraft.refinr.domain.model.ComponentHealth;
 import fr.heliocraft.refinr.domain.model.Epic;
+import fr.heliocraft.refinr.domain.model.Feature;
 import fr.heliocraft.refinr.domain.model.Readiness;
 import fr.heliocraft.refinr.domain.model.Story;
 import fr.heliocraft.refinr.domain.model.Task;
@@ -53,6 +54,44 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
     private final boolean priorityEnabled;
     // Champ personnalise des story points (ex. customfield_10016), propre a chaque instance Jira ; vide = non envoye
     private final String storyPointsField;
+    // Hierarchie : two-levels (Free, Standard : pas de niveau Feature) ou three-levels (Premium configure)
+    private final Hierarchy hierarchy;
+    private final String epicType;
+    private final String featureType;
+    private final String storyType;
+    private final String subtaskType;
+    // Projets dont la configuration trois niveaux a ete validee (types presents, niveaux coherents)
+    private final java.util.Set<String> validatedProjects = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** {@code jira.hierarchy} : niveau Feature absent (defaut) ou configure au-dessus de la Story (Premium). */
+    public enum Hierarchy {
+        TWO_LEVELS, THREE_LEVELS;
+
+        public static Hierarchy of(String value) {
+            String normalized = value == null ? "" : value.strip().toLowerCase(java.util.Locale.ROOT);
+            return switch (normalized) {
+                case "", "two-levels" -> TWO_LEVELS;
+                case "three-levels" -> THREE_LEVELS;
+                default -> throw new IllegalStateException("jira.hierarchy must be two-levels or three-levels, got " + value);
+            };
+        }
+    }
+
+    /** Noms des types de tickets (jira.types.*), avec leurs defauts. */
+    public record IssueTypes(String epic, String feature, String story, String subtask) {
+        public static final IssueTypes DEFAULT = new IssueTypes("Epic", "Feature", "Story", "Subtask");
+
+        public IssueTypes {
+            epic = orDefault(epic, "Epic");
+            feature = orDefault(feature, "Feature");
+            story = orDefault(story, "Story");
+            subtask = orDefault(subtask, "Subtask");
+        }
+
+        private static String orDefault(String value, String fallback) {
+            return value == null || value.isBlank() ? fallback : value.strip();
+        }
+    }
 
     public JiraIssueTracker(String baseUrl, String username, String token, String projectKey) {
         this(baseUrl, username, token, projectKey, true);
@@ -62,6 +101,12 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
         this(baseUrl, username, token, projectKey, priorityEnabled, "");
     }
 
+    public JiraIssueTracker(String baseUrl, String username, String token, String projectKey, boolean priorityEnabled,
+                            String storyPointsField) {
+        this(baseUrl, username, token, projectKey, priorityEnabled, storyPointsField, Hierarchy.TWO_LEVELS,
+                IssueTypes.DEFAULT);
+    }
+
     @Autowired
     public JiraIssueTracker(
             @Value("${jira.base-url}") String baseUrl,
@@ -69,8 +114,24 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
             @Value("${jira.token}") String token,
             @Value("${jira.project-key}") String projectKey,
             @Value("${jira.priority-enabled:true}") boolean priorityEnabled,
-            @Value("${jira.story-points-field:}") String storyPointsField) {
+            @Value("${jira.story-points-field:}") String storyPointsField,
+            @Value("${jira.hierarchy:two-levels}") String hierarchy,
+            @Value("${jira.types.epic:Epic}") String epicType,
+            @Value("${jira.types.feature:Feature}") String featureType,
+            @Value("${jira.types.story:Story}") String storyType,
+            @Value("${jira.types.subtask:Subtask}") String subtaskType) {
+        this(baseUrl, username, token, projectKey, priorityEnabled, storyPointsField, Hierarchy.of(hierarchy),
+                new IssueTypes(epicType, featureType, storyType, subtaskType));
+    }
 
+    public JiraIssueTracker(String baseUrl, String username, String token, String projectKey, boolean priorityEnabled,
+                            String storyPointsField, Hierarchy hierarchy, IssueTypes types) {
+
+        this.hierarchy = hierarchy;
+        this.epicType = types.epic();
+        this.featureType = types.feature();
+        this.storyType = types.story();
+        this.subtaskType = types.subtask();
         this.projectKey = projectKey;
         this.siteUrl = baseUrl == null ? "" : baseUrl.strip().replaceAll("/+$", "");
         this.priorityEnabled = priorityEnabled;
@@ -117,13 +178,101 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
         fields.put("project", Map.of("key", projet(project)));
         fields.put("summary", epic.getName());
         fields.put("description", convertToADF(epic.getDescription()));
-        fields.put("issuetype", Map.of("name", "Epic"));
+        fields.put("issuetype", Map.of("name", epicType));
         putPriority(fields, epic.getPriority());
         fields.put("labels", LabelNormalizer.normalize(epic.getLabels()));
 
         Map<String, Object> requestBody = Map.of("fields", fields);
 
+        // Trois niveaux : configuration validee a la premiere creation dans le projet (types, niveaux)
+        if (hierarchy == Hierarchy.THREE_LEVELS) {
+            validateThreeLevels(projet(project));
+        }
         return createIssue("epic", requestBody);
+    }
+
+    /** Trois niveaux : niveau Feature natif, et obligatoire (le parent d'une Story est toujours une Feature). */
+    @Override
+    public FeatureLevel featureLevel(String project) {
+        return hierarchy == Hierarchy.THREE_LEVELS ? FeatureLevel.REQUIRED : FeatureLevel.NONE;
+    }
+
+    @Override
+    public String createFeature(Feature feature, String epicKey, String project) {
+        if (hierarchy != Hierarchy.THREE_LEVELS) {
+            throw new IssueTrackerException("Jira has no Feature level (jira.hierarchy=two-levels)");
+        }
+        log.info("Creating Jira Feature under Epic: {}", epicKey);
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("project", Map.of("key", projet(project)));
+        fields.put("summary", feature.getName());
+        fields.put("description", convertToADF(feature.getDescription()));
+        fields.put("issuetype", Map.of("name", featureType));
+        putPriority(fields, feature.getPriority());
+        fields.put("labels", LabelNormalizer.normalize(feature.getLabels()));
+        fields.put("parent", Map.of("key", epicKey));
+        return createIssue("feature", Map.of("fields", fields));
+    }
+
+    /**
+     * Configuration trois niveaux du projet, verifiee une fois par projet : les quatre types existent, la Feature est
+     * au niveau 1 (celui de l'Epic natif de Jira, renomme) et l'Epic juste au-dessus. Sinon, echec qui nomme les
+     * proprietes a corriger (rien n'est cree).
+     */
+    private void validateThreeLevels(String project) {
+        if (validatedProjects.contains(project)) {
+            return;
+        }
+        Map<?, ?> response;
+        try {
+            response = webClient.get().uri("/rest/api/3/project/{key}", project).retrieve().bodyToMono(Map.class)
+                    .block();
+        } catch (WebClientResponseException e) {
+            throw new IssueTrackerException("Jira refused to read the issue types of project " + project + " (HTTP "
+                    + e.getStatusCode().value() + ")");
+        } catch (WebClientRequestException e) {
+            throw new IssueTrackerException("Jira unreachable");
+        } catch (DecodingException e) {
+            throw new IssueTrackerException("Jira returned an unreadable project " + project);
+        }
+        Map<String, Integer> levels = new HashMap<>();
+        if (response != null && response.get("issueTypes") instanceof List<?> issueTypes) {
+            for (Object type : issueTypes) {
+                if (type instanceof Map<?, ?> map && map.get("name") instanceof String name
+                        && map.get("hierarchyLevel") instanceof Number level) {
+                    levels.put(name.toLowerCase(java.util.Locale.ROOT), level.intValue());
+                }
+            }
+        }
+        List<String> problems = new ArrayList<>();
+        Map<String, String> configured = new java.util.LinkedHashMap<>();
+        configured.put("jira.types.epic", epicType);
+        configured.put("jira.types.feature", featureType);
+        configured.put("jira.types.story", storyType);
+        configured.put("jira.types.subtask", subtaskType);
+        configured.forEach((property, name) -> {
+            if (!levels.containsKey(name.toLowerCase(java.util.Locale.ROOT))) {
+                problems.add(property + "=" + name + " is not an issue type of project " + project);
+            }
+        });
+        if (problems.isEmpty()) {
+            int feature = levels.get(featureType.toLowerCase(java.util.Locale.ROOT));
+            int epic = levels.get(epicType.toLowerCase(java.util.Locale.ROOT));
+            if (feature != 1) {
+                problems.add("jira.types.feature=" + featureType + " must be at hierarchy level 1 (got " + feature + ")");
+            }
+            if (epic != feature + 1) {
+                problems.add("jira.types.epic=" + epicType + " must be one level above " + featureType + " (got level "
+                        + epic + ")");
+            }
+        }
+        if (!problems.isEmpty()) {
+            String message = "Jira three-level hierarchy (jira.hierarchy=three-levels) not configured: "
+                    + String.join("; ", problems);
+            log.error(message);
+            throw new IssueTrackerException(message);
+        }
+        validatedProjects.add(project);
     }
 
     public String createStory(Story story, String epicKey) {
@@ -133,8 +282,8 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
     // Pas de @Retryable : POST non idempotent (un 500 peut survenir apres creation -> doublon). Un echec est signale
     // dans la reponse partielle (crees / echoues) de CreateBacklog.
     @Override
-    public String createStory(Story story, String epicKey, String project) {
-        log.info("Creating Jira Story under Epic: {}", epicKey);
+    public String createStory(Story story, String parentKey, String project) {
+        log.info("Creating Jira Story under {}", parentKey);
 
         String fullDescription = StoryMarkdown.description(story);
         String summary = story.getTitle();
@@ -144,12 +293,12 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
         fields.put("project", Map.of("key", projet(project)));
         fields.put("summary", summary);
         fields.put("description", convertToADF(fullDescription));
-        fields.put("issuetype", Map.of("name", "Story"));
+        fields.put("issuetype", Map.of("name", storyType));
         putPriority(fields, story.getPriority());
 
-        // Utiliser le nouveau champ "parent"
-        if (epicKey != null && !epicKey.isEmpty()) {
-            fields.put("parent", Map.of("key", epicKey));
+        // Champ "parent" : la Feature (trois niveaux) ou l'Epic (deux niveaux)
+        if (parentKey != null && !parentKey.isEmpty()) {
+            fields.put("parent", Map.of("key", parentKey));
         }
 
         Integer storyPoints = story.getEstimatedStoryPoints();
@@ -181,7 +330,7 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
                 "project", Map.of("key", projet(project)),
                 "summary", task.getTitle(),
                 "description", convertToADF(task.getDescription()),
-                "issuetype", Map.of("name", "Subtask"),
+                "issuetype", Map.of("name", subtaskType),
                 "parent", Map.of("key", parentStoryKey),
                 "labels", LabelNormalizer.normalize(task.getLabels())  // ✅ BON
         );
