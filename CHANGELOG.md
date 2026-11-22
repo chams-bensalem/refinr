@@ -20,6 +20,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   `max-queued` (`20`), `max-duration` (`30m`), `retention` (`24h`), `max-retained` (`100`), `shutdown-grace` (`30s`,
   arrêt progressif). Jobs gardés en mémoire : perdus au redémarrage. **Ajouts rétrocompatibles du contrat REST** ;
   endpoints synchrones inchangés. CORS : `DELETE` autorisé, en-tête `Location` exposé.
+- `docker-compose.yml` : `stop_grace_period: 45s` sur le service `backend` (10 s par défaut chez Docker), pour laisser
+  finir les jobs qui créent les tickets ; **à garder au-dessus de `JOBS_SHUTDOWN_GRACE`** si vous le changez (même
+  règle pour `docker stop -t` et `terminationGracePeriodSeconds` de Kubernetes).
 
 ## [1.4.0] - 2026-11-22
 
