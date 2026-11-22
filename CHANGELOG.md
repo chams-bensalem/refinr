@@ -24,8 +24,9 @@ envoyés que s'ils sont configurés, et `extra-body` sert à tout paramètre pro
 - HTTP `400` du fournisseur avec un paramètre optionnel envoyé : message qui nomme le modèle et le paramètre refusé
   quand le fournisseur le désigne par un champ structuré (`error.param`, `fieldViolations`), sinon la liste des
   paramètres optionnels envoyés. Statut REST inchangé (`502`) ; aucun extrait de la réponse du fournisseur.
-- Jeu de référence du verdict (`eval/verdict/`, 50 stories étiquetées, **étiquettes posées par une IA**) et outil de
-  mesure `scripts/eval-verdict.sh` (justesse, stabilité, matrice de confusion ; plafonds d'appels et budget), pour les
+- Jeu de référence du verdict (`eval/verdict/`, 80 stories : 50 d'origine et deux jeux de contrôle de 15, plus une
+  traduction anglaise du premier contrôle ; **étiquettes posées par une IA**) et outil de mesure
+  `scripts/eval-verdict.sh` (justesse, stabilité, matrice de confusion ; plafonds d'appels et budget), pour les
   mainteneurs, hors CI.
 - **Langue de sortie** : champ optionnel `language` (code ISO 639-1, casse ignorée) dans le corps de `analyze-preview`,
   `analyze-and-create` et `reassess-story`, paramètre optionnel `language` de `create-jira` ; propriété
