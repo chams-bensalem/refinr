@@ -3,7 +3,9 @@
 
 package fr.heliocraft.refinr.application.service;
 
+import fr.heliocraft.refinr.application.port.in.AnalysisProgress;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
+import fr.heliocraft.refinr.application.port.in.JobView;
 import fr.heliocraft.refinr.application.port.in.ContentTooLargeException;
 import fr.heliocraft.refinr.application.port.in.CreateBacklog;
 import fr.heliocraft.refinr.application.port.in.InvalidRequestException;
@@ -130,6 +132,42 @@ class TextInputServiceTest {
         List<Epic> epics = preview(assessor).previewText(null, "Créer un article");
         assertEquals(Boolean.FALSE, epics.getFirst().getStories().getFirst().getAiReady());
         verifyNoInteractions(source);
+    }
+
+    @Test
+    @DisplayName("Jobs: steps are reported in order (reading, generating, assessing, creating) for each input")
+    void stepsAreReportedInOrder() {
+        when(assessor.assess(anyList(), anyList())).thenReturn(List.of(new Readiness(true, "clear")));
+        when(source.acceptsDocumentId("DOC-1")).thenReturn(true);
+        when(source.getDocumentContent("DOC-1")).thenReturn("Créer un article");
+        List<JobView.Step> steps = new ArrayList<>();
+
+        analyze(assessor).analyzeAndCreate("DOC-1", null, null, steps::add);
+        assertEquals(List.of(JobView.Step.READING_DOCUMENT, JobView.Step.GENERATING, JobView.Step.ASSESSING,
+                JobView.Step.CREATING_ISSUES), steps);
+
+        steps.clear();
+        preview(null).previewText(null, "Créer un article", null, steps::add);
+        assertEquals(List.of(JobView.Step.GENERATING), steps);
+
+        steps.clear();
+        preview(assessor).preview("DOC-1", null, steps::add);
+        assertEquals(List.of(JobView.Step.READING_DOCUMENT, JobView.Step.GENERATING, JobView.Step.ASSESSING), steps);
+    }
+
+    @Test
+    @DisplayName("Jobs: a progress that stops before the creation step means no issue is created")
+    void stopBeforeCreationCreatesNothing() {
+        AnalysisProgress stopAtCreation = step -> {
+            if (step == JobView.Step.CREATING_ISSUES) {
+                throw new IllegalStateException("stopped");
+            }
+        };
+
+        assertThrows(IllegalStateException.class,
+                () -> analyze(null).analyzeTextAndCreate(null, "Créer un article", null, null, stopAtCreation));
+        verify(generator).generate(any(), any());
+        verifyNoInteractions(createBacklog);
     }
 
     @Test

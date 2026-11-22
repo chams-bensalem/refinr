@@ -5,6 +5,8 @@ package fr.heliocraft.refinr.application.service;
 
 import fr.heliocraft.refinr.domain.service.OutputLanguagePolicy;
 import fr.heliocraft.refinr.domain.model.Language;
+import fr.heliocraft.refinr.application.port.in.AnalysisProgress;
+import fr.heliocraft.refinr.application.port.in.JobView;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
@@ -40,24 +42,37 @@ public class PreviewBacklogService implements PreviewBacklog {
 
     @Override
     public List<Epic> preview(String documentId, Language language) {
+        return preview(documentId, language, AnalysisProgress.NONE);
+    }
+
+    @Override
+    public List<Epic> preview(String documentId, Language language, AnalysisProgress progress) {
         DocumentAnalysis.requireValidId(documentSource, documentId);
+        progress.step(JobView.Step.READING_DOCUMENT);
         String content = SourceFailures.translate(() -> documentSource.getDocumentContent(documentId));
-        return analyze(content, language);
+        return analyze(content, language, progress);
     }
 
     @Override
     public List<Epic> previewText(String title, String content, Language language) {
+        return previewText(title, content, language, AnalysisProgress.NONE);
+    }
+
+    @Override
+    public List<Epic> previewText(String title, String content, Language language, AnalysisProgress progress) {
         // Texte fourni : aucun appel a la source active
-        return analyze(DocumentAnalysis.providedText(title, content, maxContentChars), language);
+        return analyze(DocumentAnalysis.providedText(title, content, maxContentChars), language, progress);
     }
 
     /** Chemin commun aux deux entrees : texte utile, generation, verdict distinct eventuel. */
-    private List<Epic> analyze(String content, Language requested) {
+    private List<Epic> analyze(String content, Language requested, AnalysisProgress progress) {
         DocumentAnalysis.requireUsefulText(content);
         // Langue resolue une fois sur le document : la generation et le verdict distinct la partagent
         Language language = languagePolicy.resolve(requested, content);
+        progress.step(JobView.Step.GENERATING);
         List<Epic> epics = LlmFailures.translate(() -> generator.generate(content, language));
         if (separateAssessor != null) {
+            progress.step(JobView.Step.ASSESSING);
             StoryVerdicts.apply(epics, separateAssessor, story -> language);
         }
         return epics;
