@@ -108,6 +108,25 @@ class ConfigurationDefaultsTest {
     }
 
     @Test
+    @DisplayName("Job settings (refinr.jobs.*) have the same defaults in the code, the example config, .env.example and both READMEs")
+    void jobDefaultsAreAligned() throws IOException {
+        String[][] jobs = {
+            {"refinr.jobs.max-concurrent", "JOBS_MAX_CONCURRENT", String.valueOf(JobConfiguration.DEFAULT_MAX_CONCURRENT)},
+            {"refinr.jobs.max-queued", "JOBS_MAX_QUEUED", String.valueOf(JobConfiguration.DEFAULT_MAX_QUEUED)},
+            {"refinr.jobs.max-duration", "JOBS_MAX_DURATION", JobConfiguration.DEFAULT_MAX_DURATION},
+            {"refinr.jobs.retention", "JOBS_RETENTION", JobConfiguration.DEFAULT_RETENTION},
+            {"refinr.jobs.max-retained", "JOBS_MAX_RETAINED", String.valueOf(JobConfiguration.DEFAULT_MAX_RETAINED)},
+            {"refinr.jobs.shutdown-grace", "JOBS_SHUTDOWN_GRACE", JobConfiguration.DEFAULT_SHUTDOWN_GRACE},
+        };
+        for (String[] job : jobs) {
+            assertEquals(job[2], exampleDefault(job[0]), job[0]);
+            assertEquals(job[2], envExample(job[1]), job[1]);
+            assertEquals(job[2], readmeTableDefault(job[0]), job[0]);
+        }
+        assertEquals("24h", JobConfiguration.DEFAULT_RETENTION);
+    }
+
+    @Test
     @DisplayName("The health check cache TTL has the same default in the code, the example config and the README")
     void healthCacheTtlIsAligned() throws Exception {
         String codeDefault = ConfigurationDefaultsTest.class.getClassLoader()

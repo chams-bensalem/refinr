@@ -577,6 +577,12 @@ Correspondance avec OpenProject :
 | `refinr.security.api-key` | *(vide)* | Clé d'API optionnelle : si renseignée, toute requête `/api/**` doit envoyer l'en-tête `X-API-Key` (sauf `/api/v1/health` et `/api/v1/health/live`), sinon `401` ; vide = désactivée (`REFINR_API_KEY`) |
 | `refinr.http.max-body-bytes` | `5242880` | Taille maximale du corps d'une requête, en octets (5 Mio, comme le `client_max_body_size 5m` du proxy du frontend), appliquée aussi aux corps `chunked` ; au-delà `413` (`HTTP_MAX_BODY_BYTES`) |
 | `refinr.document.max-content-chars` | `200000` | Taille maximale d'un document fourni en texte (`content`), en caractères Unicode, titre compris ; au-delà `413`, avant tout appel à l'IA (`DOCUMENT_MAX_CONTENT_CHARS`) |
+| `refinr.jobs.max-concurrent` | `2` | Jobs d'analyse (`/api/v1/jobs/...`) exécutés en même temps (`JOBS_MAX_CONCURRENT`) |
+| `refinr.jobs.max-queued` | `20` | Jobs en attente d'une place ; au-delà, la soumission reçoit `503` (`JOBS_MAX_QUEUED`) |
+| `refinr.jobs.max-duration` | `30m` | Durée maximale d'un job avant la création des tickets ; au-delà, le job échoue (`504` dans son résultat) ; une création commencée va toujours au bout (`JOBS_MAX_DURATION`) |
+| `refinr.jobs.retention` | `24h` | Durée de conservation d'un job terminé et de son résultat, comptée depuis sa fin (`JOBS_RETENTION`) |
+| `refinr.jobs.max-retained` | `100` | Nombre maximal de jobs gardés (en cours et terminés, au moins `max-concurrent` + `max-queued`) ; plein, le job terminé le plus ancien est retiré (`JOBS_MAX_RETAINED`) |
+| `refinr.jobs.shutdown-grace` | `30s` | À l'arrêt : plus de nouveau job, les jobs qui créent les tickets ont ce délai pour finir, les autres sont interrompus (`JOBS_SHUTDOWN_GRACE`) |
 
 `.env.example` liste toutes les variables d'environnement. Le frontend n'en demande aucune : il lit l'URL de l'API au
 chargement de la page dans `/config.js` (`REFINR_API_BASE_URL` dans l'image Docker, défaut `/api/v1`, même origine).
@@ -708,6 +714,30 @@ jq -n --rawfile content cdc.md '{title: "Gestion des stocks", content: $content}
   curl -s -X POST http://localhost:8080/api/v1/analyze-preview -H "Content-Type: application/json" -d @-
 ```
 
+### API : analyses longues en jobs
+
+Une analyse peut durer plusieurs minutes. Soumettez-la en job, puis suivez son état et lisez son résultat, qui est
+exactement la réponse de l'endpoint synchrone (même statut, mêmes en-têtes, même corps) :
+
+```bash
+# 1. Soumission (même corps que /analyze-preview) : 202, adresse du job dans Location
+curl -s -X POST http://localhost:8080/api/v1/jobs/analyze-preview \
+  -H "Content-Type: application/json" -d '{"documentId": "123456789"}'
+# { "success": true, "jobId": "1a2b3c4d-…", "type": "analyze-preview", "status": "queued",
+#   "statusUrl": "/api/v1/jobs/1a2b3c4d-…", "resultUrl": "/api/v1/jobs/1a2b3c4d-…/result" }
+
+# 2. État : queued, running (avec son étape), succeeded ou failed (avec le statut HTTP du résultat)
+curl -s http://localhost:8080/api/v1/jobs/1a2b3c4d-…
+# { "success": true, "jobId": "1a2b3c4d-…", "type": "analyze-preview", "status": "succeeded", "step": "generating",
+#   "createdAt": "…", "startedAt": "…", "finishedAt": "…", "outcome": { "httpStatus": 200 } }
+
+# 3. Résultat : la réponse de POST /analyze-preview (409 tant que le job tourne)
+curl -s http://localhost:8080/api/v1/jobs/1a2b3c4d-…/result > preview.json
+```
+
+Les jobs sont gardés en mémoire : un redémarrage les perd (`404`), resoumettez. Avant d'envoyer `analyze-and-create`
+en job depuis un script, assurez-vous qu'il n'est pas envoyé deux fois (pas encore de clé d'idempotence).
+
 ### Débloquer une story `validation-necessaire`
 
 ```bash
@@ -785,6 +815,11 @@ tickets et le label `validation-necessaire` ne changent pas.
 | `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optionnel, même format)* · `&language=de` *(optionnel)* | Crée une structure déjà générée ; le serveur recalcule le verdict (`aiReady` / `aiReadyReason` du client ignorés) |
 | `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Réévalue une story `validation-necessaire` (`409` si elle ne l'est pas) |
 | `POST` | `/validate-story` | `{ "issueKey": "PROJ-42" }` | Marque `ai-ready` une story `validation-necessaire` sur décision humaine, sans appel à l'IA (`409` si elle ne l'est pas) ; ligne de verdict ajoutée au ticket |
+| `POST` | `/jobs/analyze-preview` | même corps que `/analyze-preview` | Exécute l'aperçu en job : `202`, `Location: /api/v1/jobs/{id}` |
+| `POST` | `/jobs/analyze-and-create` | même corps que `/analyze-and-create` | Exécute l'analyse et la création en job : `202`, `Location: /api/v1/jobs/{id}` |
+| `GET` | `/jobs/{id}` | — | État du job : `queued`, `running`, `succeeded` ou `failed`, étape en cours (`step`), dates, `outcome` une fois terminé |
+| `GET` | `/jobs/{id}/result` | — | Réponse de l'endpoint synchrone, rejouée (statut, `Retry-After`, corps) ; `409` tant que le job n'est pas fini |
+| `DELETE` | `/jobs/{id}` | — | Annule un job en attente ou efface un job terminé (`204`) ; `409` s'il est en cours |
 | `GET` | `/documents/search` | `?title=…&space=…` *(space optionnel : clé d'espace Confluence, id ou slug de livre BookStack, référence d'espace XWiki)* | Recherche par titre dans la source active, 25 résultats au plus : `{ success, results: [{ id, title, url }] }` |
 | `GET` | `/source` | — | Source documentaire active et limite du texte : `{ "name": "Confluence", "maxContentChars": 200000 }` (`"BookStack"` ou `"XWiki"` ; utilisé par l'interface web) |
 | `GET` | `/tracker` | — | Gestionnaire de tickets actif : `{ "name": "Jira" }` ou `{ "name": "OpenProject" }` (utilisé par l'interface web) |
@@ -819,6 +854,18 @@ tickets et le label `validation-necessaire` ne changent pas.
   sous forme d'une ligne `# titre`. Les logs indiquent la taille du texte, jamais son contenu.
 - **Taille du corps** : un corps de requête au-delà de `refinr.http.max-body-bytes` (5 Mio, `Content-Length` ou
   `chunked`) → `413`.
+- **Jobs** (depuis la 1.5, ajouts ; les endpoints synchrones ne changent pas) : la soumission contrôle la requête comme
+  l'endpoint synchrone (mêmes `400` et `413`, aucun job créé), puis répond `202` avec l'adresse du job (`Location`,
+  exposé par CORS) ; `503` *Too many analysis jobs waiting, try again later* quand `refinr.jobs.max-queued` jobs
+  attendent déjà (sans `Retry-After`). `GET /jobs/{id}` : `status` (`queued`, `running`, `succeeded`, `failed`), `step`
+  (`reading-document`, `generating`, `assessing`, `creating-issues`), `createdAt` / `startedAt` / `finishedAt`
+  (ISO 8601, UTC) et, une fois terminé, `outcome` (`httpStatus`, `retryAfterSeconds` quand le fournisseur a annoncé un
+  délai). `GET /jobs/{id}/result` rejoue la réponse synchrone, `503` + `Retry-After` compris (délai annoncé au moment
+  de l'échec) ; un job au-delà de `refinr.jobs.max-duration` donne `504` *The analysis exceeded its maximum duration*.
+  `DELETE /jobs/{id}` : `204` pour un job en attente (il ne s'exécutera pas) ou terminé, `409` s'il est en cours.
+  Identifiants de jobs : UUID aléatoires ; identifiant inconnu, expiré ou mal formé → `404` *Unknown or expired job*.
+  Jobs gardés en mémoire (`refinr.jobs.*`) : perdus au redémarrage. Les logs n'indiquent que les 8 premiers caractères
+  d'un identifiant de job, jamais le document ni le résultat.
 - **Alias dépréciés** (toujours acceptés) : `confluencePageId` à la place de `documentId` (les deux avec des valeurs
   différentes → `400`) ; `GET /confluence/search?spaceKey=…&title=…`, qui répond avec les en-têtes `Deprecation` et
   `Link: </api/v1/documents/search>; rel="successor-version"`.
@@ -977,6 +1024,7 @@ semaine les mises à jour Maven, npm, Docker et GitHub Actions.
   et réévaluation disponibles par l'API).
 - Pas d'authentification des utilisateurs : une clé d'API partagée, ajoutée par le proxy (cf. [Sécurité](#sécurité)).
 - Cache des verdicts en mémoire, local à chaque instance.
+- Jobs d'analyse gardés en mémoire, locaux à chaque instance : un redémarrage les perd (resoumettre).
 
 **Feuille de route**
 
