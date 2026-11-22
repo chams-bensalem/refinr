@@ -37,8 +37,11 @@ import java.util.concurrent.ThreadLocalRandom;
  * Client HTTP d'un fournisseur de modele : envoie une requete de sortie structuree et renvoie le texte produit.
  * <p>
  * Nouveaux essais de transport : HTTP 429, 5xx (dont 529 d'Anthropic) et connexion refusee, au plus
- * {@code maxRetries} fois, en respectant {@code Retry-After} (plafonne). Jamais apres un delai depasse, ni sur une
- * autre erreur 4xx. Une sortie coupee par la limite de tokens leve {@link Reason#TRUNCATED}, sans nouvel essai.
+ * {@code maxRetries} fois. Jamais apres un delai depasse, ni sur une autre erreur 4xx. Delai annonce par le fournisseur
+ * ({@link #requestedDelay}) : respecte s'il ne depasse pas {@code retry-max-delay}, sinon echec immediat (aucun nouvel
+ * essai) ; il est porte par l'exception. Echec final : {@link Reason#RATE_LIMITED} (429), {@link Reason#OVERLOADED}
+ * (503, 529), sinon {@link Reason#UNAVAILABLE}. Une sortie coupee par la limite de tokens leve
+ * {@link Reason#TRUNCATED}, sans nouvel essai.
  * Les messages d'erreur et les logs ne contiennent ni URL, ni cle, ni corps de reponse, ni texte du modele : seulement
  * le fournisseur, le modele, le statut HTTP et une categorie d'erreur. Les {@link LlmException} levees ici n'ont
  * jamais de cause (les exceptions de WebClient et de Jackson portent l'URL, les en-tetes ou des extraits du corps).
@@ -100,6 +103,14 @@ public abstract class LlmClient {
     }
 
     /**
+     * Delai avant un nouvel essai annonce dans le corps d'erreur du fournisseur, quand il n'envoie pas d'en-tete
+     * {@code Retry-After} (ex. {@code google.rpc.RetryInfo}) ; null s'il n'en annonce aucun ou s'il est illisible.
+     */
+    protected Duration retryDelayInBody(JsonNode errorBody) {
+        return null;
+    }
+
+    /**
      * Texte produit, extrait de la reponse du fournisseur.
      *
      * @throws LlmException {@link Reason#TRUNCATED} si la limite de tokens a coupe la sortie
@@ -158,15 +169,22 @@ public abstract class LlmClient {
                 return text(mapper.readTree(response));
             } catch (WebClientResponseException e) {
                 int status = e.getStatusCode().value();
-                if (!isRetryable(status) || attempt >= attempts) {
-                    // Jamais le corps : certains fournisseurs y recopient une partie de la cle refusee
-                    String errorBody = e.getResponseBodyAsString();
+                // Jamais le corps : certains fournisseurs y recopient une partie de la cle refusee
+                String errorBody = e.getResponseBodyAsString();
+                Duration requested = isRetryable(status)
+                        ? requestedDelay(e.getHeaders().getFirst(HttpHeaders.RETRY_AFTER), errorBody) : null;
+                boolean tooLong = requested != null && requested.compareTo(settings.retry().maxDelay()) > 0;
+                if (!isRetryable(status) || attempt >= attempts || tooLong) {
+                    if (tooLong && attempt < attempts) {
+                        log.warn("LLM {} busy (HTTP {}): requested delay of {} s exceeds retry-max-delay, no new attempt",
+                                settings.role(), status, requested.toSeconds());
+                    }
                     log.warn("LLM {} call failed: HTTP {} ({}), error type: {}", settings.role(), status,
                             settings.describe(), errorType(errorBody));
-                    throw new LlmException(Reason.UNAVAILABLE,
-                            status == 400 ? badRequestMessage(errorBody) : failureMessage(status));
+                    throw new LlmException(reasonFor(status),
+                            status == 400 ? badRequestMessage(errorBody) : failureMessage(status), requested);
                 }
-                Duration delay = retryDelay(attempt, e.getHeaders().getFirst(HttpHeaders.RETRY_AFTER));
+                Duration delay = requested != null ? requested : retryDelay(attempt, null);
                 log.warn("LLM {} busy (HTTP {}), new attempt in {} ms", settings.role(), status, delay.toMillis());
                 pause(delay);
             } catch (WebClientRequestException e) {
@@ -227,6 +245,38 @@ public abstract class LlmClient {
 
     private static boolean isRetryable(int status) {
         return status == 429 || status >= 500;
+    }
+
+    private static Reason reasonFor(int status) {
+        return switch (status) {
+            case 429 -> Reason.RATE_LIMITED;
+            case 503, 529 -> Reason.OVERLOADED;
+            default -> Reason.UNAVAILABLE;
+        };
+    }
+
+    static final Duration MIN_REQUESTED_DELAY = Duration.ofSeconds(1);
+    static final Duration MAX_REQUESTED_DELAY = Duration.ofDays(1);
+
+    /**
+     * Delai annonce par le fournisseur : en-tete {@code Retry-After} (secondes ou date HTTP), sinon champ du corps
+     * d'erreur ({@link #retryDelayInBody}) ; arrondi a la seconde superieure et borne a 1 s – 86 400 s ; null si absent
+     * ou illisible. Le corps n'est jamais recopie.
+     */
+    Duration requestedDelay(String retryAfterHeader, String errorBody) {
+        Duration requested = RetryPolicy.parseRetryAfter(retryAfterHeader, Instant.now());
+        if (requested == null && errorBody != null && !errorBody.isBlank()) {
+            try {
+                requested = retryDelayInBody(mapper.readTree(errorBody));
+            } catch (RuntimeException ignored) {
+                requested = null;  // Corps non JSON : aucun delai structure
+            }
+        }
+        if (requested == null || requested.isNegative()) {
+            return null;
+        }
+        long seconds = requested.toSeconds() + (requested.toNanosPart() > 0 ? 1 : 0);
+        return Duration.ofSeconds(Math.clamp(seconds, MIN_REQUESTED_DELAY.toSeconds(), MAX_REQUESTED_DELAY.toSeconds()));
     }
 
     private String failureMessage(int status) {
@@ -329,7 +379,7 @@ public abstract class LlmClient {
         return false;
     }
 
-    /** Delai avant le prochain essai : Retry-After s'il est fourni, sinon backoff exponentiel avec jitter ; plafonne. */
+    /** Delai avant le prochain essai quand le fournisseur n'en annonce pas : backoff exponentiel avec jitter, plafonne. */
     Duration retryDelay(int attempt, String retryAfter) {
         return settings.retry().delay(attempt, retryAfter, ThreadLocalRandom.current().nextDouble(), Instant.now());
     }

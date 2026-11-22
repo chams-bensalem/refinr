@@ -103,6 +103,14 @@ class HttpSecurityConfigurationTest {
         }
 
         @Test
+        @DisplayName("An allowed origin can read the Retry-After header (Access-Control-Expose-Headers)")
+        void retryAfterIsExposed() throws Exception {
+            mockMvc.perform(get(SEARCH).header("Origin", ALLOWED))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Access-Control-Expose-Headers", containsStringIgnoringCase("Retry-After")));
+        }
+
+        @Test
         @DisplayName("Preflight of an allowed origin accepts the X-API-Key header")
         void preflightAllowsApiKeyHeader() throws Exception {
             mockMvc.perform(options("/api/v1/analyze-preview")

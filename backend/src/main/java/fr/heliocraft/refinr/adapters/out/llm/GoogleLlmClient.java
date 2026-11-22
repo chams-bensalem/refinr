@@ -5,11 +5,14 @@ package fr.heliocraft.refinr.adapters.out.llm;
 
 import tools.jackson.databind.JsonNode;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * API Gemini (Google AI Studio) : sortie JSON native ({@code responseMimeType} + {@code responseJsonSchema}),
@@ -89,6 +92,23 @@ public class GoogleLlmClient extends LlmClient {
         }
         return fields;
     }
+
+    /** {@code error.details[]} de type {@code google.rpc.RetryInfo} : {@code retryDelay} (ex. {@code "30s"}, {@code "1.5s"}). */
+    @Override
+    protected Duration retryDelayInBody(JsonNode errorBody) {
+        for (JsonNode detail : errorBody.path("error").path("details")) {
+            if (detail.path("@type").asString("").endsWith("google.rpc.RetryInfo")) {
+                Matcher m = RETRY_DELAY.matcher(detail.path("retryDelay").asString(""));
+                if (m.matches()) {
+                    return Duration.ofSeconds(Long.parseLong(m.group(1)))
+                            .plusNanos(m.group(2) == null ? 0 : Math.round(Double.parseDouble("0" + m.group(2)) * 1e9));
+                }
+            }
+        }
+        return null;
+    }
+
+    private static final Pattern RETRY_DELAY = Pattern.compile("(\\d{1,9})(\\.\\d{1,9})?s");
 
     @Override
     protected String text(JsonNode response) {

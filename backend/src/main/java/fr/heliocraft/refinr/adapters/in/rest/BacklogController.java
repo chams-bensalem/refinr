@@ -15,6 +15,8 @@ import fr.heliocraft.refinr.application.port.in.DocumentSourceUnavailableExcepti
 import fr.heliocraft.refinr.application.port.in.DescribeTracker;
 import fr.heliocraft.refinr.application.port.in.InvalidRequestException;
 import fr.heliocraft.refinr.application.port.in.ModelOutputException;
+import fr.heliocraft.refinr.application.port.in.ModelOverloadedException;
+import fr.heliocraft.refinr.application.port.in.ModelRateLimitedException;
 import fr.heliocraft.refinr.application.port.in.ModelUnavailableException;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.in.ReassessStory;
@@ -220,10 +222,28 @@ public class BacklogController {
                 : "The AI model did not produce a valid result, even after retries"));
     }
 
-    /** 502 : le fournisseur du modele est indisponible (injoignable, cle refusee, quota, delai) apres les nouveaux essais. */
-    private static ResponseEntity<Map<String, Object>> modelUnavailable(ModelUnavailableException e) {
+    static final String RATE_LIMITED = "The AI provider quota or rate limit was reached";
+    static final String OVERLOADED = "The AI provider is temporarily overloaded";
+
+    /**
+     * Fournisseur du modele indisponible apres les nouveaux essais : 503 pour un quota ou une limite de debit (429) et
+     * pour une surcharge temporaire (503, 529), avec l'en-tete {@code Retry-After} et le champ
+     * {@code retryAfterSeconds} seulement quand le fournisseur a annonce un delai ; 502 pour tout autre echec
+     * (injoignable, cle refusee, delai depasse...).
+     */
+    static ResponseEntity<Map<String, Object>> modelUnavailable(ModelUnavailableException e) {
         log.warn("LLM provider unavailable: {}", e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ErrorResponses.error("The AI provider is unavailable"));
+        boolean rateLimited = e instanceof ModelRateLimitedException;
+        if (!rateLimited && !(e instanceof ModelOverloadedException)) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ErrorResponses.error("The AI provider is unavailable"));
+        }
+        Map<String, Object> body = ErrorResponses.error(rateLimited ? RATE_LIMITED : OVERLOADED);
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE);
+        e.retryAfter().ifPresent(delay -> {
+            body.put("retryAfterSeconds", delay.toSeconds());
+            response.header(HttpHeaders.RETRY_AFTER, String.valueOf(delay.toSeconds()));
+        });
+        return response.body(body);
     }
 
     /** 404 : document absent ou non visible pour le compte ; message sur ecrit par l'adaptateur (ni URL ni corps brut). */

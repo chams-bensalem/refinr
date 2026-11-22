@@ -561,7 +561,7 @@ Correspondance avec OpenProject :
 | `refinr.llm.analysis.retry-base-delay` | `2s` | Délai avant le 1ᵉʳ nouvel essai |
 | `refinr.llm.analysis.retry-multiplier` | `4` | Facteur entre deux délais (défauts : 2 s puis 8 s) |
 | `refinr.llm.analysis.retry-jitter` | `0.2` | Part aléatoire du délai (± 20 %) |
-| `refinr.llm.analysis.retry-max-delay` | `30s` | Plafond d'un délai, y compris un `Retry-After` du fournisseur (prioritaire sur le backoff) |
+| `refinr.llm.analysis.retry-max-delay` | `30s` | Plafond du délai de backoff ; un délai annoncé par le fournisseur (`Retry-After`, `RetryInfo` de Gemini) est attendu s'il n'est pas plus long, sinon l'appel échoue aussitôt (`503` avec `Retry-After`) |
 | `refinr.llm.max-repair-attempts` | `2` | Relances avec la liste des erreurs quand la sortie ne respecte pas le schéma JSON, puis `502` |
 | `refinr.llm.verdict.provider` | *(vide)* | Fournisseur dédié au verdict `ai-ready` ; vide = celui de l'analyse |
 | `refinr.llm.verdict.timeout` | `90s` | Délai maximal par appel de verdict |
@@ -784,6 +784,13 @@ tickets et le label `validation-necessaire` ne changent pas.
   `refinr.security.allowed-hosts` reçoit `403`.
 - **Erreurs** : `{ "success": false, "error": "<message générique>", "correlationId": "…" }` — jamais l'exception
   brute ; le `correlationId` mène au détail dans les logs.
+- **Quota ou surcharge du fournisseur IA** (`analyze-preview`, `analyze-and-create`, `reassess-story`) : HTTP `429` du
+  fournisseur → `503` *The AI provider quota or rate limit was reached* ; HTTP `503` / `529` → `503` *The AI provider
+  is temporarily overloaded* ; après les nouveaux essais, ou aussitôt quand le fournisseur demande d'attendre plus que
+  `retry-max-delay`. Quand le fournisseur annonce un délai (`Retry-After`, `RetryInfo` de Gemini), la réponse porte un
+  en-tête `Retry-After` (secondes, exposé aux navigateurs par CORS) et un champ `retryAfterSeconds` ; jamais sinon.
+  Tout autre échec du fournisseur reste en `502`. Les verdicts n'échouent jamais : `create-jira` répond toujours `200`
+  avec le verdict de repli.
 - **Erreurs de document** (`analyze-*`) : `400` si `documentId` est absent ou mal formé, ou si le document est vide ;
   `404` si la page est introuvable ou invisible pour le compte Refinr ; `502` si la source est indisponible
   (identifiants ou droits refusés, erreur, délai) — avec un message sûr qui cite la page et le statut HTTP, jamais une
@@ -808,6 +815,7 @@ tickets et le label `validation-necessaire` ne changent pas.
 | `400` | `projectKey` invalide, ou document vide / sans texte à analyser | `false` |
 | `413` | Texte plus long que `refinr.document.max-content-chars`, ou corps au-delà de `refinr.http.max-body-bytes` (rien n'est créé, aucun appel à l'IA) | `false` |
 | `502` | Aucun ticket n'a pu être créé, sortie IA inexploitable (invalide après relances, ou tronquée), ou fournisseur IA indisponible | `false` |
+| `503` | Quota ou surcharge du fournisseur IA (`analyze-and-create` seulement ; rien n'est créé), avec `Retry-After` et `retryAfterSeconds` quand le fournisseur annonce un délai | `false` |
 
 Un échec n'interrompt pas la création : l'élément est listé dans `failed` (avec une raison : statut HTTP et erreurs de
 validation du gestionnaire de tickets), ses enfants aussi (`Not created: parent … failed`), et les éléments suivants
@@ -837,7 +845,7 @@ n'est pas idempotent et un nouvel essai après un succès côté serveur créera
 |---|---|---|
 | Lecture d'une page Confluence | ✅ sur HTTP `429` et `500` | 2 nouveaux essais, après 1 s puis 2 s (`503` et autres erreurs : pas de nouvel essai) |
 | Lecture et recherche BookStack / XWiki | ✅ sur HTTP `429` et `5xx` | 2 nouveaux essais, après 1 s puis 2 s ; délai de 30 s par appel |
-| Appels IA (analyse, verdict, réévaluation), tous fournisseurs | ✅ sur HTTP `429`, `5xx` (dont `503` de Gemini et `529` d'Anthropic) et fournisseur injoignable | 2 nouveaux essais, `Retry-After` prioritaire (plafonné à 30 s), sinon 2 s puis 8 s à ± 20 % près (`refinr.llm.*.max-retries`, `retry-base-delay`, `retry-multiplier`, `retry-jitter`, `retry-max-delay`) ; jamais après un délai dépassé (300 s analyse, 90 s verdict) ni sur une autre erreur `4xx` (`401` : clé refusée) |
+| Appels IA (analyse, verdict, réévaluation), tous fournisseurs | ✅ sur HTTP `429`, `5xx` (dont `503` de Gemini et `529` d'Anthropic) et fournisseur injoignable | 2 nouveaux essais, après le délai annoncé par le fournisseur (`Retry-After`, `RetryInfo` de Gemini) s'il ne dépasse pas `retry-max-delay` (30 s), échec immédiat (`503`) s'il est plus long, sinon 2 s puis 8 s à ± 20 % près (`refinr.llm.*.max-retries`, `retry-base-delay`, `retry-multiplier`, `retry-jitter`, `retry-max-delay`) ; jamais après un délai dépassé (300 s analyse, 90 s verdict) ni sur une autre erreur `4xx` (`401` : clé refusée) |
 | Sortie IA invalide (JSON illisible ou non conforme au schéma) | ✅ relance **avec la liste des erreurs** | `refinr.llm.max-repair-attempts` (2) relances, puis `502` (`create-jira` : `validation-necessaire`) |
 | Sortie IA tronquée (limite de tokens) | ❌ | `502` explicite : augmenter `max-output-tokens` |
 | Recherche Confluence | ❌ | |
@@ -922,7 +930,8 @@ semaine les mises à jour Maven, npm, Docker et GitHub Actions.
 | `issuetype … invalid` | Types `Epic` / `Story` / `Subtask` absents | Vérifier les types de tickets du projet Jira |
 | `502` *did not produce a valid result* | Sortie non conforme au schéma, même après relances | Utiliser un modèle plus capable |
 | `502` *output was truncated* | Limite de tokens atteinte | Augmenter `refinr.llm.analysis.max-output-tokens` |
-| `502` *The AI provider is unavailable* | Injoignable, clé refusée, quota ou délai dépassé (après les nouveaux essais) | Voir `GET /api/v1/health` et les logs (`correlationId`) |
+| `502` *The AI provider is unavailable* | Injoignable, clé refusée ou délai dépassé (après les nouveaux essais) | Voir `GET /api/v1/health` et les logs (`correlationId`) |
+| `503` *quota or rate limit was reached* / *temporarily overloaded* | `429` du fournisseur, ou `503` / `529` | Réessayer après `Retry-After` (`retryAfterSeconds`) quand il est donné ; pour un quota journalier, attendre sa remise à zéro ou l'augmenter |
 | `ai: UP` mais chaque analyse échoue : *does not know the model or endpoint (HTTP 404)* | Modèle retiré pour la génération : le health Google ne fait que lire le modèle (`GET /v1beta/models/{modèle}`), qui peut encore répondre pour un modèle retiré | Passer `LLM_ANALYSIS_MODEL` à un modèle actuel (par exemple `gemini-3.6-flash`) |
 | IA surchargée : *HTTP 503* | Fournisseur saturé (forte demande) | Réessayer quelques minutes plus tard |
 | Démarrage refusé : *Missing configuration for tracker.provider=…* | Propriété absente pour le gestionnaire choisi (`application.properties` local antérieur à la 1.1) | Recopier les lignes `tracker.provider` et `openproject.*` depuis `application-example.properties` |

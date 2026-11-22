@@ -30,6 +30,15 @@ un fournisseur.
   autres langues passent par le prompt anglais, prises en charge sans être mesurées.
 
 ### Changed
+- **Quota et surcharge du fournisseur IA → `503`** (#32) sur `analyze-preview`, `analyze-and-create` et
+  `reassess-story` : un HTTP `429` du fournisseur donne `503` *The AI provider quota or rate limit was reached*, un
+  `503` / `529` donne `503` *The AI provider is temporarily overloaded* (jusqu'en 1.3 : `502` *The AI provider is
+  unavailable*, qui reste pour toute autre erreur du fournisseur). Quand le fournisseur annonce un délai
+  (`Retry-After`, ou `RetryInfo` de Gemini, borné à 1 s – 86 400 s), la réponse porte l'en-tête `Retry-After` et le
+  champ `retryAfterSeconds` (ajout rétrocompatible) ; l'en-tête est exposé par CORS
+  (`Access-Control-Expose-Headers`). `create-jira` est inchangé (verdict de repli, `200`).
+- **Délai annoncé plus long que `retry-max-delay`** : échec immédiat, sans nouvel essai (jusqu'en 1.3 : attente
+  plafonnée à `retry-max-delay`, puis nouvel essai voué à l'échec).
 - **La température n'est plus envoyée par défaut** (analyse `0.2` et verdict `0.1` jusqu'en 1.3) : le fournisseur
   applique sa propre valeur. Renseignée, elle est envoyée telle quelle à **tous** les fournisseurs, `anthropic` compris
   (elle ne lui était jamais envoyée).

@@ -28,6 +28,7 @@ import java.io.StringWriter;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -322,18 +323,122 @@ abstract class AbstractLlmClientTest {
         assertEquals("unknown", client.errorType("{\"error\":{\"type\":\"Incorrect API key provided: sk-abc\"}}"));
     }
 
+    /** Client dont retry-max-delay vaut 2 s (au lieu de 50 ms) : un Retry-After de 1 s est attendu puis reessaye. */
+    protected LlmClient patientClient() {
+        LlmSettings base = LlmTestSettings.of(provider(), baseUrl());
+        return LlmClients.create(new LlmSettings(base.role(), base.provider(), base.baseUrl(), base.model(), base.apiKey(),
+                base.timeout(), base.maxOutputTokens(), base.temperature(), base.jsonMode(), base.maxTokensParam(),
+                base.extraBody(), new RetryPolicy(2, Duration.ZERO, 1, 0, Duration.ofSeconds(2))));
+    }
+
     @Test
-    @DisplayName("HTTP 429 with Retry-After: retried (delay capped), then success")
+    @DisplayName("HTTP 429 with a Retry-After within retry-max-delay: waited as requested, retried, then success")
     void rateLimitIsRetried() {
-        server.enqueue(new MockResponse().setResponseCode(429).addHeader("Retry-After", "30"));
+        server.enqueue(new MockResponse().setResponseCode(429).addHeader("Retry-After", "1"));
         server.enqueue(success("{\"aiReady\":false,\"aiReadyReason\":\"flou\"}"));
         long start = System.nanoTime();
 
-        String text = client().complete(request());
+        String text = patientClient().complete(request());
 
         assertEquals("{\"aiReady\":false,\"aiReadyReason\":\"flou\"}", text);
         assertEquals(2, server.getRequestCount());
-        assertTrue(Duration.ofNanos(System.nanoTime() - start).toSeconds() < 5, "Retry-After is capped by retry-max-delay");
+        assertTrue(Duration.ofNanos(System.nanoTime() - start).toMillis() >= 900, "the requested delay is respected");
+    }
+
+    @Test
+    @DisplayName("HTTP 429 with a Retry-After beyond retry-max-delay: immediate failure, 1 request, delay kept")
+    void rateLimitBeyondMaxDelayFailsAtOnce() {
+        server.enqueue(new MockResponse().setResponseCode(429).addHeader("Retry-After", "30"));
+        long start = System.nanoTime();
+
+        LlmException error = assertThrows(LlmException.class, () -> client().complete(request()));
+
+        assertEquals(LlmException.Reason.RATE_LIMITED, error.reason());
+        assertEquals(Optional.of(Duration.ofSeconds(30)), error.retryAfter());
+        assertTrue(error.getMessage().contains("HTTP 429"), error.getMessage());
+        assertEquals(1, server.getRequestCount());
+        assertTrue(Duration.ofNanos(System.nanoTime() - start).toSeconds() < 2, "no wait");
+    }
+
+    @Test
+    @DisplayName("HTTP 429 without delay on every attempt: retries exhausted, RATE_LIMITED without delay")
+    void rateLimitWithoutDelayExhaustsRetries() {
+        for (int i = 0; i < 3; i++) {
+            server.enqueue(new MockResponse().setResponseCode(429));
+        }
+
+        LlmException error = assertThrows(LlmException.class, () -> client().complete(request()));
+
+        assertEquals(LlmException.Reason.RATE_LIMITED, error.reason());
+        assertEquals(Optional.empty(), error.retryAfter());
+        assertEquals(3, server.getRequestCount());
+    }
+
+    @ParameterizedTest(name = "HTTP {0}")
+    @ValueSource(ints = {503, 529})
+    @DisplayName("HTTP 503 / 529 with a Retry-After beyond retry-max-delay: OVERLOADED, 1 request, delay kept")
+    void overloadWithDelay(int status) {
+        server.enqueue(new MockResponse().setResponseCode(status).addHeader("Retry-After", "120"));
+
+        LlmException error = assertThrows(LlmException.class, () -> client().complete(request()));
+
+        assertEquals(LlmException.Reason.OVERLOADED, error.reason());
+        assertEquals(Optional.of(Duration.ofSeconds(120)), error.retryAfter());
+        assertEquals(1, server.getRequestCount());
+    }
+
+    @ParameterizedTest(name = "HTTP {0}")
+    @ValueSource(ints = {500, 502, 504})
+    @DisplayName("Other 5xx: still retried, then UNAVAILABLE (answered 502)")
+    void otherServerErrorsStayUnavailable(int status) {
+        for (int i = 0; i < 3; i++) {
+            server.enqueue(new MockResponse().setResponseCode(status));
+        }
+
+        LlmException error = assertThrows(LlmException.class, () -> client().complete(request()));
+
+        assertEquals(LlmException.Reason.UNAVAILABLE, error.reason());
+        assertEquals(Optional.empty(), error.retryAfter());
+        assertEquals(3, server.getRequestCount());
+    }
+
+    @Test
+    @DisplayName("Retry-After as an HTTP date: read as a delay from now")
+    void retryAfterHttpDate() {
+        String date = java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME
+                .format(java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC).plusMinutes(10));
+        server.enqueue(new MockResponse().setResponseCode(429).addHeader("Retry-After", date));
+
+        LlmException error = assertThrows(LlmException.class, () -> client().complete(request()));
+
+        long seconds = error.retryAfter().orElseThrow().toSeconds();
+        assertTrue(seconds > 590 && seconds <= 600, "delay " + seconds);
+        assertEquals(1, server.getRequestCount());
+    }
+
+    @Test
+    @DisplayName("Unreadable Retry-After: ignored (default backoff, no delay in the exception)")
+    void unreadableRetryAfterIsIgnored() {
+        for (int i = 0; i < 3; i++) {
+            server.enqueue(new MockResponse().setResponseCode(429).addHeader("Retry-After", "soon"));
+        }
+
+        LlmException error = assertThrows(LlmException.class, () -> client().complete(request()));
+
+        assertEquals(LlmException.Reason.RATE_LIMITED, error.reason());
+        assertEquals(Optional.empty(), error.retryAfter());
+        assertEquals(3, server.getRequestCount());
+    }
+
+    @Test
+    @DisplayName("Requested delay bounded to 1 s – 86 400 s, rounded up to the second")
+    void requestedDelayIsBounded() {
+        LlmClient client = client();
+        assertEquals(Duration.ofSeconds(1), client.requestedDelay("0", null));
+        assertEquals(Duration.ofSeconds(86_400), client.requestedDelay("999999", null));
+        assertEquals(Duration.ofSeconds(7), client.requestedDelay(" 7 ", null));
+        assertEquals(null, client.requestedDelay("-3", null));
+        assertEquals(null, client.requestedDelay(null, "not json"));
     }
 
     @Test
@@ -345,7 +450,8 @@ abstract class AbstractLlmClientTest {
 
         LlmException error = assertThrows(LlmException.class, () -> client().complete(request()));
 
-        assertEquals(LlmException.Reason.UNAVAILABLE, error.reason());
+        assertEquals(LlmException.Reason.OVERLOADED, error.reason());
+        assertEquals(Optional.empty(), error.retryAfter());
         assertTrue(error.getMessage().contains("HTTP 503"), error.getMessage());
         assertEquals(3, server.getRequestCount());
     }
@@ -613,7 +719,7 @@ abstract class AbstractLlmClientTest {
     }
 
     @ParameterizedTest(name = "HTTP {0}")
-    @ValueSource(ints = {400, 401, 403, 404, 413, 429, 500, 503})
+    @ValueSource(ints = {400, 401, 403, 404, 413, 429, 500, 503, 529})
     @DisplayName("No leak: HTTP error whose body echoes the prompt and the key")
     void noLeakOnHttpError(int status, CapturedOutput output) {
         String marker = marker();
@@ -625,7 +731,12 @@ abstract class AbstractLlmClientTest {
 
         LlmException error = failGenerate(leakClient(marker), marker);
 
-        assertEquals(LlmException.Reason.UNAVAILABLE, error.reason());
+        LlmException.Reason expected = switch (status) {
+            case 429 -> LlmException.Reason.RATE_LIMITED;
+            case 503, 529 -> LlmException.Reason.OVERLOADED;
+            default -> LlmException.Reason.UNAVAILABLE;
+        };
+        assertEquals(expected, error.reason());
         assertTrue(error.getMessage().contains("HTTP " + status), error.getMessage());
         assertTrue(output.getAll().contains("HTTP " + status), output.getAll());
         assertNoLeak(marker, output, error);
