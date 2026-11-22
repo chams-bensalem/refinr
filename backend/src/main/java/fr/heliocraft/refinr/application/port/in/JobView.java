@@ -20,7 +20,8 @@ import java.util.Optional;
  * @param step       etape en cours ou derniere etape atteinte ; null tant que le job est en attente
  * @param preview    resultat d'un apercu reussi, sinon null
  * @param creation   resultat d'une analyse avec creation reussie (meme partielle), sinon null
- * @param failure    cause de l'echec, sinon null
+ * @param failure    cause de l'echec quand le job s'est arrete sur une erreur, sinon null ; un job
+ *                   {@code FAILED} sans cause est une creation dont aucun ticket n'a ete cree ({@code creation} garde)
  */
 public record JobView(String id, Type type, Status status, Step step, Instant createdAt, Instant startedAt,
                       Instant finishedAt, String documentId, List<Epic> preview, BacklogCreationResult creation,
@@ -106,8 +107,13 @@ public record JobView(String id, Type type, Status status, Step step, Instant cr
                 failure);
     }
 
-    public JobView succeeded(List<Epic> epics, BacklogCreationResult result, Instant now) {
-        return new JobView(id, type, Status.SUCCEEDED, step, createdAt, startedAt, now, documentId, epics, result, null);
+    /**
+     * Job alle au bout : {@code SUCCEEDED}, sauf une creation dont aucun ticket n'a ete cree ({@code FAILED}, resultat
+     * garde pour rejouer la reponse synchrone, 502). Regle : {@code SUCCEEDED} seulement si la reponse rejouee est 2xx.
+     */
+    public JobView completed(List<Epic> epics, BacklogCreationResult result, Instant now) {
+        Status outcome = result != null && result.isNothingCreated() ? Status.FAILED : Status.SUCCEEDED;
+        return new JobView(id, type, outcome, step, createdAt, startedAt, now, documentId, epics, result, null);
     }
 
     public JobView failed(Failure cause, Instant now) {

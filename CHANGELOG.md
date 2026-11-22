@@ -9,7 +9,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 - **Jobs d'analyse** : `analyze-preview` et `analyze-and-create` en arrière-plan. `POST /api/v1/jobs/analyze-preview`
   et `POST /api/v1/jobs/analyze-and-create` (même corps que les endpoints synchrones, mêmes `400` et `413` à la
   soumission) → `202` avec `Location: /api/v1/jobs/{id}` ; `GET /api/v1/jobs/{id}` : état (`queued`, `running`,
-  `succeeded`, `failed`), étape en cours, dates, `outcome` (`httpStatus`, `retryAfterSeconds`) ;
+  `succeeded`, `failed`), étape en cours, dates, `outcome` (`httpStatus`, `retryAfterSeconds`) ; `succeeded`
+  seulement si le résultat rejoué est un `2xx` (`200`, ou `207` pour une création partielle), `failed` à partir de
+  `400` (une création sans aucun ticket créé, `502`, est `failed`) ;
   `GET /api/v1/jobs/{id}/result` : la réponse de l'endpoint synchrone, rejouée (statut, `Retry-After`, corps) ;
   `DELETE /api/v1/jobs/{id}` : annulation d'un job en attente ou effacement d'un job terminé (`409` s'il est en cours).
   File pleine → `503` ; durée maximale dépassée avant la création des tickets → `504` dans le résultat (une création

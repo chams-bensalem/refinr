@@ -169,8 +169,11 @@ class JobControllerTest {
         return node;
     }
 
-    /** Meme requete en synchrone et en job : meme statut, meme Retry-After, meme corps (hors correlationId). */
-    private void assertSameAsSynchronous(String endpoint, String body) throws Exception {
+    /**
+     * Meme requete en synchrone et en job : meme statut, meme Retry-After, meme corps (hors correlationId) ; etat du job
+     * {@code succeeded} seulement si la reponse rejouee est 2xx, sinon {@code failed}.
+     */
+    private JsonNode assertSameAsSynchronous(String endpoint, String body) throws Exception {
         MockHttpServletResponse sync = postJson("/api/v1/" + endpoint, body);
         JsonNode job = runJob(endpoint, body);
         MockHttpServletResponse result = mockMvc.perform(get("/api/v1/jobs/" + job.get("jobId").asString() + "/result"))
@@ -180,11 +183,14 @@ class JobControllerTest {
         assertEquals(sync.getHeader("Retry-After"), result.getHeader("Retry-After"));
         assertEquals(withoutCorrelationId(sync.getContentAsString()), withoutCorrelationId(result.getContentAsString()));
         assertEquals(sync.getStatus(), job.get("outcome").get("httpStatus").asInt());
+        assertEquals(sync.getStatus() < 300 ? "succeeded" : "failed", job.get("status").asString(),
+                "status for an HTTP " + sync.getStatus() + " result");
         if (sync.getHeader("Retry-After") != null) {
             assertEquals(Long.parseLong(sync.getHeader("Retry-After")), job.get("outcome").get("retryAfterSeconds").asLong());
         } else {
             assertFalse(job.get("outcome").has("retryAfterSeconds"));
         }
+        return job;
     }
 
     @Test
@@ -212,11 +218,25 @@ class JobControllerTest {
     }
 
     @Test
-    @DisplayName("Result identical to the synchronous response: creation complete, then partial (207)")
+    @DisplayName("Creation: complete (200) and partial (207) give succeeded, nothing created (502) gives failed; result identical")
     void creationResultIsTheSynchronousResponse() throws Exception {
-        assertSameAsSynchronous("analyze-and-create", json("documentId", PAGE_ID, "projectKey", "PROJ"));
+        JsonNode complete = assertSameAsSynchronous("analyze-and-create", json("documentId", PAGE_ID, "projectKey", "PROJ"));
+        assertEquals(200, complete.get("outcome").get("httpStatus").asInt());
+        assertEquals("succeeded", complete.get("status").asString());
+
         doThrow(new fr.heliocraft.refinr.application.port.out.IssueTrackerException("Rejected (HTTP 400)")).when(tracker).createSubtask(any(Task.class), anyString(), any());
-        assertSameAsSynchronous("analyze-and-create", json("content", SPEC));
+        JsonNode partial = assertSameAsSynchronous("analyze-and-create", json("content", SPEC));
+        assertEquals(207, partial.get("outcome").get("httpStatus").asInt());
+        assertEquals("succeeded", partial.get("status").asString());
+
+        doThrow(new fr.heliocraft.refinr.application.port.out.IssueTrackerException("Rejected (HTTP 400)")).when(tracker).createEpic(any(Epic.class), any());
+        JsonNode nothing = assertSameAsSynchronous("analyze-and-create", json("content", SPEC));
+        assertEquals(502, nothing.get("outcome").get("httpStatus").asInt());
+        assertEquals("failed", nothing.get("status").asString());
+        mockMvc.perform(get("/api/v1/jobs/" + nothing.get("jobId").asString() + "/result"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.error").value("No issue could be created"))
+                .andExpect(jsonPath("$.failed[0].reason").value("Rejected (HTTP 400)"));
     }
 
     @Test

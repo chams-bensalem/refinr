@@ -52,7 +52,7 @@ final class BacklogResponses {
             status = HttpStatus.OK;
             body.put("success", true);
             body.put("message", "Successfully created " + result.created().size() + " issues");
-        } else if (!result.created().isEmpty()) {
+        } else if (!result.isNothingCreated()) {
             status = HttpStatus.MULTI_STATUS;
             body.put("success", false);
             body.put("message", "Partially created: " + result.created().size() + " issues created, "

@@ -201,7 +201,8 @@ public class JobController {
     /** Reponse synchrone d'un job termine : memes fonctions que BacklogController. */
     private ResponseEntity<Map<String, Object>> result(JobView job) {
         boolean preview = job.type() == JobView.Type.ANALYZE_PREVIEW;
-        if (job.status() == JobView.Status.SUCCEEDED) {
+        // Job alle au bout (meme une creation sans aucun ticket, 502) : reponse construite sur son resultat
+        if (job.failure() == null) {
             ResponseEntity<Map<String, Object>> response = preview
                     ? BacklogResponses.preview(job.preview())
                     : BacklogResponses.creation(job.creation());
