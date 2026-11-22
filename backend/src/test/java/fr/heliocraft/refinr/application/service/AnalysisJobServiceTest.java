@@ -131,6 +131,7 @@ class AnalysisJobServiceTest {
 
     private final List<AnalysisJobService> services = new ArrayList<>();
     private InMemoryJobStore<JobView> store;
+    private int maxRetained = 100;
 
     @AfterEach
     void closeServices() {
@@ -141,7 +142,7 @@ class AnalysisJobServiceTest {
                                        Duration shutdownGrace) {
         DocumentSourcePort source = mock(DocumentSourcePort.class);
         when(source.acceptsDocumentId(anyString())).thenAnswer(call -> !"bad id".equals(call.getArgument(0)));
-        store = new InMemoryJobStore<>(100, Duration.ofHours(24), Clock.systemUTC());
+        store = new InMemoryJobStore<>(maxRetained, Duration.ofHours(24), Clock.systemUTC());
         AnalysisJobService service = new AnalysisJobService(analyses, analyses, source, MAX_CONTENT_CHARS, store,
                 new AnalysisJobService.Settings(maxConcurrent, maxQueued, maxDuration, shutdownGrace), Clock.systemUTC());
         services.add(service);
@@ -317,6 +318,30 @@ class AnalysisJobServiceTest {
 
         assertEquals(AnalysisJobService.QUEUE_FULL, refused.getMessage());
         assertEquals(2, store.size());
+        release.countDown();
+    }
+
+    @Test
+    @DisplayName("A submission refused because the queue is full never evicts a finished job from a full store")
+    void refusalKeepsFinishedJobs() throws Exception {
+        maxRetained = 3;
+        CountDownLatch release = new CountDownLatch(1);
+        AnalysisJobService service = service(new FakeAnalyses()
+                .then(progress -> epics("done"))
+                .then(progress -> {
+                    release.await();
+                    return epics("A");
+                }), 1, 1, Duration.ofMinutes(5), Duration.ofSeconds(5));
+        JobView done = service.submitPreview("DOC-0", null);
+        awaitStatus(service, done.id(), Status.SUCCEEDED);
+        JobView running = service.submitPreview("DOC-1", null);
+        awaitStatus(service, running.id(), Status.RUNNING);
+        service.submitPreview("DOC-2", null);
+
+        assertThrows(RejectedException.class, () -> service.submitPreview("DOC-3", null));
+
+        assertTrue(service.find(done.id()).isPresent(), "the finished job is still there");
+        assertEquals(3, store.size());
         release.countDown();
     }
 
