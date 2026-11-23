@@ -204,7 +204,7 @@ public class JobController {
         // Job alle au bout (meme une creation sans aucun ticket, 502) : reponse construite sur son resultat
         if (job.failure() == null) {
             ResponseEntity<Map<String, Object>> response = preview
-                    ? BacklogResponses.preview(job.preview(), describeTracker.featureWarnings(job.preview(), null))
+                    ? BacklogResponses.preview(job.preview(), job.warnings())
                     : BacklogResponses.creation(job.creation());
             // Comme l'endpoint synchrone : lien vers le document seulement s'il a ete lu dans la source active
             return job.documentId() == null ? response

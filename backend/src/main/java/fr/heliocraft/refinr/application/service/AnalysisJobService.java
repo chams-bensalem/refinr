@@ -8,6 +8,7 @@ import fr.heliocraft.refinr.application.port.in.AnalysisProgress;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.ContentTooLargeException;
+import fr.heliocraft.refinr.application.port.in.DescribeTracker;
 import fr.heliocraft.refinr.application.port.in.DocumentNotFoundException;
 import fr.heliocraft.refinr.application.port.in.DocumentSourceUnavailableException;
 import fr.heliocraft.refinr.application.port.in.FeatureLevelMissingException;
@@ -93,6 +94,8 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
     private final JobStorePort<JobView> store;
     private final Settings settings;
     private final Clock clock;
+    // Avertissements de l'apercu (niveau Feature), calcules a la fin du job ; null : aucun
+    private final DescribeTracker describeTracker;
     private final ThreadPoolExecutor workers;
     private final ScheduledExecutorService watchdog;
     private final Map<String, Job> active = new ConcurrentHashMap<>();
@@ -104,6 +107,13 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
     public AnalysisJobService(PreviewBacklog previewBacklog, AnalyzeDocument analyzeDocument,
                               DocumentSourcePort documentSource, int maxContentChars, JobStorePort<JobView> store,
                               Settings settings, Clock clock) {
+        this(previewBacklog, analyzeDocument, documentSource, maxContentChars, store, settings, clock, null);
+    }
+
+    public AnalysisJobService(PreviewBacklog previewBacklog, AnalyzeDocument analyzeDocument,
+                              DocumentSourcePort documentSource, int maxContentChars, JobStorePort<JobView> store,
+                              Settings settings, Clock clock, DescribeTracker describeTracker) {
+        this.describeTracker = describeTracker;
         this.previewBacklog = previewBacklog;
         this.analyzeDocument = analyzeDocument;
         this.documentSource = documentSource;
@@ -389,7 +399,10 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
             log.info("Job {} started ({})", shortId(id), view.type().id());
             try {
                 Result result = work.run(this::step);
-                finish(v -> v.completed(result.preview(), result.creation(), clock.instant()));
+                // Hors du verrou du job : la lecture du niveau Feature peut interroger le gestionnaire
+                List<String> warnings = result.preview() != null && describeTracker != null
+                        ? describeTracker.featureWarnings(result.preview(), null) : List.of();
+                finish(v -> v.completed(result.preview(), result.creation(), clock.instant()).withWarnings(warnings));
             } catch (Exception e) {
                 boolean stopped;
                 synchronized (this) {

@@ -20,12 +20,13 @@ import java.util.Optional;
  * @param step       etape en cours ou derniere etape atteinte ; null tant que le job est en attente
  * @param preview    resultat d'un apercu reussi, sinon null
  * @param creation   resultat d'une analyse avec creation reussie (meme partielle), sinon null
+ * @param warnings   avertissements d'un apercu reussi, calcules a la fin du job (rejoues tels quels)
  * @param failure    cause de l'echec quand le job s'est arrete sur une erreur, sinon null ; un job
  *                   {@code FAILED} sans cause est une creation dont aucun ticket n'a ete cree ({@code creation} garde)
  */
 public record JobView(String id, Type type, Status status, Step step, Instant createdAt, Instant startedAt,
                       Instant finishedAt, String documentId, List<Epic> preview, BacklogCreationResult creation,
-                      Failure failure) implements JobStorePort.Entry {
+                      Failure failure, List<String> warnings) implements JobStorePort.Entry {
 
     /** Nature du job : l'endpoint synchrone dont il rejoue la reponse. */
     public enum Type {
@@ -87,11 +88,18 @@ public record JobView(String id, Type type, Status status, Step step, Instant cr
         Objects.requireNonNull(status, "status");
         Objects.requireNonNull(createdAt, "createdAt");
         preview = preview == null ? null : List.copyOf(preview);
+        warnings = warnings == null ? List.of() : List.copyOf(warnings);
+    }
+
+    /** Meme etat avec les avertissements de l'apercu. */
+    public JobView withWarnings(List<String> newWarnings) {
+        return new JobView(id, type, status, step, createdAt, startedAt, finishedAt, documentId, preview, creation,
+                failure, newWarnings);
     }
 
     /** Nouveau job, en attente. */
     public static JobView queued(String id, Type type, String documentId, Instant now) {
-        return new JobView(id, type, Status.QUEUED, null, now, null, null, documentId, null, null, null);
+        return new JobView(id, type, Status.QUEUED, null, now, null, null, documentId, null, null, null, null);
     }
 
     @Override
@@ -100,12 +108,12 @@ public record JobView(String id, Type type, Status status, Step step, Instant cr
     }
 
     public JobView started(Instant now) {
-        return new JobView(id, type, Status.RUNNING, step, createdAt, now, null, documentId, null, null, null);
+        return new JobView(id, type, Status.RUNNING, step, createdAt, now, null, documentId, null, null, null, null);
     }
 
     public JobView at(Step newStep) {
         return new JobView(id, type, status, newStep, createdAt, startedAt, finishedAt, documentId, preview, creation,
-                failure);
+                failure, warnings);
     }
 
     /**
@@ -114,10 +122,10 @@ public record JobView(String id, Type type, Status status, Step step, Instant cr
      */
     public JobView completed(List<Epic> epics, BacklogCreationResult result, Instant now) {
         Status outcome = result != null && result.isNothingCreated() ? Status.FAILED : Status.SUCCEEDED;
-        return new JobView(id, type, outcome, step, createdAt, startedAt, now, documentId, epics, result, null);
+        return new JobView(id, type, outcome, step, createdAt, startedAt, now, documentId, epics, result, null, null);
     }
 
     public JobView failed(Failure cause, Instant now) {
-        return new JobView(id, type, Status.FAILED, step, createdAt, startedAt, now, documentId, null, null, cause);
+        return new JobView(id, type, Status.FAILED, step, createdAt, startedAt, now, documentId, null, null, cause, null);
     }
 }

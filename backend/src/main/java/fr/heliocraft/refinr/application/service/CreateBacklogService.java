@@ -60,13 +60,15 @@ public class CreateBacklogService implements CreateBacklog {
         log.info("Creating full hierarchy: {} epics in project {}", epics.size(),
                 project == null || project.isBlank() ? "(default)" : project);
         FeatureLevel level = FeatureLevels.levelOf(issueTracker, project);
-        // Niveau inconnu a la creation : traite comme absent (labels, avertissement, refus eventuel)
-        FeatureLevel effective = level == FeatureLevel.UNKNOWN ? FeatureLevel.NONE : level;
-        if (!effective.isNative() && policy == FeatureLevels.Policy.REFUSE && FeatureLevels.hasExplicitFeatures(epics)) {
+        // Refus seulement quand l'absence de niveau Feature est connue ; un niveau inconnu (gestionnaire injoignable
+        // ou mal configure) ne donne jamais un 422 trompeur : la creation de l'epic echoue alors avec la vraie cause
+        if (level == FeatureLevel.NONE && policy == FeatureLevels.Policy.REFUSE && FeatureLevels.hasExplicitFeatures(epics)) {
             log.warn("Creation refused: the tracker has no Feature level and refinr.features.without-level=refuse");
             throw new FeatureLevelMissingException();
         }
-        List<String> warnings = FeatureLevels.warnings(epics, effective, policy);
+        // Niveau inconnu : relu une fois apres la premiere creation reussie (le projet est alors resolu), sinon absent
+        boolean recheck = level == FeatureLevel.UNKNOWN;
+        FeatureLevel effective = level == FeatureLevel.UNKNOWN ? FeatureLevel.NONE : level;
         List<CreatedIssue> created = new ArrayList<>();
         List<FailedIssue> failed = new ArrayList<>();
 
@@ -80,6 +82,14 @@ public class CreateBacklogService implements CreateBacklog {
                 continue;
             }
             epic.setTrackerKey(epicKey);
+            if (recheck) {
+                recheck = false;
+                FeatureLevel known = FeatureLevels.levelOf(issueTracker, project);
+                if (known.isNative()) {
+                    effective = known;
+                }
+            }
+            FeatureLevel epicLevel = effective;
 
             int featureIndex = 0;
             int storyIndex = 0;
@@ -91,7 +101,7 @@ public class CreateBacklogService implements CreateBacklog {
                 boolean implicit = epic.isImplicit(feature);
                 String parentKey = epicKey;
                 String featureLabel = null;
-                if (hasTicket(effective, implicit)) {
+                if (hasTicket(epicLevel, implicit)) {
                     String featureKey = attempt(FEATURE, featurePosition, featureName(epic, feature),
                             () -> issueTracker.createFeature(named(epic, feature), epicKey, project), created, failed);
                     if (featureKey == null) {
@@ -103,7 +113,7 @@ public class CreateBacklogService implements CreateBacklog {
                     feature.setTrackerKey(featureKey);
                     feature.setTrackerUrl(issueTracker.issueUrl(featureKey));
                     parentKey = featureKey;
-                } else if (!effective.isNative() && !implicit) {
+                } else if (!epicLevel.isNative() && !implicit) {
                     featureLabel = FeatureLevels.label(feature);
                 }
 
@@ -144,6 +154,8 @@ public class CreateBacklogService implements CreateBacklog {
         } else {
             log.warn("Hierarchy partially created: {} created, {} not created", created.size(), failed.size());
         }
+        // Avertissement de ce qui a ete fait (labels), jamais celui du refus
+        List<String> warnings = FeatureLevels.warnings(epics, effective, FeatureLevels.Policy.LABEL);
         return new BacklogCreationResult(epics, created, failed, warnings);
     }
 

@@ -79,4 +79,21 @@ class StoryMarkdownTest {
         assertEquals("AI readiness (validation-necessaire): non precise par l'analyse",
                 StoryMarkdown.reassessedReadinessLine(new Readiness(false, " ")));
     }
+
+    @org.junit.jupiter.api.Test
+    @org.junit.jupiter.api.DisplayName("An empty or missing As a / I want / So that line is not written")
+    void emptyUserStoryLinesAreSkipped() {
+        fr.heliocraft.refinr.domain.model.Story story = new fr.heliocraft.refinr.domain.model.Story();
+        story.setTitle("S");
+        story.setAsA("");
+        story.setIWant("export the orders");
+        story.setSoThat(null);
+
+        String markdown = StoryMarkdown.description(story);
+
+        org.junit.jupiter.api.Assertions.assertFalse(markdown.contains("**As a**"), markdown);
+        org.junit.jupiter.api.Assertions.assertTrue(markdown.contains("**I want** export the orders"), markdown);
+        org.junit.jupiter.api.Assertions.assertFalse(markdown.contains("**So that**"), markdown);
+        org.junit.jupiter.api.Assertions.assertFalse(markdown.contains("null"), markdown);
+    }
 }

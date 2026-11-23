@@ -215,6 +215,30 @@ class AnalysisJobServiceTest {
     }
 
     @Test
+    @DisplayName("Preview warnings (feature level) are computed when the job ends and kept with it, then replayed as they were")
+    void previewWarningsAreKept() throws Exception {
+        DocumentSourcePort source = mock(DocumentSourcePort.class);
+        when(source.acceptsDocumentId(anyString())).thenReturn(true);
+        fr.heliocraft.refinr.application.port.in.DescribeTracker tracker =
+                mock(fr.heliocraft.refinr.application.port.in.DescribeTracker.class);
+        when(tracker.featureWarnings(org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.isNull()))
+                .thenReturn(List.of("no feature level"));
+        FakeAnalyses analyses = new FakeAnalyses().then(progress -> epics("E"));
+        store = new InMemoryJobStore<>(100, Duration.ofHours(24), Clock.systemUTC());
+        AnalysisJobService service = new AnalysisJobService(analyses, analyses, source, MAX_CONTENT_CHARS, store,
+                new AnalysisJobService.Settings(2, 20, Duration.ofMinutes(5), Duration.ofSeconds(5)), Clock.systemUTC(),
+                tracker);
+        services.add(service);
+
+        JobView submitted = service.submitPreview("DOC-1", null);
+
+        awaitStatus(service, submitted.id(), Status.SUCCEEDED);
+        assertEquals(List.of("no feature level"), job(service, submitted.id()).warnings());
+        org.mockito.Mockito.verify(tracker, org.mockito.Mockito.times(1)).featureWarnings(
+                org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.isNull());
+    }
+
+    @Test
     @DisplayName("An analyze-and-create job keeps the creation result (complete or partial)")
     void creationResult() throws Exception {
         BacklogCreationResult result = creation();

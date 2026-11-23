@@ -66,7 +66,8 @@ final class GeneratedBacklogMapper {
         story.setTitle(dto.getTitle());
         story.setDescription(dto.getDescription());
         story.setAcceptanceCriteria(dto.getAcceptanceCriteria());
-        story.setEstimatedStoryPoints(dto.getEstimatedStoryPoints());
+        // 0 = non estime (schema tout required chez Anthropic) : jamais envoye comme 0 point au gestionnaire
+        story.setEstimatedStoryPoints(positiveOrNull(dto.getEstimatedStoryPoints()));
         story.setPriority(dto.getPriority());
         story.setLabels(dto.getLabels());
         story.setTasks(map(dto.getTasks(), GeneratedBacklogMapper::toDomain));
@@ -93,12 +94,16 @@ final class GeneratedBacklogMapper {
         Task task = new Task();
         task.setTitle(dto.getTitle());
         task.setDescription(dto.getDescription());
-        task.setEstimatedHours(dto.getEstimatedHours());
+        task.setEstimatedHours(positiveOrNull(dto.getEstimatedHours()));
         task.setLabels(dto.getLabels());
         return task;
     }
 
     // Collectors.toList() (ArrayList modifiable, comme la liste produite par Jackson) ; null conserve
+    private static Integer positiveOrNull(Integer value) {
+        return value == null || value <= 0 ? null : value;
+    }
+
     private static <S, T> List<T> map(List<S> items, Function<S, T> mapper) {
         return items == null ? null : items.stream().map(mapper).collect(Collectors.toList());
     }

@@ -5,6 +5,7 @@ package fr.heliocraft.refinr.config;
 
 import fr.heliocraft.refinr.adapters.out.jobs.InMemoryJobStore;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
+import fr.heliocraft.refinr.application.port.in.DescribeTracker;
 import fr.heliocraft.refinr.application.port.in.JobView;
 import fr.heliocraft.refinr.application.port.in.PreviewBacklog;
 import fr.heliocraft.refinr.application.port.out.DocumentSourcePort;
@@ -64,6 +65,7 @@ public class JobConfiguration {
     @Bean(destroyMethod = "close")
     AnalysisJobService analysisJobs(PreviewBacklog previewBacklog, AnalyzeDocument analyzeDocument,
                                     DocumentSourcePort documentSource, JobStorePort<JobView> jobStore,
+                                    DescribeTracker describeTracker,
                                     @Value("${" + UseCaseConfig.MAX_CONTENT_CHARS_PROPERTY + ":"
                                             + UseCaseConfig.DEFAULT_MAX_CONTENT_CHARS + "}") int maxContentChars,
                                     @Value("${refinr.jobs.max-duration:" + DEFAULT_MAX_DURATION + "}") Duration maxDuration,
@@ -73,7 +75,7 @@ public class JobConfiguration {
         log.info("Analysis jobs: {} at a time, {} waiting at most, {} maximum duration, {} kept at most",
                 maxConcurrent, maxQueued, maxDuration, maxRetained);
         return new AnalysisJobService(previewBacklog, analyzeDocument, documentSource, maxContentChars, jobStore,
-                settings, CLOCK);
+                settings, CLOCK, describeTracker);
     }
 
     /**
