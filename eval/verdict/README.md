@@ -78,6 +78,7 @@ scripts/eval-verdict.sh summarize eval/verdict/results/<dossier> [--baseline eva
 scripts/eval-verdict.sh run anthropic 5 --set en               # APPELLE LE MODÈLE : jeu anglais seul (holdout.en.jsonl)
 scripts/eval-verdict.sh summarize eval/verdict/results/<dossier>-en --set en
 scripts/eval-verdict.sh generate anthropic eval/generation/specs/<spec>.md --out eval/generation/results/<dossier>   # APPELLE LE MODÈLE : génération du backlog
+scripts/eval-verdict.sh probe-schema anthropic --out eval/generation/results/<dossier>   # APPELLE LE MODÈLE : 1 appel, n'affiche que le statut HTTP, error.message et la durée (schéma de génération accepté par Anthropic ?)
 ```
 
 Cibles :

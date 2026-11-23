@@ -1,0 +1,120 @@
+{
+  "epics" : [ {
+    "description" : "Allow support agents to export the data of a customer account so they can answer customer requests. The specification describes a single need; the content, format, encoding, access rights and delivery mode are open points that must be decided before development starts.",
+    "features" : [ {
+      "description" : "Capability for a support agent to export the data of a customer account. The single feature of this short need takes the name of the epic.",
+      "labels" : [ "backend", "frontend", "api", "security" ],
+      "name" : "Customer data export",
+      "priority" : "High",
+      "stories" : [ {
+        "acceptanceCriteria" : [ "Given a support agent is viewing a customer account, When they request an export of that account's data, Then an export of the data of that customer account is produced.", "Given an export has been produced for a customer account, When its content is checked, Then it contains only the data of that customer account.", "Given a support agent requests an export, When the export cannot be produced, Then the agent is informed that the export failed." ],
+        "aiReady" : false,
+        "aiReadyReason" : "Which roles may export customer account data, and which fields (orders, invoices, personal data, support history) and which format are included in the export?",
+        "aiReadySource" : "MODEL",
+        "asA" : "support agent",
+        "dependencies" : [ ],
+        "description" : "A support agent can trigger an export of the data of a customer account in order to answer a customer request. The export must contain only the data of the selected customer account. Open points not decided by the specification: export format (CSV, JSON or ZIP archive), encoding and delimiter, roles allowed to export, fields included (orders, invoices, personal data, support history), size limits for very large accounts, and delivery mode (browser download or email).",
+        "epicTrackerKey" : null,
+        "estimatedStoryPoints" : 5,
+        "iWant" : "to export the data of a customer account",
+        "labels" : [ "backend", "frontend", "api", "security" ],
+        "priority" : "High",
+        "soThat" : "I can answer customer requests",
+        "tasks" : [ {
+          "description" : "Record the Product Owner decisions on format, encoding and delimiter, roles, fields, size limits and delivery mode. Blocked: this sub-task cannot be completed until these open points are decided. Expected result: a validated scope that the other sub-tasks can implement.",
+          "estimatedHours" : 2,
+          "labels" : [ "documentation" ],
+          "parentTrackerKey" : null,
+          "title" : "Document the export scope decisions",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Build the backend capability that produces an export containing only the data of the selected customer account. Blocked for the format, fields and size handling until the scope decisions are made. Enforce the access rights once the allowed roles are decided. Expected result: an export is produced for a given customer account.",
+          "estimatedHours" : 8,
+          "labels" : [ "backend", "api", "security" ],
+          "parentTrackerKey" : null,
+          "title" : "Implement backend export of account data",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Add an action in the agent interface on the customer account view that triggers the export. The delivery mode (browser download or email) is blocked until decided. Expected result: the agent can trigger an export from the account view and sees a message if it fails.",
+          "estimatedHours" : 4,
+          "labels" : [ "frontend" ],
+          "parentTrackerKey" : null,
+          "title" : "Add export action to the customer account view",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Write tests that verify the three acceptance criteria: export produced for the account, content limited to that account, and failure reported to the agent. Expected result: all tests pass once the scope is decided.",
+          "estimatedHours" : 3,
+          "labels" : [ "test" ],
+          "parentTrackerKey" : null,
+          "title" : "Test export against acceptance criteria",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        } ],
+        "title" : "Export customer account data",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "labels" : [ "backend", "frontend", "api", "security", "documentation" ],
+    "name" : "Customer data export",
+    "priority" : "High",
+    "stories" : [ {
+      "acceptanceCriteria" : [ "Given a support agent is viewing a customer account, When they request an export of that account's data, Then an export of the data of that customer account is produced.", "Given an export has been produced for a customer account, When its content is checked, Then it contains only the data of that customer account.", "Given a support agent requests an export, When the export cannot be produced, Then the agent is informed that the export failed." ],
+      "aiReady" : false,
+      "aiReadyReason" : "Which roles may export customer account data, and which fields (orders, invoices, personal data, support history) and which format are included in the export?",
+      "aiReadySource" : "MODEL",
+      "asA" : "support agent",
+      "dependencies" : [ ],
+      "description" : "A support agent can trigger an export of the data of a customer account in order to answer a customer request. The export must contain only the data of the selected customer account. Open points not decided by the specification: export format (CSV, JSON or ZIP archive), encoding and delimiter, roles allowed to export, fields included (orders, invoices, personal data, support history), size limits for very large accounts, and delivery mode (browser download or email).",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 5,
+      "iWant" : "to export the data of a customer account",
+      "labels" : [ "backend", "frontend", "api", "security" ],
+      "priority" : "High",
+      "soThat" : "I can answer customer requests",
+      "tasks" : [ {
+        "description" : "Record the Product Owner decisions on format, encoding and delimiter, roles, fields, size limits and delivery mode. Blocked: this sub-task cannot be completed until these open points are decided. Expected result: a validated scope that the other sub-tasks can implement.",
+        "estimatedHours" : 2,
+        "labels" : [ "documentation" ],
+        "parentTrackerKey" : null,
+        "title" : "Document the export scope decisions",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Build the backend capability that produces an export containing only the data of the selected customer account. Blocked for the format, fields and size handling until the scope decisions are made. Enforce the access rights once the allowed roles are decided. Expected result: an export is produced for a given customer account.",
+        "estimatedHours" : 8,
+        "labels" : [ "backend", "api", "security" ],
+        "parentTrackerKey" : null,
+        "title" : "Implement backend export of account data",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Add an action in the agent interface on the customer account view that triggers the export. The delivery mode (browser download or email) is blocked until decided. Expected result: the agent can trigger an export from the account view and sees a message if it fails.",
+        "estimatedHours" : 4,
+        "labels" : [ "frontend" ],
+        "parentTrackerKey" : null,
+        "title" : "Add export action to the customer account view",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Write tests that verify the three acceptance criteria: export produced for the account, content limited to that account, and failure reported to the agent. Expected result: all tests pass once the scope is decided.",
+        "estimatedHours" : 3,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Test export against acceptance criteria",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Export customer account data",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "trackerKey" : null,
+    "trackerUrl" : null
+  } ]
+}

@@ -1,0 +1,120 @@
+{
+  "epics" : [ {
+    "description" : "Allow support agents to export the data of a customer account so that they can answer customer requests. Format, encoding, delimiter, access rights, content, size limits and delivery method are not yet decided and must be settled before development starts.",
+    "features" : [ {
+      "description" : "Single capability of the specification: a support agent exports the data of a customer account. The feature stays blocked until the open points (format, encoding and delimiter, access rights, content, size limits and delivery) are decided by the Product Owner, Legal, the data team and the GDPR review.",
+      "labels" : [ "backend", "security" ],
+      "name" : "Customer data export",
+      "priority" : "Medium",
+      "stories" : [ {
+        "acceptanceCriteria" : [ "Given a customer account whose data is stored in the system, When a support agent requests an export of that account's data, Then an export containing the account's data is produced for the support agent.", "Given a support agent requests an export of a customer account, When the export is produced, Then the export content matches the data fields approved by the Product Owner and the GDPR review." ],
+        "aiReady" : false,
+        "aiReadyReason" : "The file format, encoding, delimiter, allowed roles, exported fields, size limits and delivery method are all undecided, so the main blocking question is: Which file format, which fields and which roles may export a customer account's data, and is the file downloaded in the browser or sent by email?",
+        "aiReadySource" : "MODEL",
+        "asA" : "support agent",
+        "dependencies" : [ ],
+        "description" : "A support agent can request an export of the data of a customer account in order to answer customer requests. The specification does not define the file format (CSV, JSON or a ZIP archive with several files), the encoding and delimiter, the roles allowed to export (support level 1, level 2 or admins only), the fields included (orders, invoices, personal data, support history, subject to the pending GDPR review), the size limits or large-account behaviour, or whether the download happens in the browser or by email. These points must be decided before the story can be implemented.",
+        "epicTrackerKey" : null,
+        "estimatedStoryPoints" : 5,
+        "iWant" : "to export the data of a customer account",
+        "labels" : [ "backend", "api", "database", "security", "test" ],
+        "priority" : "Medium",
+        "soThat" : "I can answer customer requests",
+        "tasks" : [ {
+          "description" : "Build the backend query that reads the data of a customer account. The list of fields to retrieve depends on the content decision (orders, invoices, personal data, support history) which is still pending the GDPR review.",
+          "estimatedHours" : 4,
+          "labels" : [ "backend", "database" ],
+          "parentTrackerKey" : null,
+          "title" : "Retrieve customer account data",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Produce the export file from the retrieved data. The file format, encoding and delimiter depend on the format decision, which is still pending; this sub-task cannot be finalised until that decision is made.",
+          "estimatedHours" : 4,
+          "labels" : [ "backend", "api" ],
+          "parentTrackerKey" : null,
+          "title" : "Generate the export file",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Enforce which support roles may trigger an export. This depends on the access rights decision (support level 1, level 2 or admins only), which Legal has not yet answered.",
+          "estimatedHours" : 2,
+          "labels" : [ "security", "backend" ],
+          "parentTrackerKey" : null,
+          "title" : "Restrict export to authorised roles",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Write and run tests that check the two acceptance criteria: an export is produced for an existing account and its content matches the approved fields. Expected result: both criteria pass.",
+          "estimatedHours" : 3,
+          "labels" : [ "test" ],
+          "parentTrackerKey" : null,
+          "title" : "Verify export against acceptance criteria",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        } ],
+        "title" : "Export a customer account's data",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "labels" : [ "backend", "security" ],
+    "name" : "Customer data export",
+    "priority" : "Medium",
+    "stories" : [ {
+      "acceptanceCriteria" : [ "Given a customer account whose data is stored in the system, When a support agent requests an export of that account's data, Then an export containing the account's data is produced for the support agent.", "Given a support agent requests an export of a customer account, When the export is produced, Then the export content matches the data fields approved by the Product Owner and the GDPR review." ],
+      "aiReady" : false,
+      "aiReadyReason" : "The file format, encoding, delimiter, allowed roles, exported fields, size limits and delivery method are all undecided, so the main blocking question is: Which file format, which fields and which roles may export a customer account's data, and is the file downloaded in the browser or sent by email?",
+      "aiReadySource" : "MODEL",
+      "asA" : "support agent",
+      "dependencies" : [ ],
+      "description" : "A support agent can request an export of the data of a customer account in order to answer customer requests. The specification does not define the file format (CSV, JSON or a ZIP archive with several files), the encoding and delimiter, the roles allowed to export (support level 1, level 2 or admins only), the fields included (orders, invoices, personal data, support history, subject to the pending GDPR review), the size limits or large-account behaviour, or whether the download happens in the browser or by email. These points must be decided before the story can be implemented.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 5,
+      "iWant" : "to export the data of a customer account",
+      "labels" : [ "backend", "api", "database", "security", "test" ],
+      "priority" : "Medium",
+      "soThat" : "I can answer customer requests",
+      "tasks" : [ {
+        "description" : "Build the backend query that reads the data of a customer account. The list of fields to retrieve depends on the content decision (orders, invoices, personal data, support history) which is still pending the GDPR review.",
+        "estimatedHours" : 4,
+        "labels" : [ "backend", "database" ],
+        "parentTrackerKey" : null,
+        "title" : "Retrieve customer account data",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Produce the export file from the retrieved data. The file format, encoding and delimiter depend on the format decision, which is still pending; this sub-task cannot be finalised until that decision is made.",
+        "estimatedHours" : 4,
+        "labels" : [ "backend", "api" ],
+        "parentTrackerKey" : null,
+        "title" : "Generate the export file",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Enforce which support roles may trigger an export. This depends on the access rights decision (support level 1, level 2 or admins only), which Legal has not yet answered.",
+        "estimatedHours" : 2,
+        "labels" : [ "security", "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Restrict export to authorised roles",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Write and run tests that check the two acceptance criteria: an export is produced for an existing account and its content matches the approved fields. Expected result: both criteria pass.",
+        "estimatedHours" : 3,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Verify export against acceptance criteria",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Export a customer account's data",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "trackerKey" : null,
+    "trackerUrl" : null
+  } ]
+}

@@ -2,7 +2,7 @@
 
 # 📄 ➜ 🎯 Refinr
 
-**Refinr transforme une spec Confluence, BookStack ou XWiki en backlog Jira ou OpenProject (Epic → Story → Sous-tâche) et indique, story par story, si un agent de code peut l'implémenter sans décision humaine.**
+**Refinr transforme une spec Confluence, BookStack ou XWiki en backlog Jira ou OpenProject (Epic → Feature → Story → Sous-tâche) et indique, story par story, si un agent de code peut l'implémenter sans décision humaine.**
 
 [English](README.md) · **Français**
 
@@ -392,6 +392,7 @@ JIRA_TOKEN=your-atlassian-api-token
 JIRA_PROJECT_KEY=PROJ          # projet par défaut quand la requête ne donne pas de projectKey
 JIRA_PRIORITY_ENABLED=true     # false pour un projet team-managed (sans champ priorité)
 JIRA_STORY_POINTS_FIELD=       # ex. customfield_10016 ; vide = story points non envoyés
+JIRA_HIERARCHY=two-levels      # three-levels sur un site Premium configuré avec un niveau Feature (cf. Niveau Feature)
 ```
 
 - Les **projets team-managed** n'ont pas de champ *priority* : mettez `JIRA_PRIORITY_ENABLED=false`, sinon Jira
@@ -489,7 +490,7 @@ OPENPROJECT_API_KEY=your-openproject-api-key
 OPENPROJECT_PROJECT=my-project      # projet par défaut : identifiant (minuscules, chiffres, - et _) ou id numérique
 OPENPROJECT_WEB_URL=                # liens de l'interface ; vide = OPENPROJECT_BASE_URL (ex. http://localhost:8090 en Docker)
 # Optionnel (valeurs par défaut) :
-# OPENPROJECT_TYPE_EPIC=Epic  OPENPROJECT_TYPE_STORY=User story  OPENPROJECT_TYPE_SUBTASK=Task
+# OPENPROJECT_TYPE_EPIC=Epic  OPENPROJECT_TYPE_STORY=User story  OPENPROJECT_TYPE_SUBTASK=Task  OPENPROJECT_TYPE_FEATURE=Feature
 # OPENPROJECT_READINESS_FIELD=Agent readiness  OPENPROJECT_STORY_POINTS_ENABLED=true  OPENPROJECT_PRIORITY_ENABLED=true
 ```
 
@@ -522,6 +523,25 @@ Correspondance avec OpenProject :
 - Les clés des tickets sont les ids des lots de travaux (ex. `39`) ; `projectKey` accepte un identifiant ou un id
   OpenProject.
 
+### Niveau Feature (Epic → Feature → Story)
+
+Depuis la 1.5, le backlog a quatre niveaux : **Epic** (le produit ou un grand domaine fonctionnel) → **Feature** (un
+module ou une capacité utilisateur de la spec) → **Story** → **Sous-tâche**. Un besoin court reçoit **une seule
+feature**, **implicite** : elle n'est pas un niveau distinct quand le gestionnaire le permet (ses stories vont sous
+l'epic).
+
+| Gestionnaire | Niveau Feature | Configuration |
+|---|---|---|
+| OpenProject | Natif quand le type `Feature` (`openproject.types.feature`) est **activé dans le projet** (*Paramètres du projet → Lots de travaux → Types*) : Epic → Feature → User story → Task. La feature implicite n'a pas de lot de travaux. Type non activé : pas de niveau Feature (ci-dessous), sans erreur. | `OPENPROJECT_TYPE_FEATURE=Feature` |
+| Jira Free / Standard | Aucun : Jira ne permet pas d'insérer un niveau entre Epic et Story. | `JIRA_HIERARCHY=two-levels` (défaut) |
+| Jira Premium | Configuré au-dessus de la Story : l'Epic natif renommé **Feature** (niveau 1) et un nouveau niveau **Epic** au-dessus (niveau 2). Chaque feature est un ticket, l'implicite comprise (au nom de son epic) : Jira exige que le parent d'une story soit un niveau au-dessus. Vérifié à la première création dans le projet (types présents, niveaux 1 et 2) ; sinon l'epic échoue en nommant les propriétés à corriger. | `JIRA_HIERARCHY=three-levels`, `JIRA_TYPE_EPIC`, `JIRA_TYPE_FEATURE`, `JIRA_TYPE_STORY`, `JIRA_TYPE_SUBTASK` |
+
+**Sans niveau Feature** (`refinr.features.without-level`, `FEATURES_WITHOUT_LEVEL`) : `label` (défaut) garde les
+stories sous leur epic et donne à chaque story d'une feature explicite un label `feature-<nom>` (OpenProject : sur la
+ligne `**Labels:**` de la description), avec une entrée `warnings` dans l'aperçu et dans le résultat de la création ;
+`refuse` répond `422` avant tout appel au gestionnaire. **Le plugin Obsidian ≤ 0.2.0 affiche ce `422` comme une
+erreur inconnue** (il peut dire que des tickets ont peut-être été créés ; aucun ne l'a été).
+
 ### Tableau des propriétés
 
 | Propriété | Défaut | Description |
@@ -541,11 +561,15 @@ Correspondance avec OpenProject :
 | `jira.project-key` | — | Clé du projet utilisé si `projectKey` n'est pas fourni |
 | `jira.priority-enabled` | `true` | Envoie le champ `priority` (désactiver en team-managed) |
 | `jira.story-points-field` | *(vide)* | Champ personnalisé des story points (ex. `customfield_10016`) ; vide = non envoyés |
+| `jira.hierarchy` | `two-levels` | `two-levels` (Free, Standard : pas de niveau Feature) ou `three-levels` (Premium configuré avec un niveau Feature, vérifié à la première création) (`JIRA_HIERARCHY`) |
+| `jira.types.epic` / `.feature` / `.story` / `.subtask` | `Epic` / `Feature` / `Story` / `Subtask` | Noms des types de tickets ; `.feature` seulement en `three-levels` (`JIRA_TYPE_EPIC`, `JIRA_TYPE_FEATURE`, `JIRA_TYPE_STORY`, `JIRA_TYPE_SUBTASK`) |
 | `openproject.base-url` | — | URL d'OpenProject (avec `tracker.provider=openproject`) |
 | `openproject.api-key` | — | Clé API du compte Refinr (*Mon compte → Jetons d'accès → API*) |
 | `openproject.web-url` | *(vide)* | Adresse web utilisée uniquement pour les liens vers les lots de travaux créés ; vide = `openproject.base-url` |
 | `openproject.project` | — | Projet par défaut (identifiant ou id numérique) si `projectKey` n'est pas fourni |
 | `openproject.types.epic` / `.story` / `.subtask` | `Epic` / `User story` / `Task` | Types de work package utilisés pour chaque niveau |
+| `openproject.types.feature` | `Feature` | Type du niveau Feature, utilisé quand il est activé dans le projet ; sinon pas de niveau Feature (`OPENPROJECT_TYPE_FEATURE`) |
+| `refinr.features.without-level` | `label` | Gestionnaire sans niveau Feature : `label` (stories sous l'epic, label `feature-<nom>`, avertissement) ou `refuse` (`422` avant tout appel au gestionnaire) (`FEATURES_WITHOUT_LEVEL`) |
 | `openproject.readiness-field` | `Agent readiness` | Champ personnalisé de type liste qui porte le verdict (options `ai-ready` / `validation-necessaire`) |
 | `openproject.story-points-enabled` | `true` | Envoie `storyPoints` sur les User stories uniquement (module Backlogs) |
 | `openproject.priority-enabled` | `true` | Envoie la priorité (par nom, `Medium` → `Normal`) |
@@ -839,6 +863,15 @@ tickets et le label `validation-necessaire` ne changent pas.
   `refinr.security.allowed-hosts` reçoit `403`.
 - **Erreurs** : `{ "success": false, "error": "<message générique>", "correlationId": "…" }` — jamais l'exception
   brute ; le `correlationId` mène au détail dans les logs.
+- **Features** (depuis la 1.5, ajouts) : chaque epic a `features: [{ name, description, priority, labels, implicit,
+  jiraKey, jiraUrl, stories }]` ; `implicit` vaut `true` pour la seule feature de son epic. **`epics[].stories` est
+  gardé** : toutes les stories de l'epic, à plat (déprécié, gardé au moins jusqu'à la 2.0, utilisé par l'interface web
+  et le plugin Obsidian 0.2.0). Dans `create-jira` : `stories` seul (forme d'avant) → une feature implicite ;
+  `features` seul → utilisé ; les deux → les features quand `stories` contient les mêmes stories (aperçu renvoyé tel
+  quel), sinon `stories` l'emporte (modifié dans la forme d'avant), avec un avertissement. Les tickets de type
+  `feature` figurent dans `created` / `failed`. `warnings: ["…"]` (à la racine des réponses d'aperçu et de création,
+  absent s'il est vide) : features gardées en labels, création qui sera refusée, forme d'avant modifiée.
+  `/jobs/{id}/result` suit, puisqu'il rejoue la réponse synchrone.
 - **Origine du verdict** `aiReadySource` (depuis la 1.4, sur chaque story de `analyze-preview`, `analyze-and-create` et
   `create-jira`, et dans `reassess-story` / `validate-story`) : `model` (verdict du modèle), `fallback` (aucun verdict
   fiable : jamais `ai-ready`, raison `verdict indisponible (<cause>) : validation humaine necessaire`) ou `human`
@@ -889,6 +922,7 @@ tickets et le label `validation-necessaire` ne changent pas.
 | `413` | Texte plus long que `refinr.document.max-content-chars`, ou corps au-delà de `refinr.http.max-body-bytes` (rien n'est créé, aucun appel à l'IA) | `false` |
 | `502` | Aucun ticket n'a pu être créé, sortie IA inexploitable (invalide après relances, ou tronquée), ou fournisseur IA indisponible | `false` |
 | `503` | Quota ou surcharge du fournisseur IA (`analyze-and-create` seulement ; rien n'est créé), avec `Retry-After` et `retryAfterSeconds` quand le fournisseur annonce un délai | `false` |
+| `422` | Features explicites, pas de niveau Feature dans le gestionnaire et `refinr.features.without-level=refuse` (rien n'est créé, aucun appel au gestionnaire) | `false` |
 
 Un échec n'interrompt pas la création : l'élément est listé dans `failed` (avec une raison : statut HTTP et erreurs de
 validation du gestionnaire de tickets), ses enfants aussi (`Not created: parent … failed`), et les éléments suivants

@@ -9,6 +9,7 @@
 #   scripts/eval-verdict.sh run <target> <runs> [--out DIR] [--pause 15] [--cap N: 100 anthropic, 40 sinon] [--budget 20] [--phase E0]
 #   scripts/eval-verdict.sh summarize <resultsDir> [--baseline DIR[,DIR]]
 #   scripts/eval-verdict.sh generate <target> <spec.md>... [--out DIR]   (generation du backlog, appelle le modele)
+#   scripts/eval-verdict.sh probe-schema anthropic [--out DIR]   (sonde du schema de generation : 1 appel, statut et error.message)
 # Reglages : backend/src/main/resources/application-example.properties (defauts de production) + .env a la racine.
 set -euo pipefail
 cd "$(dirname "$0")/../backend"

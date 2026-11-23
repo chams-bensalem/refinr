@@ -2,7 +2,7 @@
 
 # 📄 ➜ 🎯 Refinr
 
-**Refinr turns a spec from Confluence, BookStack or XWiki into a Jira or OpenProject backlog (Epic → Story → Sub-task) and tells you, story by story, whether a coding agent can build it without a human decision.**
+**Refinr turns a spec from Confluence, BookStack or XWiki into a Jira or OpenProject backlog (Epic → Feature → Story → Sub-task) and tells you, story by story, whether a coding agent can build it without a human decision.**
 
 **English** · [Français](README.fr.md)
 
@@ -384,6 +384,7 @@ JIRA_TOKEN=your-atlassian-api-token
 JIRA_PROJECT_KEY=PROJ          # default project when a request sets no projectKey
 JIRA_PRIORITY_ENABLED=true     # false for a team-managed project (no priority field)
 JIRA_STORY_POINTS_FIELD=       # e.g. customfield_10016; empty = story points not sent
+JIRA_HIERARCHY=two-levels      # three-levels on a Premium site configured with a Feature level (see Feature level)
 ```
 
 - **Team-managed projects** have no *priority* field: set `JIRA_PRIORITY_ENABLED=false`, otherwise Jira rejects the
@@ -478,7 +479,7 @@ OPENPROJECT_API_KEY=your-openproject-api-key
 OPENPROJECT_PROJECT=my-project      # default project: identifier (lowercase, digits, - and _) or numeric id
 OPENPROJECT_WEB_URL=                # links in the UI; empty = OPENPROJECT_BASE_URL (e.g. http://localhost:8090 in Docker)
 # Optional (defaults shown):
-# OPENPROJECT_TYPE_EPIC=Epic  OPENPROJECT_TYPE_STORY=User story  OPENPROJECT_TYPE_SUBTASK=Task
+# OPENPROJECT_TYPE_EPIC=Epic  OPENPROJECT_TYPE_STORY=User story  OPENPROJECT_TYPE_SUBTASK=Task  OPENPROJECT_TYPE_FEATURE=Feature
 # OPENPROJECT_READINESS_FIELD=Agent readiness  OPENPROJECT_STORY_POINTS_ENABLED=true  OPENPROJECT_PRIORITY_ENABLED=true
 ```
 
@@ -510,6 +511,24 @@ How the backlog maps to OpenProject:
   the field.
 - Issue keys are work package ids (e.g. `39`); `projectKey` takes an OpenProject identifier or id.
 
+### Feature level (Epic → Feature → Story)
+
+Since 1.5 the backlog has four levels: **Epic** (the product or a large functional area) → **Feature** (a module or a
+user capability of the spec) → **Story** → **Sub-task**. A short need gets **a single feature**, which is
+**implicit**: it is not a level of its own where the tracker allows it (its stories go under the epic).
+
+| Tracker | Feature level | Configuration |
+|---|---|---|
+| OpenProject | Native when the `Feature` type (`openproject.types.feature`) is **enabled in the project** (*Project settings → Work packages → Types*): Epic → Feature → User story → Task. The implicit feature gets no work package. Type not enabled: no feature level (below), no error. | `OPENPROJECT_TYPE_FEATURE=Feature` |
+| Jira Free / Standard | None: Jira cannot insert a level between Epic and Story. | `JIRA_HIERARCHY=two-levels` (default) |
+| Jira Premium | Configured above the Story: the built-in Epic renamed **Feature** (level 1) and a new **Epic** level above it (level 2). Every feature is an issue, the implicit one included (named after its epic): Jira requires a story's parent one level up. Checked at the first creation in the project (types present, levels 1 and 2); otherwise the epic fails with the properties to fix. | `JIRA_HIERARCHY=three-levels`, `JIRA_TYPE_EPIC`, `JIRA_TYPE_FEATURE`, `JIRA_TYPE_STORY`, `JIRA_TYPE_SUBTASK` |
+
+**No feature level** (`refinr.features.without-level`, `FEATURES_WITHOUT_LEVEL`): `label` (default) keeps the
+stories under their epic and gives each story of an explicit feature a `feature-<name>` label (OpenProject: on the
+`**Labels:**` line of the description), with a `warnings` entry in the preview and in the creation result; `refuse`
+answers `422` before any call to the tracker. **The Obsidian plugin ≤ 0.2.0 shows this `422` as an unknown error**
+(it may say that issues could have been created; none were).
+
 ### Property reference
 
 | Property | Default | Description |
@@ -529,11 +548,15 @@ How the backlog maps to OpenProject:
 | `jira.project-key` | — | Project used when the request sets no `projectKey` |
 | `jira.priority-enabled` | `true` | Sends the `priority` field (disable for team-managed) |
 | `jira.story-points-field` | *(empty)* | Story points custom field (e.g. `customfield_10016`); empty = not sent |
+| `jira.hierarchy` | `two-levels` | `two-levels` (Free, Standard: no Feature level) or `three-levels` (Premium configured with a Feature level, checked at the first creation) (`JIRA_HIERARCHY`) |
+| `jira.types.epic` / `.feature` / `.story` / `.subtask` | `Epic` / `Feature` / `Story` / `Subtask` | Issue type names; `.feature` is used in `three-levels` only (`JIRA_TYPE_EPIC`, `JIRA_TYPE_FEATURE`, `JIRA_TYPE_STORY`, `JIRA_TYPE_SUBTASK`) |
 | `openproject.base-url` | — | OpenProject URL (when `tracker.provider=openproject`) |
 | `openproject.api-key` | — | API key of the Refinr account (*My account → Access tokens → API*) |
 | `openproject.web-url` | *(empty)* | Web address used only for the links to the created work packages; empty = `openproject.base-url` |
 | `openproject.project` | — | Default project (identifier or numeric id) when the request sets no `projectKey` |
 | `openproject.types.epic` / `.story` / `.subtask` | `Epic` / `User story` / `Task` | Work package types used for each level |
+| `openproject.types.feature` | `Feature` | Type of the Feature level, used when it is enabled in the project; otherwise no Feature level (`OPENPROJECT_TYPE_FEATURE`) |
+| `refinr.features.without-level` | `label` | Tracker without a Feature level: `label` (stories under the epic, `feature-<name>` label, warning) or `refuse` (`422` before any tracker call) (`FEATURES_WITHOUT_LEVEL`) |
 | `openproject.readiness-field` | `Agent readiness` | List custom field holding the verdict (options `ai-ready` / `validation-necessaire`) |
 | `openproject.story-points-enabled` | `true` | Sends `storyPoints` on user stories only (Backlogs module) |
 | `openproject.priority-enabled` | `true` | Sends the priority (matched by name, `Medium` → `Normal`) |
@@ -817,6 +840,14 @@ English prompt and are supported without being measured. Refinr's own lines in t
 - **CORS**: only the origins in `refinr.cors.allowed-origins`. **Host**: a `Host` not in `refinr.security.allowed-hosts` gets `403`.
 - **Errors**: `{ "success": false, "error": "<generic message>", "correlationId": "…" }` — never the raw exception;
   the `correlationId` points to the details in the logs.
+- **Features** (since 1.5, additions): every epic has `features: [{ name, description, priority, labels, implicit,
+  jiraKey, jiraUrl, stories }]`; `implicit` is `true` for the only feature of its epic. **`epics[].stories` is kept**:
+  every story of the epic, flat (deprecated, kept until 2.0 at least, used by the web UI and the Obsidian plugin
+  0.2.0). In `create-jira`: `stories` only (former shape) → one implicit feature; `features` only → used; both → the
+  features when `stories` holds the same stories (preview sent back as is), otherwise `stories` wins (edited in the
+  former shape) with a warning. Created issues of type `feature` appear in `created` / `failed`. `warnings: ["…"]`
+  (root of the preview and creation responses, absent when empty): features kept as labels, creation that will be
+  refused, edited former shape. `/jobs/{id}/result` follows, since it replays the synchronous response.
 - **Verdict source** `aiReadySource` (since 1.4, on every story of `analyze-preview`, `analyze-and-create` and
   `create-jira`, and in `reassess-story` / `validate-story`): `model` (verdict of the model), `fallback` (no reliable
   verdict: never `ai-ready`, reason `verdict indisponible (<cause>) : validation humaine necessaire`) or `human`
@@ -863,6 +894,7 @@ English prompt and are supported without being measured. Refinr's own lines in t
 | `413` | Text longer than `refinr.document.max-content-chars`, or body over `refinr.http.max-body-bytes` (nothing created, no LLM call) | `false` |
 | `502` | No issue could be created, unusable LLM output (invalid after repairs, or truncated), or LLM provider unavailable | `false` |
 | `503` | AI provider quota or overload (`analyze-and-create` only; nothing created), with `Retry-After` and `retryAfterSeconds` when the provider announces a delay | `false` |
+| `422` | Explicit features, no Feature level in the tracker and `refinr.features.without-level=refuse` (nothing created, no tracker call) | `false` |
 
 A failure does not stop the creation: the item is listed in `failed` (with a reason: HTTP status and the tracker's
 validation errors), so are its children (`Not created: parent … failed`), and the next items are still created.

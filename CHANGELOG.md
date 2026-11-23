@@ -6,6 +6,20 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 ## [Unreleased]
 
 ### Added
+- **Niveau Feature** : hiérarchie Epic → Feature → Story → Sous-tâche. La génération produit des Features (Epic = le
+  produit ou un grand domaine, Feature = un module ou une capacité, Story = une action) ; un besoin court reçoit une
+  seule Feature, **implicite** (pas un niveau distinct quand le gestionnaire le permet). OpenProject : type `Feature`
+  natif quand il est activé dans le projet (`openproject.types.feature`). Jira : `jira.hierarchy=two-levels` (défaut,
+  Free / Standard, sans niveau Feature) ou `three-levels` (Premium configuré avec un niveau Feature, vérifié à la
+  première création), noms des types configurables (`jira.types.epic`, `.feature`, `.story`, `.subtask`, défauts
+  inchangés). Sans niveau Feature : `refinr.features.without-level=label` (défaut : label `feature-<nom>` sur les
+  stories, avertissement) ou `refuse` (**nouveau `422`**, avant tout appel au gestionnaire ; le plugin Obsidian
+  ≤ 0.2.0 l'affiche comme une erreur inconnue).
+- **Contrat REST, ajouts rétrocompatibles** : `epics[].features` (`implicit`, `jiraKey`, `stories`…), type `feature`
+  dans `created` / `failed`, `warnings` à la racine des réponses d'aperçu et de création (absent s'il est vide).
+  `epics[].stories` est gardé (toutes les stories à plat, déprécié, au moins jusqu'à la 2.0) ; `create-jira` accepte
+  toujours la forme d'avant, et `stories` l'emporte, avec un avertissement, s'il diffère des features.
+- Interface web : niveau Feature affiché dans l'aperçu, avertissements dans l'aperçu et le résultat.
 - **Jobs d'analyse** : `analyze-preview` et `analyze-and-create` en arrière-plan. `POST /api/v1/jobs/analyze-preview`
   et `POST /api/v1/jobs/analyze-and-create` (même corps que les endpoints synchrones, mêmes `400` et `413` à la
   soumission) → `202` avec `Location: /api/v1/jobs/{id}` ; `GET /api/v1/jobs/{id}` : état (`queued`, `running`,
@@ -23,6 +37,11 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 - `docker-compose.yml` : `stop_grace_period: 45s` sur le service `backend` (10 s par défaut chez Docker), pour laisser
   finir les jobs qui créent les tickets ; **à garder au-dessus de `JOBS_SHUTDOWN_GRACE`** si vous le changez (même
   règle pour `docker stop -t` et `terminationGracePeriodSeconds` de Kubernetes).
+
+### Changed
+- **Prompt de génération `generation-v2`** (fr et en) : niveau Feature, règles de taille revues ; le backlog généré
+  change de forme. Le bloc READINESS et le prompt de verdict ne changent pas (`verdict-v3.2`, la mesure E0 reste
+  valable).
 
 ## [1.4.0] - 2026-11-22
 
