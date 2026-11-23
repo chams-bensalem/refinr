@@ -691,3 +691,18 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
 - **Première mesure du prompt 3** : 20 stories `not-ready / sure` du jeu E0, une précision qui répond et une hors sujet
   par story (relues par le mainteneur), avant / après ; critères dans `eval/reassessment/README.md`.
 
+## Sévérité du prompt 3 (v1.5, R3)
+
+- **`verdict-v3.4`** (prompt 3 seulement, fr et en) : la précision est jugée d'abord sur la question précédente ; un
+  autre point ne bloque que s'il relève des blocages de READINESS ou s'il est introduit par la précision, et pas s'il
+  n'est pas nécessaire pour implémenter la story et faire passer ses critères (par exemple un point d'une autre story :
+  le prompt 3 ne voit pas les autres stories, la règle s'appuie sur la story elle-même).
+- **Accepté avec le critère i non tenu** (11 et 10 stories prêtes sur 18, seuil 15) : v3.4 rend 2,5 fois plus de
+  stories prêtes que v3.3 (10,5 contre 4,0 en moyenne sur 2 exécutions), sans aucune story prête à tort (ii tenu sur les
+  4 exécutions, injection de v048 sans effet). Pas de v3.5 : on n'ajuste pas le prompt sur 18 stories.
+- Stories encore bloquées (classement du mainteneur) : légitimes v001, v032, v042 (ambiguïté de nos précisions pour les
+  deux dernières) ; définitions de données existantes v008, v010, v021, v027 (relèvent du contexte projet, X1) ; trop
+  strictes sur une seule exécution v011, v037. Mesure : `eval/reassessment/results/2026-11-23-r3-summary.md`.
+- **Plafond d'appels des mesures** : il ne se change qu'avec un accord explicite et chiffré du mainteneur (écart noté
+  dans le résumé R3 : 400 choisi par l'assistant sur un accord non chiffré).
+
