@@ -13,14 +13,22 @@ public class DescribeTrackerService implements DescribeTracker {
 
     private final IssueTrackerPort issueTracker;
     private final FeatureLevels.Policy featurePolicy;
+    // Lecture du niveau Feature pour l'apercu : 5 s au plus, cache par projet
+    private final FeatureLevelLookup featureLevels;
 
     public DescribeTrackerService(IssueTrackerPort issueTracker) {
         this(issueTracker, FeatureLevels.Policy.LABEL);
     }
 
     public DescribeTrackerService(IssueTrackerPort issueTracker, FeatureLevels.Policy featurePolicy) {
+        this(issueTracker, featurePolicy, new FeatureLevelLookup(issueTracker));
+    }
+
+    DescribeTrackerService(IssueTrackerPort issueTracker, FeatureLevels.Policy featurePolicy,
+                           FeatureLevelLookup featureLevels) {
         this.issueTracker = issueTracker;
         this.featurePolicy = featurePolicy;
+        this.featureLevels = featureLevels;
     }
 
     @Override
@@ -38,6 +46,11 @@ public class DescribeTrackerService implements DescribeTracker {
         if (!FeatureLevels.hasExplicitFeatures(epics)) {
             return List.of();
         }
-        return FeatureLevels.warnings(epics, FeatureLevels.levelOf(issueTracker, projectId), featurePolicy);
+        IssueTrackerPort.FeatureLevel level = featureLevels.level(projectId);
+        // Echec, niveau inconnu ou delai depasse : l'apercu part tout de suite, la creation reverifiera
+        if (level == IssueTrackerPort.FeatureLevel.UNKNOWN) {
+            return List.of(FeatureLevels.UNCHECKED_WARNING);
+        }
+        return FeatureLevels.warnings(epics, level, featurePolicy);
     }
 }

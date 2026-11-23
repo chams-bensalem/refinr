@@ -870,7 +870,9 @@ tickets et le label `validation-necessaire` ne changent pas.
   `features` seul → utilisé ; les deux → les features quand `stories` contient les mêmes stories (aperçu renvoyé tel
   quel), sinon `stories` l'emporte (modifié dans la forme d'avant), avec un avertissement. Les tickets de type
   `feature` figurent dans `created` / `failed`. `warnings: ["…"]` (à la racine des réponses d'aperçu et de création,
-  absent s'il est vide) : features gardées en labels, création qui sera refusée, forme d'avant modifiée.
+  absent s'il est vide) : features gardées en labels, création qui sera refusée, forme d'avant modifiée, ou *The
+  Feature level of the tracker could not be checked* (aperçu seulement : le gestionnaire est interrogé 5 s au plus, la
+  réponse gardée 1 h par projet, un échec 1 min ; la création revérifie).
   `/jobs/{id}/result` suit, puisqu'il rejoue la réponse synchrone.
 - **Origine du verdict** `aiReadySource` (depuis la 1.4, sur chaque story de `analyze-preview`, `analyze-and-create` et
   `create-jira`, et dans `reassess-story` / `validate-story`) : `model` (verdict du modèle), `fallback` (aucun verdict
