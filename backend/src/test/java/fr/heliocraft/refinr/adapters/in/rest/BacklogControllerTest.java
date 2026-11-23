@@ -469,7 +469,7 @@ class BacklogControllerTest {
                 .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.error").value("Invalid projectKey: demo; drop"));
+                .andExpect(jsonPath("$.error").value(AnalysisRequests.INVALID_PROJECT_KEY));
 
         verifyNoInteractions(jiraService);
     }
@@ -665,7 +665,7 @@ class BacklogControllerTest {
                 .content("{\"confluencePageId\":\"42\",\"projectKey\":\"PROJ\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.error").value("Invalid projectKey: PROJ"));
+                .andExpect(jsonPath("$.error").value(AnalysisRequests.INVALID_PROJECT_KEY));
 
         verify(describeTracker).acceptsProjectId("PROJ");
         verifyNoInteractions(confluenceService, generator, jiraService);
@@ -696,7 +696,7 @@ class BacklogControllerTest {
                 .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.error").value("Invalid projectKey: PROJ"));
+                .andExpect(jsonPath("$.error").value(AnalysisRequests.INVALID_PROJECT_KEY));
 
         verify(describeTracker).acceptsProjectId("PROJ");
         verifyNoInteractions(assessor, jiraService);

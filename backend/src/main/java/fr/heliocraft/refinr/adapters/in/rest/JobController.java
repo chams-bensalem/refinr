@@ -62,7 +62,7 @@ public class JobController {
         // Projet demande : seulement pour lire son niveau Feature (avertissements), comme l'endpoint synchrone
         String projectKey = request.get(AnalysisRequests.PROJECT_KEY);
         if (projectKey != null && !projectKey.isBlank() && !describeTracker.acceptsProjectId(projectKey)) {
-            return BacklogResponses.invalidRequest("Invalid projectKey: " + projectKey);
+            return BacklogResponses.invalidRequest(AnalysisRequests.INVALID_PROJECT_KEY);
         }
         Optional<Language> language;
         try {
@@ -86,7 +86,7 @@ public class JobController {
     public ResponseEntity<Map<String, Object>> submitAnalyzeAndCreate(@RequestBody Map<String, String> request) {
         String projectKey = request.get(AnalysisRequests.PROJECT_KEY);
         if (projectKey != null && !projectKey.isBlank() && !describeTracker.acceptsProjectId(projectKey)) {
-            return BacklogResponses.invalidRequest("Invalid projectKey: " + projectKey);
+            return BacklogResponses.invalidRequest(AnalysisRequests.INVALID_PROJECT_KEY);
         }
         Optional<Language> language;
         try {

@@ -25,6 +25,8 @@ final class AnalysisRequests {
     /** Langue de sortie optionnelle : code ISO 639-1 (casse ignoree) ; jamais recopiee dans un prompt ni une reponse. */
     static final String LANGUAGE = "language";
     static final String INVALID_LANGUAGE = LANGUAGE + " " + Language.INVALID;
+    // Valeur recue jamais recopiee (meme regle que language) : elle peut contenir n'importe quoi
+    static final String INVALID_PROJECT_KEY = "Invalid projectKey: expected a project key or identifier of the active tracker";
 
     private AnalysisRequests() {}
 

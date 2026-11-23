@@ -46,10 +46,12 @@ public class DescribeTrackerService implements DescribeTracker {
         if (!FeatureLevels.hasExplicitFeatures(epics)) {
             return List.of();
         }
-        IssueTrackerPort.FeatureLevel level = featureLevels.level(projectId);
-        // Echec, niveau inconnu ou delai depasse : l'apercu part tout de suite, la creation reverifiera
+        FeatureLevelLookup.Lookup lookup = featureLevels.lookup(projectId);
+        IssueTrackerPort.FeatureLevel level = lookup.level();
+        // Echec, niveau inconnu ou delai depasse : l'apercu part tout de suite, la creation reverifiera ; droit
+        // manquant : dit tel quel (« Refinr has no permission to create work packages in project X »)
         if (level == IssueTrackerPort.FeatureLevel.UNKNOWN) {
-            return List.of(FeatureLevels.UNCHECKED_WARNING);
+            return List.of(lookup.problem() != null ? lookup.problem() : FeatureLevels.UNCHECKED_WARNING);
         }
         return FeatureLevels.warnings(epics, level, featurePolicy);
     }

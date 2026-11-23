@@ -853,7 +853,9 @@ English prompt and are supported without being measured. Refinr's own lines in t
   former shape) with a warning. Created issues of type `feature` appear in `created` / `failed`. `warnings: ["…"]`
   (root of the preview and creation responses, absent when empty): features kept as labels, creation that will be
   refused, edited former shape, or *The Feature level of the tracker could not be checked* (preview only: the tracker
-  is asked for at most 5 s, the answer cached per project for 1 h, a failure for 1 min; the creation checks again). `/jobs/{id}/result` follows, since it replays the synchronous response.
+  is asked for at most 5 s, the answer cached per project for 1 h, a failure for 1 min; the creation checks again), or,
+  when the account lacks a permission, the reason (OpenProject: *Refinr has no permission to create work packages in
+  project X*; the preview reads the project and its types, read permission only, never the creation form). `/jobs/{id}/result` follows, since it replays the synchronous response.
 - **Verdict source** `aiReadySource` (since 1.4, on every story of `analyze-preview`, `analyze-and-create` and
   `create-jira`, and in `reassess-story` / `validate-story`): `model` (verdict of the model), `fallback` (no reliable
   verdict: never `ai-ready`, reason `verdict indisponible (<cause>) : validation humaine necessaire`) or `human`

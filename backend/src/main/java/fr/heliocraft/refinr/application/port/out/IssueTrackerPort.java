@@ -43,9 +43,18 @@ public interface IssueTrackerPort {
         }
     }
 
-    /** Niveau Feature dans {@code project} (null ou vide : projet par defaut) ; aucun par defaut. */
+    /** Niveau Feature dans {@code project} (null ou vide : projet par defaut) ; aucun par defaut. Lu a la creation. */
     default FeatureLevel featureLevel(String project) {
         return FeatureLevel.NONE;
+    }
+
+    /**
+     * Niveau Feature lu pendant l'apercu (avertissements seulement) : par defaut {@link #featureLevel} ; un adaptateur
+     * peut le lire avec le seul droit de lecture. Peut lever {@link TrackerPermissionException} quand le compte n'a
+     * pas le droit necessaire, pour que l'avertissement le dise.
+     */
+    default FeatureLevel previewFeatureLevel(String project) {
+        return featureLevel(project);
     }
 
     String createEpic(Epic epic, String project);

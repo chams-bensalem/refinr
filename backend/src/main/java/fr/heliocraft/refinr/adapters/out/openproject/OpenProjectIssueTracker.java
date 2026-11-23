@@ -6,6 +6,7 @@ package fr.heliocraft.refinr.adapters.out.openproject;
 import fr.heliocraft.refinr.application.port.out.HealthCheckable;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerException;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
+import fr.heliocraft.refinr.application.port.out.TrackerPermissionException;
 import fr.heliocraft.refinr.domain.model.ComponentHealth;
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Feature;
@@ -174,12 +175,41 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
 
     /**
      * Niveau Feature natif si le type {@code openproject.types.feature} est active dans le projet ; une story peut
-     * aussi aller sous l'epic (Feature implicite sans work package). Projet mal configure ou injoignable : inconnu.
+     * aussi aller sous l'epic (Feature implicite sans work package). Creation : configuration complete du projet
+     * (types et formulaire, qui demande le droit de creer). Projet mal configure ou injoignable : inconnu.
      */
     @Override
     public FeatureLevel featureLevel(String project) {
         try {
             return setup(project(project)).typeHref(featureType) != null ? FeatureLevel.OPTIONAL : FeatureLevel.NONE;
+        } catch (IssueTrackerException e) {
+            log.warn("OpenProject feature level unknown: {}", e.getMessage());
+            return FeatureLevel.UNKNOWN;
+        }
+    }
+
+    /**
+     * Apercu, lecture seule : le projet (lien {@code createWorkPackage}, present seulement si le compte peut creer des
+     * work packages) puis ses types, sans le formulaire. Sans droit de creer : {@link TrackerPermissionException}.
+     * Configuration deja resolue par une creation : lue sans requete.
+     */
+    @Override
+    public FeatureLevel previewFeatureLevel(String project) {
+        String target = project(project);
+        ProjectSetup cached = setups.get(target);
+        if (cached != null) {
+            return cached.typeHref(featureType) != null ? FeatureLevel.OPTIONAL : FeatureLevel.NONE;
+        }
+        try {
+            Map<?, ?> resource = get("read project " + target, webClient.get().uri("/api/v3/projects/{project}", target),
+                    "Refinr has no permission to read project " + target);
+            if (!(resource.get("_links") instanceof Map<?, ?> links && links.get("createWorkPackage") instanceof Map<?, ?>)) {
+                throw new TrackerPermissionException("Refinr has no permission to create work packages in project " + target);
+            }
+            return types(target).containsKey(featureType.toLowerCase(Locale.ROOT)) ? FeatureLevel.OPTIONAL : FeatureLevel.NONE;
+        } catch (TrackerPermissionException e) {
+            log.warn("OpenProject feature level: {}", e.getMessage());
+            throw e;
         } catch (IssueTrackerException e) {
             log.warn("OpenProject feature level unknown: {}", e.getMessage());
             return FeatureLevel.UNKNOWN;
@@ -429,13 +459,7 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
 
     private ProjectSetup resolve(String project) {
         log.info("Resolving OpenProject types and fields of project {}", project);
-        Map<String, String> types = new LinkedHashMap<>();
-        for (Map<?, ?> type : elements(get("read the types of project " + project,
-                webClient.get().uri("/api/v3/projects/{project}/types", project)))) {
-            if (type.get("name") instanceof String name) {
-                types.put(name.toLowerCase(Locale.ROOT), selfHref(type));
-            }
-        }
+        Map<String, String> types = types(project);
         for (String required : List.of(epicType, storyType, subtaskType)) {
             if (!types.containsKey(required.toLowerCase(Locale.ROOT))) {
                 throw new IssueTrackerException("OpenProject type '" + required + "' is not enabled in project "
@@ -486,6 +510,19 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
         return new ProjectSetup(types, readinessKey, options, priorities);
     }
 
+    /** Types actives dans le projet (nom en minuscules -> href) ; droit de lecture seul. */
+    private Map<String, String> types(String project) {
+        Map<String, String> types = new LinkedHashMap<>();
+        for (Map<?, ?> type : elements(get("read the types of project " + project,
+                webClient.get().uri("/api/v3/projects/{project}/types", project),
+                "Refinr has no permission to read the work package types of project " + project))) {
+            if (type.get("name") instanceof String name) {
+                types.put(name.toLowerCase(Locale.ROOT), selfHref(type));
+            }
+        }
+        return types;
+    }
+
     /** Les 3 reglages admin necessaires au verdict (cf. DECISIONS.md). */
     private String setupHint(String project) {
         return "Check the OpenProject setup: (1) a list custom field '" + readinessField + "' exists with the options "
@@ -497,10 +534,19 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
     }
 
     private Map<?, ?> get(String action, WebClient.RequestHeadersSpec<?> request) {
+        return get(action, request, null);
+    }
+
+    /** {@code forbidden} : message d'un 403 (droit manquant), ou null pour l'erreur generique. */
+    private Map<?, ?> get(String action, WebClient.RequestHeadersSpec<?> request, String forbidden) {
         try {
             Map<?, ?> response = block(request.retrieve().bodyToMono(Map.class));
             return response != null ? response : Map.of();
         } catch (WebClientResponseException e) {
+            if (forbidden != null && e.getStatusCode().value() == 403) {
+                log.error("OpenProject could not {}: {}", action, OpenProjectError.of(e).safeSummary());
+                throw new TrackerPermissionException(forbidden);
+            }
             throw failure(action, e);
         } catch (WebClientRequestException e) {
             throw new IssueTrackerException("OpenProject unreachable");

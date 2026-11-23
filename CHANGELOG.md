@@ -43,6 +43,14 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   règle pour `docker stop -t` et `terminationGracePeriodSeconds` de Kubernetes).
 
 ### Changed
+- **Message `400` « Invalid projectKey »** : la valeur reçue n'est plus recopiée dans le message (même règle que pour
+  `language`) ; message fixe *Invalid projectKey: expected a project key or identifier of the active tracker*, sur
+  `analyze-preview`, `analyze-and-create`, `create-jira` et les jobs. Un client qui comparait le message entier doit
+  être ajusté ; le préfixe *Invalid projectKey* ne change pas.
+- OpenProject, niveau Feature pendant l'aperçu : lu dans le projet (`GET /api/v3/projects/{id}`) et ses types
+  (`GET /api/v3/projects/{id}/types`), avec le seul droit de lecture, au lieu du formulaire de création ; la création
+  lit toujours le formulaire. Compte sans droit de créer des work packages : avertissement *Refinr has no permission
+  to create work packages in project X* au lieu de *could not be checked* (gardé 1 min, comme un échec).
 - **Prompt de génération `generation-v2`** (fr et en) : niveau Feature, règles de taille revues ; le backlog généré
   change de forme. Le bloc READINESS et le prompt de verdict ne changent pas (`verdict-v3.2`, la mesure E0 reste
   valable).

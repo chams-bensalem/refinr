@@ -69,6 +69,8 @@ class FeatureContractTest {
             when(tracker.displayName()).thenReturn("Jira");
             when(tracker.acceptsProjectId(any())).thenAnswer(call -> JiraProjectKeys.isValid(call.getArgument(0)));
             when(tracker.featureLevel(any())).thenReturn(FeatureLevel.NONE);
+            // Apercu : meme niveau que la creation (chaque test ne stubbe que featureLevel)
+            when(tracker.previewFeatureLevel(any())).thenAnswer(call -> tracker.featureLevel(call.getArgument(0)));
             when(tracker.createEpic(any(), any())).thenReturn("TEST-1");
             when(tracker.createFeature(any(), anyString(), any())).thenReturn("TEST-2");
             when(tracker.createStory(any(), anyString(), any())).thenReturn("TEST-3");
@@ -303,7 +305,7 @@ class FeatureContractTest {
                     .getContentAsString());
             assertEquals(1, requested.path("warnings").size(), requested.toString());
             assertTrue(requested.at("/warnings/0").asString().contains(LABELS), requested.toString());
-            verify(tracker).featureLevel(NO_FEATURE);
+            verify(tracker).previewFeatureLevel(NO_FEATURE);
 
             JsonNode byDefault = JSON.readTree(postJson("/api/v1/analyze-preview", request(null)).getContentAsString());
             assertFalse(byDefault.has("warnings"), "default project has a native feature level: " + byDefault);
@@ -314,7 +316,7 @@ class FeatureContractTest {
         void previewRejectsAnInvalidProjectKey() throws Exception {
             MockHttpServletResponse response = postJson("/api/v1/analyze-preview", request("not a key"));
             assertEquals(400, response.getStatus());
-            assertEquals("Invalid projectKey: not a key",
+            assertEquals(AnalysisRequests.INVALID_PROJECT_KEY,
                     JSON.readTree(response.getContentAsString()).get("error").asString());
             verify(generator, never()).generate(any(), any());
         }

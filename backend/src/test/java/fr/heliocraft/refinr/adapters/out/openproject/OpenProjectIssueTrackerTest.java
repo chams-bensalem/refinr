@@ -148,6 +148,16 @@ class OpenProjectIssueTrackerTest {
         return task;
     }
 
+    /** Projet ou le compte peut creer des work packages (lien present seulement dans ce cas). */
+    static final String PROJECT = """
+            {"_links": {"self": {"href": "/api/v3/projects/1"}, "createWorkPackage": {"href": "/api/v3/projects/1/work_packages/form"}}}
+            """;
+
+    /** Projet en lecture seule pour le compte : pas de lien createWorkPackage. */
+    static final String READ_ONLY_PROJECT = """
+            {"_links": {"self": {"href": "/api/v3/projects/2"}}}
+            """;
+
     static final String TYPES_WITH_FEATURE = """
             {"_embedded":{"elements":[
               {"id":1,"name":"Task","_links":{"self":{"href":"/api/v3/types/1"}}},
@@ -213,6 +223,75 @@ class OpenProjectIssueTrackerTest {
 
             assertEquals(fr.heliocraft.refinr.application.port.out.IssueTrackerPort.FeatureLevel.UNKNOWN,
                     tracker.featureLevel(null));
+        }
+
+        @Test
+        @DisplayName("Preview: level read from the project and its types (read permission only), never the creation form")
+        void previewReadsProjectAndTypes() throws Exception {
+            server.enqueue(json(200, PROJECT));
+            server.enqueue(json(200, TYPES_WITH_FEATURE));
+            server.enqueue(json(200, PROJECT));
+            server.enqueue(json(200, TYPES));
+
+            assertEquals(fr.heliocraft.refinr.application.port.out.IssueTrackerPort.FeatureLevel.OPTIONAL,
+                    tracker.previewFeatureLevel(null));
+            assertEquals(fr.heliocraft.refinr.application.port.out.IssueTrackerPort.FeatureLevel.NONE,
+                    tracker.previewFeatureLevel("other"));
+
+            assertEquals("/api/v3/projects/refinr-spike", next().getPath());
+            assertEquals("/api/v3/projects/refinr-spike/types", next().getPath());
+            assertEquals("/api/v3/projects/other", next().getPath());
+            assertEquals("/api/v3/projects/other/types", next().getPath());
+            assertEquals(4, server.getRequestCount(), "no form read");
+        }
+
+        @Test
+        @DisplayName("Preview, read-only project (no createWorkPackage link): permission error naming the project")
+        void previewWithoutPermissionToCreate() {
+            server.enqueue(json(200, READ_ONLY_PROJECT));
+
+            fr.heliocraft.refinr.application.port.out.TrackerPermissionException error = assertThrows(
+                    fr.heliocraft.refinr.application.port.out.TrackerPermissionException.class,
+                    () -> tracker.previewFeatureLevel("refinr-spike-ro"));
+            assertEquals("Refinr has no permission to create work packages in project refinr-spike-ro", error.getMessage());
+            assertEquals(1, server.getRequestCount());
+        }
+
+        @Test
+        @DisplayName("Preview, 403 MissingPermission while reading the types: permission error, never the response body")
+        void previewForbiddenTypes() {
+            server.enqueue(json(200, PROJECT));
+            server.enqueue(json(403, "{\"_type\":\"Error\",\"errorIdentifier\":"
+                    + "\"urn:openproject-org:api:v3:errors:MissingPermission\",\"message\":\"secret detail\"}"));
+
+            fr.heliocraft.refinr.application.port.out.TrackerPermissionException error = assertThrows(
+                    fr.heliocraft.refinr.application.port.out.TrackerPermissionException.class,
+                    () -> tracker.previewFeatureLevel(null));
+            assertEquals("Refinr has no permission to read the work package types of project refinr-spike",
+                    error.getMessage());
+        }
+
+        @Test
+        @DisplayName("Preview, project unreachable or not found: unknown level, never an exception")
+        void previewUnknown() {
+            server.enqueue(json(404, "{\"_type\":\"Error\",\"message\":\"not found\"}"));
+
+            assertEquals(fr.heliocraft.refinr.application.port.out.IssueTrackerPort.FeatureLevel.UNKNOWN,
+                    tracker.previewFeatureLevel(null));
+        }
+
+        @Test
+        @DisplayName("Preview after a creation: level from the resolved setup, no request")
+        void previewFromTheResolvedSetup() throws Exception {
+            server.enqueue(json(200, TYPES_WITH_FEATURE));
+            server.enqueue(json(200, FORM));
+            server.enqueue(created(10));
+            tracker.createEpic(epic(), null);
+            int requests = server.getRequestCount();
+
+            assertEquals(fr.heliocraft.refinr.application.port.out.IssueTrackerPort.FeatureLevel.OPTIONAL,
+                    tracker.previewFeatureLevel(null));
+            assertEquals(requests, server.getRequestCount());
         }
     }
 

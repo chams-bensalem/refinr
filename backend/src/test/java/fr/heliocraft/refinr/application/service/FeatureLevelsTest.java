@@ -54,7 +54,7 @@ class FeatureLevelsTest {
 
     private static List<String> warnings(FeatureLevel level, FeatureLevels.Policy policy, List<Epic> epics) {
         IssueTrackerPort tracker = mock(IssueTrackerPort.class);
-        when(tracker.featureLevel(null)).thenReturn(level);
+        when(tracker.previewFeatureLevel(null)).thenReturn(level);
         return new DescribeTrackerService(tracker, policy).featureWarnings(epics, null);
     }
 
@@ -72,7 +72,7 @@ class FeatureLevelsTest {
                 warnings(FeatureLevel.UNKNOWN, FeatureLevels.Policy.LABEL, explicit));
 
         IssueTrackerPort down = mock(IssueTrackerPort.class);
-        when(down.featureLevel(null)).thenThrow(new IllegalStateException("down"));
+        when(down.previewFeatureLevel(null)).thenThrow(new IllegalStateException("down"));
         assertEquals(List.of(FeatureLevels.UNCHECKED_WARNING), new DescribeTrackerService(down).featureWarnings(explicit, null));
         assertTrue(new DescribeTrackerService(down).featureWarnings(implicit, null).isEmpty(), "no lookup without explicit features");
     }
