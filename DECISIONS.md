@@ -676,3 +676,18 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
   (changement de comportement accepté par le mainteneur, signalé dans le CHANGELOG et la PR).
 - Lots de 10 stories, logique commune au prompt 4 (`LlmStoryBatches`). Mesure : `eval/generation/results/2026-11-23-c2-summary.md`.
 
+## Lignes de verdict remplacées (v1.5, B3)
+
+- **Une seule ligne de verdict courante** : à chaque réévaluation ou validation, les lignes de verdict courantes sont
+  barrées (Jira : marque ADF `strike` ; OpenProject : `~~…~~`) avec une mention datée selon la langue, et la précision
+  et la nouvelle ligne sont insérées juste après la dernière ligne de verdict, pour garder l'historique groupé et le
+  reste de la description (note du PO après les labels, cas de test) intact. OpenProject réécrit maintenant la
+  description dans le même PATCH que le champ du verdict ; le commentaire reste l'historique de l'échange.
+- **Le modèle ne voit jamais un verdict précédent** : lignes de verdict (courantes et barrées) retirées du texte des
+  prompts 3, 4 et 5 ; les précisions précédentes restent. La dernière question ouverte (raison de la dernière ligne
+  `validation-necessaire`, absente si la dernière est `ai-ready`) va dans un champ à part du prompt 3 (`verdict-v3.3`,
+  ligne conditionnelle : sans question, texte de `verdict-v3.2`). Version du prompt 3 distincte de celle du prompt 2
+  (`verdict-v3.2`, E0 et clé du cache des verdicts inchangées).
+- **Première mesure du prompt 3** : 20 stories `not-ready / sure` du jeu E0, une précision qui répond et une hors sujet
+  par story (relues par le mainteneur), avant / après ; critères dans `eval/reassessment/README.md`.
+

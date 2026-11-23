@@ -93,7 +93,8 @@ public final class StoryMarkdown {
         while (lineStart <= text.length()) {
             int end = text.indexOf('\n', lineStart);
             String line = text.substring(lineStart, end < 0 ? text.length() : end);
-            if (line.stripLeading().startsWith(VERDICT_LINE_PREFIX)) {
+            // Ligne courante ou remplacee (barree) : la section se place avant tout l'historique du verdict
+            if (isVerdictLine(line)) {
                 return lineStart;
             }
             if (end < 0) {
@@ -163,7 +164,129 @@ public final class StoryMarkdown {
 
     /** Ligne de la precision fournie par l'utilisateur lors d'une reevaluation. */
     public static String precisionLine(String precision) {
-        return "Precision de l'utilisateur (reevaluation): " + precision;
+        return precisionLine(precision, fr.heliocraft.refinr.domain.model.Language.FR);
+    }
+
+    /** Ligne de la precision, prefixe dans la langue de la reevaluation (francais, sinon anglais). */
+    public static String precisionLine(String precision, fr.heliocraft.refinr.domain.model.Language language) {
+        return (french(language) ? "Précision de l'utilisateur (réévaluation) : " : "User clarification (reassessment): ")
+                + precision;
+    }
+
+    /** Mention ajoutee a une ligne de verdict remplacee : « (remplacée le AAAA-MM-JJ) » ou « (replaced on …) ». */
+    public static String replacedSuffix(fr.heliocraft.refinr.domain.model.Language language, java.time.LocalDate date) {
+        return french(language) ? " (remplacée le " + date + ")" : " (replaced on " + date + ")";
+    }
+
+    private static boolean french(fr.heliocraft.refinr.domain.model.Language language) {
+        return language == null || language.isFrench();
+    }
+
+    private static final java.util.regex.Pattern LEADING_BULLET = java.util.regex.Pattern.compile("^[-*+][ \\t]++");
+    private static final java.util.regex.Pattern VERDICT =
+            java.util.regex.Pattern.compile("^AI readiness \\(([^)]{0,40})\\):[ \\t]*+(.*)$");
+
+    /** Texte d'une ligne sans puce, gras ni barre : ce qui suit reste a comparer au prefixe du verdict. */
+    private static String bare(String line) {
+        String t = decodeEntities(line).strip();
+        t = LEADING_BULLET.matcher(t).replaceFirst("");
+        return t.startsWith("~~") ? t.substring(2) : t;
+    }
+
+    /**
+     * Vrai si la ligne est une ligne de verdict, courante ou remplacee (barree) ; tolere le texte reecrit par un
+     * editeur (puce, entites, espaces en tete).
+     */
+    public static boolean isVerdictLine(String line) {
+        return line != null && bare(line).startsWith(VERDICT_LINE_PREFIX);
+    }
+
+    /** Vrai si la ligne est une ligne de verdict deja remplacee (barree). */
+    public static boolean isReplacedVerdictLine(String line) {
+        if (!isVerdictLine(line)) {
+            return false;
+        }
+        String t = LEADING_BULLET.matcher(decodeEntities(line).strip()).replaceFirst("");
+        return t.startsWith("~~");
+    }
+
+    /**
+     * Texte envoye au modele (prompts 3, 4, 5) : entites decodees, lignes de verdict (courantes et remplacees)
+     * retirees ; les precisions precedentes restent.
+     */
+    public static String forModel(String description) {
+        if (description == null) {
+            return null;
+        }
+        StringBuilder out = new StringBuilder();
+        for (String line : decodeEntities(description).split("\n", -1)) {
+            if (!isVerdictLine(line)) {
+                out.append(line).append('\n');
+            }
+        }
+        return out.toString().replaceAll("\n{3,}", "\n\n").strip();
+    }
+
+    /**
+     * Derniere question ouverte : la raison de la derniere ligne de verdict si elle est {@code validation-necessaire} ;
+     * null si la derniere est {@code ai-ready} ou s'il n'y en a pas.
+     */
+    public static String lastOpenQuestion(String description) {
+        if (description == null) {
+            return null;
+        }
+        String verdict = null;
+        String reason = null;
+        for (String line : description.split("\n", -1)) {
+            if (!isVerdictLine(line)) {
+                continue;
+            }
+            java.util.regex.Matcher m = VERDICT.matcher(bare(line));
+            if (m.matches()) {
+                verdict = m.group(1).strip();
+                String text = m.group(2);
+                int struck = text.indexOf("~~");
+                reason = (struck >= 0 ? text.substring(0, struck) : text).strip();
+            }
+        }
+        return ReadinessPolicy.LABEL_VALIDATION.equals(verdict) && reason != null && !reason.isEmpty() ? reason : null;
+    }
+
+    /**
+     * Markdown (OpenProject) : chaque ligne de verdict courante est barree avec la mention de remplacement, puis
+     * {@code block} (precision eventuelle et nouvelle ligne) est insere juste apres la derniere ligne de verdict
+     * (a la fin s'il n'y en a pas). Le reste du texte (note du PO comprise) est intact.
+     */
+    public static String replaceVerdict(String markdown, String suffix, String block) {
+        String text = markdown != null ? markdown.stripTrailing() : "";
+        String[] lines = text.isEmpty() ? new String[0] : text.split("\n", -1);
+        int last = -1;
+        for (int i = 0; i < lines.length; i++) {
+            if (isVerdictLine(lines[i])) {
+                last = i;
+                if (!isReplacedVerdictLine(lines[i])) {
+                    java.util.regex.Matcher bullet = LEADING_BULLET.matcher(lines[i].stripLeading());
+                    String indent = lines[i].substring(0, lines[i].length() - lines[i].stripLeading().length());
+                    String prefix = bullet.find() ? bullet.group() : "";
+                    String body = lines[i].stripLeading().substring(prefix.length()).stripTrailing();
+                    lines[i] = indent + prefix + "~~" + body + "~~" + suffix;
+                }
+            }
+        }
+        if (last < 0) {
+            return text.isEmpty() ? block : text + "\n\n" + block;
+        }
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            out.append(lines[i]);
+            if (i == last) {
+                out.append("\n\n").append(block);
+            }
+            if (i < lines.length - 1) {
+                out.append('\n');
+            }
+        }
+        return out.toString();
     }
 
     /** Ligne du nouveau verdict apres une reevaluation (justification par defaut si absente). */

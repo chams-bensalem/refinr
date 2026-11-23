@@ -26,5 +26,16 @@ public interface ReadinessAssessorPort {
      *
      * @throws LlmException fournisseur indisponible, sortie invalide ou tronquee
      */
-    Readiness reassess(String summary, String description, String precision, Language language);
+    default Readiness reassess(String summary, String description, String precision, Language language) {
+        return reassess(summary, description, precision, null, language);
+    }
+
+    /**
+     * Reevaluation avec la derniere question ouverte ({@code previousQuestion}, raison de la derniere ligne
+     * {@code validation-necessaire}, null s'il n'y en a pas), donnee de la story. {@code description} est envoyee sans
+     * ses lignes de verdict (B3).
+     *
+     * @throws LlmException fournisseur indisponible, sortie invalide ou tronquee
+     */
+    Readiness reassess(String summary, String description, String precision, String previousQuestion, Language language);
 }

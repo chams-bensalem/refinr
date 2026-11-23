@@ -338,30 +338,50 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
      */
     @Override
     public void applyReassessment(TrackedStory story, String precision, Readiness readiness) {
-        applyVerdict(story, precision, readiness);
+        applyVerdict(story, precision, readiness, fr.heliocraft.refinr.domain.model.Language.FR);
+    }
+
+    @Override
+    public void applyReassessment(TrackedStory story, String precision, Readiness readiness,
+                                  fr.heliocraft.refinr.domain.model.Language language) {
+        applyVerdict(story, precision, readiness, language);
     }
 
     /** Validation humaine directe : ligne du verdict seule en commentaire, puis verdict ecrit dans le champ liste. */
     @Override
     public void applyHumanValidation(TrackedStory story, Readiness readiness) {
-        applyVerdict(story, null, readiness);
+        applyVerdict(story, null, readiness, fr.heliocraft.refinr.domain.model.Language.FR);
     }
 
-    private void applyVerdict(TrackedStory story, String precision, Readiness readiness) {
+    @Override
+    public void applyHumanValidation(TrackedStory story, Readiness readiness,
+                                     fr.heliocraft.refinr.domain.model.Language language) {
+        applyVerdict(story, null, readiness, language);
+    }
+
+    /**
+     * Commentaire (historique de l'echange), puis un seul PATCH : description (ancienne ligne de verdict barree avec la
+     * mention de remplacement, precision et nouvelle ligne juste apres) et champ du verdict ; relecture juste avant
+     * (lockVersion) et une seule nouvelle tentative sur conflit 409.
+     */
+    private void applyVerdict(TrackedStory story, String precision, Readiness readiness,
+                              fr.heliocraft.refinr.domain.model.Language language) {
         String key = story.key();
         String verdict = ReadinessPolicy.verdictLabel(readiness.aiReady());
         log.info("Applying {} to {}: {}", precision != null ? "reassessment" : "human validation", key, verdict);
         String line = StoryMarkdown.reassessedReadinessLine(readiness);
-        comment(key, precision != null ? StoryMarkdown.precisionLine(precision) + "\n\n" + line : line);
+        String block = precision != null ? StoryMarkdown.precisionLine(precision, language) + "\n\n" + line : line;
+        comment(key, block);
+        String suffix = StoryMarkdown.replacedSuffix(language, java.time.LocalDate.now(java.time.ZoneOffset.UTC));
         try {
-            patchVerdict(key, verdict);
+            patchVerdict(key, verdict, suffix, block);
         } catch (WebClientResponseException e) {
             if (e.getStatusCode().value() != 409) {
                 throw failure("update the verdict of work package " + key, e);
             }
             log.warn("Update conflict on work package {}: reading it again and retrying once", key);
             try {
-                patchVerdict(key, verdict);
+                patchVerdict(key, verdict, suffix, block);
             } catch (WebClientResponseException again) {
                 throw failure("update the verdict of work package " + key
                         + (again.getStatusCode().value() == 409 ? " (conflict persisted after one retry)" : ""), again);
@@ -445,12 +465,21 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
         return true;
     }
 
-    /** Relit le work package (lockVersion a jour) puis PATCH du verdict ; laisse passer les erreurs HTTP du PATCH. */
-    private void patchVerdict(String key, String verdict) {
+    /**
+     * Relit le work package (lockVersion a jour) puis PATCH du verdict et de la description (B3) ; laisse passer les
+     * erreurs HTTP du PATCH.
+     */
+    private void patchVerdict(String key, String verdict, String suffix, String block) {
         WorkPackage current = read(key);
         ProjectSetup setup = setup(current.projectId());
+        String description = StoryMarkdown.replaceVerdict(current.description(), suffix, block);
+        if (description.length() > StoryMarkdown.MAX_DESCRIPTION) {
+            throw new IssueTrackerException("the description of work package " + key + " would exceed "
+                    + StoryMarkdown.MAX_DESCRIPTION + " characters: verdict not written");
+        }
         Map<String, Object> body = Map.of(
                 "lockVersion", current.lockVersion(),
+                "description", Map.of("format", "markdown", "raw", description),
                 "_links", Map.of(setup.readinessKey(), Map.of("href", setup.optionHref(verdict))));
         String id = workPackageId(key);
         try {

@@ -73,7 +73,7 @@ class StoryMarkdownTest {
     @Test
     @DisplayName("Reassessment lines: precision, then the new verdict with a default justification")
     void reassessmentLines() {
-        assertEquals("Precision de l'utilisateur (reevaluation): Slack #stock", StoryMarkdown.precisionLine("Slack #stock"));
+        assertEquals("Précision de l'utilisateur (réévaluation) : Slack #stock", StoryMarkdown.precisionLine("Slack #stock"));
         assertEquals("AI readiness (ai-ready): Channel known.",
                 StoryMarkdown.reassessedReadinessLine(new Readiness(true, "Channel known.")));
         assertEquals("AI readiness (validation-necessaire): non precise par l'analyse",

@@ -766,6 +766,12 @@ curl -s -X POST http://localhost:8080/api/v1/reassess-story -H "Content-Type: ap
 # { "success": true, "issueKey": "PROJ-42", "aiReady": true, "aiReadyReason": "Scope and criteria are now complete.", "aiReadySource": "model" }
 ```
 
+**In the ticket**: the previous verdict line is struck through and dated (`~~AI readiness (validation-necessaire): …~~
+(replaced on 2026-11-24)`, French: `(remplacée le …)`), and the clarification and the new verdict line come right after
+it, so the description always has a single current verdict line and the rest (a note added after the labels, the test
+cases) is left as it is. On OpenProject, the exchange is also kept as a comment. The model never sees the old verdict
+lines: they are removed from the text it receives, and the last open question is given to it separately.
+
 Or validate it yourself, without any LLM call (same guard: `409` if the story is not `validation-necessaire`):
 
 ```bash

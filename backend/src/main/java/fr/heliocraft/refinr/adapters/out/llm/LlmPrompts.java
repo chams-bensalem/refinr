@@ -44,6 +44,11 @@ final class LlmPrompts {
 
     /** Version des prompts de verdict : fait partie de la cle du cache (un prompt modifie invalide le cache). */
     static final String VERDICT_PROMPT_VERSION = "verdict-v3.2";
+    /** Version du prompt 3 (reevaluation) : derniere question ouverte en champ separe, lignes de verdict retirees (B3). */
+    static final String REASSESSMENT_PROMPT_VERSION = "verdict-v3.3";
+    /** Marqueur de ligne du prompt 3 : gardee seulement s'il y a une question ouverte precedente. */
+    static final String IF_QUESTION = "{{IF_QUESTION}}";
+
     /** Version du prompt de generation (prompt 1), relevee dans les mesures ; le verdict garde sa propre version. */
     static final String GENERATION_PROMPT_VERSION = "generation-v2";
     /** Version du prompt de generation de la chaine C1 (sans sous-taches). */
@@ -184,10 +189,26 @@ final class LlmPrompts {
 
     /** Prompt 3 : reevaluation d'une story jugee non prete, avec la precision de l'utilisateur. */
     static String reassessment(String summary, String description, String precision, Language language) {
+        return reassessment(summary, description, precision, null, language);
+    }
+
+    /**
+     * Prompt 3 avec la derniere question ouverte ({@code previousQuestion}, une donnee) ; null ou vide : la ligne est
+     * retiree et le texte est celui de verdict-v3.2.
+     */
+    static String reassessment(String summary, String description, String precision, String previousQuestion,
+                               Language language) {
         Texts t = texts(language);
-        return fill(t.reassessment(), Map.of("READINESS", t.readiness(), "TITLE", String.valueOf(summary),
+        boolean question = previousQuestion != null && !previousQuestion.isBlank();
+        String template = question ? t.reassessment().replace(IF_QUESTION, "")
+                : t.reassessment().replaceAll("(?m)^" + java.util.regex.Pattern.quote(IF_QUESTION) + ".*\\R", "");
+        Map<String, String> values = new java.util.HashMap<>(Map.of("READINESS", t.readiness(), "TITLE", String.valueOf(summary),
                 "DESCRIPTION", String.valueOf(description), "PRECISION", String.valueOf(precision),
                 "LANGUAGE", languageName(language)));
+        if (question) {
+            values.put("PREVIOUS_QUESTION", previousQuestion.strip());
+        }
+        return fill(template, values);
     }
 
     /**

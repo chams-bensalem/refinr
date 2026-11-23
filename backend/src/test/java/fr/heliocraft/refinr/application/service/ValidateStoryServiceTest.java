@@ -32,8 +32,8 @@ class ValidateStoryServiceTest {
 
         assertTrue(verdict.aiReady());
         assertEquals(ReadinessSource.HUMAN, verdict.source());
-        verify(tracker).applyHumanValidation(story, verdict);
-        verify(tracker, never()).applyReassessment(any(), any(), any());
+        verify(tracker).applyHumanValidation(eq(story), eq(verdict), any());
+        verify(tracker, never()).applyReassessment(any(), any(), any(), any());
     }
 
     @Test
@@ -44,6 +44,6 @@ class ValidateStoryServiceTest {
 
         assertThrows(StoryNotAwaitingValidationException.class, () -> service.validate("PROJ-7"));
 
-        verify(tracker, never()).applyHumanValidation(any(), any());
+        verify(tracker, never()).applyHumanValidation(any(), any(), any());
     }
 }

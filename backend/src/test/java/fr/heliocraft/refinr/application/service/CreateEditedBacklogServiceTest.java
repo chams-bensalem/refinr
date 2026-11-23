@@ -25,7 +25,7 @@ class CreateEditedBacklogServiceTest {
         final List<String> assessed = new ArrayList<>();
 
         @Override
-        public Readiness reassess(String summary, String description, String precision, Language language) {
+        public Readiness reassess(String summary, String description, String precision, String previousQuestion, Language language) {
             throw new UnsupportedOperationException();
         }
 

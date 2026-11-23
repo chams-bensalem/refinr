@@ -782,6 +782,13 @@ curl -s -X POST http://localhost:8080/api/v1/reassess-story -H "Content-Type: ap
 # { "success": true, "issueKey": "PROJ-42", "aiReady": true, "aiReadyReason": "Périmètre et critères désormais complets.", "aiReadySource": "model" }
 ```
 
+**Dans le ticket** : l'ancienne ligne de verdict est barrée et datée (`~~AI readiness (validation-necessaire): …~~
+(remplacée le 2026-11-24)`, en anglais `(replaced on …)`), et la précision et la nouvelle ligne de verdict viennent
+juste après : la description n'a toujours qu'une ligne de verdict courante, et le reste (une note ajoutée après les
+labels, les cas de test) n'est pas touché. Sur OpenProject, l'échange reste aussi en commentaire. Le modèle ne voit
+jamais les anciennes lignes de verdict : elles sont retirées du texte qu'il reçoit, et la dernière question ouverte
+lui est donnée à part.
+
 Ou validez-la vous-même, sans appel à l'IA (même garde : `409` si la story n'est pas `validation-necessaire`) :
 
 ```bash

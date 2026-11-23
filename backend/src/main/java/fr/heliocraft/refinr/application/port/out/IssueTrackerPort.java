@@ -95,4 +95,20 @@ public interface IssueTrackerPort {
      * {@code ai-ready}, comme une reevaluation.
      */
     void applyHumanValidation(TrackedStory story, Readiness verdict);
+
+    /**
+     * B3 : comme {@link #applyReassessment(TrackedStory, String, Readiness)}, l'ancienne ligne de verdict etant
+     * marquee comme remplacee (barree, « (remplacée le …) » / « (replaced on …) » selon {@code language}) et la
+     * precision et la nouvelle ligne inserees juste apres la derniere ligne de verdict.
+     */
+    default void applyReassessment(TrackedStory story, String precision, Readiness verdict,
+                                   fr.heliocraft.refinr.domain.model.Language language) {
+        applyReassessment(story, precision, verdict);
+    }
+
+    /** B3 : comme {@link #applyHumanValidation(TrackedStory, Readiness)}, avec le marquage de l'ancienne ligne. */
+    default void applyHumanValidation(TrackedStory story, Readiness verdict,
+                                      fr.heliocraft.refinr.domain.model.Language language) {
+        applyHumanValidation(story, verdict);
+    }
 }

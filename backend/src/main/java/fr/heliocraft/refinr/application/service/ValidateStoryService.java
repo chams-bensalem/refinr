@@ -36,9 +36,10 @@ public class ValidateStoryService implements ValidateStory {
             throw new StoryNotAwaitingValidationException(storyKey);
         }
         // Raison ecrite dans le ticket : langue demandee, puis propriete, puis detection sur la story
-        Readiness verdict = ReadinessPolicy.humanValidation(
-                languagePolicy.resolve(requested, story.summary() + "\n" + story.description()));
-        issueTracker.applyHumanValidation(story, verdict);
+        fr.heliocraft.refinr.domain.model.Language language =
+                languagePolicy.resolve(requested, story.summary() + "\n" + story.description());
+        Readiness verdict = ReadinessPolicy.humanValidation(language);
+        issueTracker.applyHumanValidation(story, verdict, language);
         return verdict;
     }
 }

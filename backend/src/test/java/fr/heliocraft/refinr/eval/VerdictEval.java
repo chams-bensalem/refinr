@@ -242,6 +242,11 @@ public final class VerdictEval {
                         opts.containsKey("cap") ? Integer.valueOf(opts.get("cap")) : null, Double.parseDouble(opts.getOrDefault("budget", "20")),
                         opts.getOrDefault("phase", "E0"), Boolean.parseBoolean(opts.getOrDefault("pipeline", "false")));
             }
+            case "reassess" -> {
+                refuseAutomatedRun(System.getenv(), System.getProperties());
+                eval.reassess(eval.setup(Target.of(arg(positional, 1)), config), Path.of(arg(positional, 2)), opts.get("out"),
+                        Double.parseDouble(opts.getOrDefault("budget", "20")), opts.getOrDefault("phase", "E0"));
+            }
             case "test-cases" -> {
                 refuseAutomatedRun(System.getenv(), System.getProperties());
                 eval.testCases(Target.of(arg(positional, 1)), config, positional.subList(2, positional.size()), opts.get("out"),
@@ -293,6 +298,7 @@ public final class VerdictEval {
                   summarize <resultsDir> [--baseline DIR[,DIR]]      metrics against the labels (no model call)
                   generate  <target> <spec.md>... [--out DIR] [--cap N] [--budget 20] [--phase E0] [--pipeline true]   CALLS THE MODEL
                   probe-schema <target> [--out DIR] [--budget 20] [--phase E0] [--schema backlog|backlog-stories|story-tasks|story-test-cases]   CALLS THE MODEL (Anthropic, 1 call)
+                  reassess <target> <precisions.jsonl> [--out DIR] [--budget 20] [--phase E0]   CALLS THE MODEL (prompt 3, before = verdict-v3.2 / after = verdict-v3.3)
                   test-cases <target> <backlog.json>... [--out DIR] [--passes 1] [--budget 20] [--phase E0]   CALLS THE MODEL (prompt 5 only, ready stories of saved backlogs)
                             backlog generation (analysis role) of each spec, one call each, saved as <spec>.json""");
     }
@@ -975,6 +981,85 @@ public final class VerdictEval {
             }
         }
         System.out.println("coverage repairs triggered: " + generator.repairsTriggered());
+        System.out.println("done: " + out);
+    }
+
+    /**
+     * Mesure B3 du prompt 3 : pour chaque story du jeu E0 de {@code precisions.jsonl}, la precision qui repond et la
+     * precision hors sujet, en version « avant » (description complete, ligne de verdict comprise, sans champ de
+     * question : texte verdict-v3.2) et « apres » (verdict-v3.3 : lignes de verdict retirees, derniere question ouverte
+     * dans son champ). Sortie : {@code runs.csv} (id, precision, version, verdict, raison) et {@code calls.csv}.
+     */
+    void reassess(Setup s, Path precisions, String outOption, double budget, String phase) throws Exception {
+        describe(s);
+        if (!s.optionalParams().isEmpty() && s.target() != Target.ENV) {
+            throw new IllegalStateException("optional parameters would be sent to the evaluation model: " + s.optionalParams());
+        }
+        if (s.settings().apiKey().isBlank() && s.target() != Target.ENV) throw new IllegalStateException("EVAL_ANTHROPIC_API_KEY is empty");
+        Price price = price(s);
+        if (price == null && s.target() != Target.ENV) throw new IllegalStateException("no price for " + s.settings().model());
+        JsonMapper json = JsonMapper.builder().build();
+        java.util.Map<String, JsonNode> byId = new java.util.LinkedHashMap<>();
+        for (String line : Files.readAllLines(dataDir.resolve("stories.jsonl"), StandardCharsets.UTF_8)) {
+            if (!line.isBlank()) {
+                JsonNode node = json.readTree(line);
+                byId.put(node.path("id").asString(""), node);
+            }
+        }
+        Path out = outOption != null ? Path.of(outOption) : root.resolve("eval/reassessment/results")
+                .resolve(LocalDate.now(ZONE) + "-" + s.settings().provider().id() + "-" + s.settings().model());
+        Files.createDirectories(out);
+        Files.createDirectories(stateDir);
+        Meter meter = new Meter(s, price, out.resolve("calls.csv"), null, budget, phase);
+        fr.heliocraft.refinr.adapters.out.llm.LlmReadinessAssessor assessor = new fr.heliocraft.refinr.adapters.out.llm
+                .LlmReadinessAssessor(MeteredLlmClients.create(s.settings(), meter), new StructuredOutput(s.repairs()), 10);
+        Path runsCsv = out.resolve("runs.csv");
+        int position = 0;
+        for (String line : Files.readAllLines(precisions, StandardCharsets.UTF_8)) {
+            if (line.isBlank()) continue;
+            JsonNode p = json.readTree(line);
+            String id = p.path("id").asString("");
+            JsonNode story = byId.get(id);
+            if (story == null) throw new IllegalStateException("unknown story " + id);
+            Story domain = new Story();
+            domain.setTitle(story.path("title").asString(""));
+            domain.setDescription(story.path("description").asString(""));
+            List<String> criteria = new ArrayList<>();
+            story.path("acceptanceCriteria").forEach(c -> criteria.add(c.asString("")));
+            domain.setAcceptanceCriteria(criteria);
+            domain.setAiReady(false);
+            domain.setAiReadyReason(p.path("question").asString(""));
+            // Description telle que Refinr l'ecrit dans le ticket : recit, criteres, ligne de verdict (question)
+            String written = fr.heliocraft.refinr.domain.service.StoryMarkdown.description(domain);
+            for (String kind : List.of("answering", "offTopic")) {
+                String precision = p.path(kind).asString("");
+                for (String version : List.of("before", "after")) {
+                    meter.run = 1;
+                    meter.batch = ++position;
+                    Readiness verdict;
+                    try {
+                        verdict = "before".equals(version)
+                                ? assessor.reassess(domain.getTitle(), written, precision, null, fr.heliocraft.refinr.domain.model.Language.FR)
+                                : assessor.reassess(domain.getTitle(),
+                                        fr.heliocraft.refinr.domain.service.StoryMarkdown.forModel(written), precision,
+                                        fr.heliocraft.refinr.domain.service.StoryMarkdown.lastOpenQuestion(written),
+                                        fr.heliocraft.refinr.domain.model.Language.FR);
+                    } catch (Stop stop) {
+                        stopFile(out, stop.reason, 1, position, meter);
+                        return;
+                    } catch (RuntimeException e) {
+                        stopFile(out, "error-" + e.getClass().getSimpleName(), 1, position, meter);
+                        System.out.println("error: " + e.getMessage());
+                        return;
+                    }
+                    appendLine(runsCsv, "id,precision,version,ai_ready,reason", Csv.line(List.of(id, kind, version,
+                            String.valueOf(verdict.aiReady()), verdict.aiReadyReason() != null ? verdict.aiReadyReason() : "")));
+                    System.out.printf(Locale.ROOT, "%s %s %s: %s, calls today %d%s%n", id, kind, version,
+                            verdict.aiReady() ? "ready" : "not ready", meter.calls(),
+                            price == null ? "" : String.format(Locale.ROOT, ", spent %.4f USD", meter.spent()));
+                }
+            }
+        }
         System.out.println("done: " + out);
     }
 
