@@ -21,8 +21,9 @@ import java.util.regex.Pattern;
 /**
  * Prompts envoyes aux modeles (le format de sortie est en plus impose par le schema JSON), charges de deux ressources
  * seulement : {@code llm/prompts/prompts.fr.md} pour le francais, {@code llm/prompts/prompts.en.md} pour l'anglais et
- * toute autre langue. Chaque fichier contient sept blocs de code, dans l'ordre : message systeme, bloc READINESS,
- * generation, verdict par lots, reevaluation, generation sans sous-taches (chaine C1), sous-taches des stories pretes. Les marqueurs {@code {{…}}} du texte sont remplaces par les valeurs ;
+ * toute autre langue. Chaque fichier contient huit blocs de code, dans l'ordre : message systeme, bloc READINESS,
+ * generation, verdict par lots, reevaluation, generation sans sous-taches (chaine C1), sous-taches des stories pretes,
+ * cas de test des stories pretes (C2). Les marqueurs {@code {{…}}} du texte sont remplaces par les valeurs ;
  * {@code {{LANGUAGE}}} recoit le nom de la langue de sortie, jamais une valeur recue d'un utilisateur.
  */
 final class LlmPrompts {
@@ -32,7 +33,7 @@ final class LlmPrompts {
 
     /** Textes d'une langue, marqueurs non remplaces. */
     record Texts(String system, String readiness, String analysis, String verdicts, String reassessment,
-                 String stories, String tasks) {}
+                 String stories, String tasks, String testCases) {}
 
     private static final Pattern BLOCK = Pattern.compile("```\\n(.*?)\\n```", Pattern.DOTALL);
     private static final Pattern MARKER = Pattern.compile("\\{\\{([A-Z_]+)\\}\\}");
@@ -49,6 +50,8 @@ final class LlmPrompts {
     static final String STORIES_PROMPT_VERSION = "generation-v3";
     /** Version du prompt des sous-taches des stories pretes (prompt 4). */
     static final String TASKS_PROMPT_VERSION = "tasks-v1";
+    /** Version du prompt des cas de test des stories pretes (prompt 5). */
+    static final String TEST_CASES_PROMPT_VERSION = "test-cases-v1";
 
     private LlmPrompts() {}
 
@@ -135,6 +138,32 @@ final class LlmPrompts {
                 "LANGUAGE", languageName(language)));
     }
 
+    /**
+     * Prompt 5 : cas de test de plusieurs stories pretes en un appel. Criteres numerotes ({@code AC1: …}) pour que
+     * chaque cas designe le sien ; stories encodees en JSON comme pour le verdict.
+     */
+    static String testCases(List<Story> stories, List<String> ids, Language language) {
+        boolean french = language.isFrench();
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (int i = 0; i < stories.size(); i++) {
+            Story story = stories.get(i);
+            List<String> criteria = new ArrayList<>();
+            List<String> source = story.getAcceptanceCriteria() != null ? story.getAcceptanceCriteria() : List.of();
+            for (int c = 0; c < source.size(); c++) {
+                criteria.add("AC" + (c + 1) + ": " + source.get(c));
+            }
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", ids.get(i));
+            item.put(french ? "titre" : "title", story.getTitle() != null ? story.getTitle() : "");
+            item.put("description", story.getDescription() != null ? story.getDescription() : "");
+            item.put(french ? "criteresAcceptation" : "acceptanceCriteria", criteria);
+            items.add(item);
+        }
+        Texts t = texts(language);
+        return fill(t.testCases(), Map.of("STORIES_JSON", JSON.writerWithDefaultPrettyPrinter().writeValueAsString(items),
+                "LANGUAGE", languageName(language)));
+    }
+
     /** Prompt 3 : reevaluation d'une story jugee non prete, avec la precision de l'utilisateur. */
     static String reassessment(String summary, String description, String precision, Language language) {
         Texts t = texts(language);
@@ -161,18 +190,18 @@ final class LlmPrompts {
         return out.toString();
     }
 
-    /** Sept blocs de code, dans l'ordre ; tout autre contenu du fichier est ignore. */
+    /** Huit blocs de code, dans l'ordre ; tout autre contenu du fichier est ignore. */
     static Texts parse(String markdown, String name) {
         List<String> blocks = new ArrayList<>();
         Matcher m = BLOCK.matcher(markdown);
         while (m.find()) {
             blocks.add(m.group(1));
         }
-        if (blocks.size() != 7) {
-            throw new IllegalStateException(name + ": expected 7 prompt blocks, found " + blocks.size());
+        if (blocks.size() != 8) {
+            throw new IllegalStateException(name + ": expected 8 prompt blocks, found " + blocks.size());
         }
         return new Texts(blocks.get(0), blocks.get(1), blocks.get(2), blocks.get(3), blocks.get(4), blocks.get(5),
-                blocks.get(6));
+                blocks.get(6), blocks.get(7));
     }
 
     private static Texts load(String resource) {

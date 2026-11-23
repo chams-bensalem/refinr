@@ -77,10 +77,10 @@ class LlmPromptsTest {
         assertEquals(fr.lines().filter(l -> l.startsWith("## ")).count(), en.lines().filter(l -> l.startsWith("## ")).count(),
                 "same number of sections");
         List<String> frBlocks = blocks(fr), enBlocks = blocks(en);
-        assertEquals(7, frBlocks.size());
-        assertEquals(7, enBlocks.size());
+        assertEquals(8, frBlocks.size());
+        assertEquals(8, enBlocks.size());
         long frRules = 0, enRules = 0;
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < 8; i++) {
             assertEquals(markers(frBlocks.get(i)), markers(enBlocks.get(i)), "same markers, same order, block " + i);
             assertEquals(rules(frBlocks.get(i)), rules(enBlocks.get(i)), "same number of rules, block " + i);
             assertEquals(jsonLines(frBlocks.get(i)), jsonLines(enBlocks.get(i)), "identical JSON, block " + i);
@@ -88,9 +88,9 @@ class LlmPromptsTest {
             enRules += rules(enBlocks.get(i));
         }
         // 59 regles : 33 (generation-v2 et READINESS : 29 + 4 regles de taille du niveau Feature) + 20 (generation-v3 :
-        // le prompt 1 sans ses 4 regles de sous-taches) + 6 (tasks-v1)
-        assertEquals(59, frRules);
-        assertEquals(59, enRules);
+        // le prompt 1 sans ses 4 regles de sous-taches) + 6 (tasks-v1) + 6 (test-cases-v1)
+        assertEquals(65, frRules);
+        assertEquals(65, enRules);
     }
 
     @Test
@@ -104,6 +104,15 @@ class LlmPromptsTest {
             assertTrue(stories.contains("SPEC") && stories.contains("aiReadyReason"), "READINESS and document kept");
             assertFalse(stories.contains("estimatedHours"));
         }
+    }
+
+    @Test
+    @DisplayName("Parity of prompt 5: story JSON differs only by key names; criteria numbered AC1, AC2…")
+    void testCasesJsonDiffersOnlyByKeyNames() {
+        String fr = storiesJson(LlmPrompts.testCases(List.of(story()), List.of("s1"), Language.FR), "STORIES (JSON) :\n");
+        String en = storiesJson(LlmPrompts.testCases(List.of(story()), List.of("s1"), Language.EN), "STORIES (JSON):\n");
+        assertEquals(en, fr.replace("\"titre\"", "\"title\"").replace("\"criteresAcceptation\"", "\"acceptanceCriteria\""));
+        assertTrue(en.contains("\"AC1: "), en);
     }
 
     @Test
@@ -158,6 +167,9 @@ class LlmPromptsTest {
                 LlmPrompts.stories("DOC", language));
         String tasks = LlmPrompts.tasks(List.of(story()), java.util.Collections.singletonList(null), List.of("s1"), language);
         assertEquals(b.get(6).replace("{{STORIES_JSON}}", storiesJson(tasks, header)).replace("{{LANGUAGE}}", name), tasks);
+        String testCases = LlmPrompts.testCases(List.of(story()), List.of("s1"), language);
+        assertEquals(b.get(7).replace("{{STORIES_JSON}}", storiesJson(testCases, header)).replace("{{LANGUAGE}}", name),
+                testCases);
     }
 
     @ParameterizedTest(name = "{0}")
@@ -176,6 +188,10 @@ class LlmPromptsTest {
         String tasks = LlmPrompts.tasks(List.of(story()), java.util.Collections.singletonList(null), List.of("s1"), language);
         assertFalse(tasks.contains(readiness), "no READINESS block in prompt 4");
         assertFalse(tasks.contains("{{"), tasks);
+        // Prompt 5 non plus : il ecrit les cas de test de stories deja pretes
+        String testCases = LlmPrompts.testCases(List.of(story()), List.of("s1"), language);
+        assertFalse(testCases.contains(readiness), "no READINESS block in prompt 5");
+        assertFalse(testCases.contains("{{"), testCases);
     }
 
     // ---------- langue de sortie ----------

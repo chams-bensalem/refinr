@@ -22,6 +22,8 @@ final class LlmSchemas {
     static final String BACKLOG_STORIES = "backlog-stories";
     /** Chaine C1 : sous-taches de stories pretes, par identifiant. */
     static final String STORY_TASKS = "story-tasks";
+    /** Chaine C2 : cas de test de stories pretes, par identifiant. */
+    static final String STORY_TEST_CASES = "story-test-cases";
     static final String READINESS = "readiness";
     static final String READINESS_BATCH = "readiness-batch";
 

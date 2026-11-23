@@ -212,6 +212,8 @@ class RestJsonContractTest {
         story.setEstimatedStoryPoints(5);
         story.setPriority("Medium");
         story.setLabels(List.of("api"));
+        story.setTestCases(new java.util.ArrayList<>(List.of(new fr.heliocraft.refinr.domain.model.TestCase(
+                "Stock shown", "AC1", "nominal", "a product in stock", "the developer opens it", "the level is shown"))));
         story.setTasks(List.of(task));
         story.setDependencies(List.of("PROJ-0"));
         story.setAiReady(true);

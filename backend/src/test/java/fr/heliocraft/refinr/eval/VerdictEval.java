@@ -242,6 +242,12 @@ public final class VerdictEval {
                         opts.containsKey("cap") ? Integer.valueOf(opts.get("cap")) : null, Double.parseDouble(opts.getOrDefault("budget", "20")),
                         opts.getOrDefault("phase", "E0"), Boolean.parseBoolean(opts.getOrDefault("pipeline", "false")));
             }
+            case "test-cases" -> {
+                refuseAutomatedRun(System.getenv(), System.getProperties());
+                eval.testCases(Target.of(arg(positional, 1)), config, positional.subList(2, positional.size()), opts.get("out"),
+                        Integer.parseInt(opts.getOrDefault("passes", "1")), Double.parseDouble(opts.getOrDefault("budget", "20")),
+                        opts.getOrDefault("phase", "E0"));
+            }
             case "probe-schema" -> {
                 refuseAutomatedRun(System.getenv(), System.getProperties());
                 eval.probeSchema(Target.of(arg(positional, 1)), config, opts.get("out"),
@@ -286,7 +292,8 @@ public final class VerdictEval {
                   run       <target> <runs> [--out DIR] [--pause 15] [--cap N] [--budget 20] [--phase E0]   CALLS THE MODEL
                   summarize <resultsDir> [--baseline DIR[,DIR]]      metrics against the labels (no model call)
                   generate  <target> <spec.md>... [--out DIR] [--cap N] [--budget 20] [--phase E0] [--pipeline true]   CALLS THE MODEL
-                  probe-schema <target> [--out DIR] [--budget 20] [--phase E0] [--schema backlog|backlog-stories|story-tasks]   CALLS THE MODEL (Anthropic, 1 call)
+                  probe-schema <target> [--out DIR] [--budget 20] [--phase E0] [--schema backlog|backlog-stories|story-tasks|story-test-cases]   CALLS THE MODEL (Anthropic, 1 call)
+                  test-cases <target> <backlog.json>... [--out DIR] [--passes 1] [--budget 20] [--phase E0]   CALLS THE MODEL (prompt 5 only, ready stories of saved backlogs)
                             backlog generation (analysis role) of each spec, one call each, saved as <spec>.json""");
     }
 
@@ -876,6 +883,97 @@ public final class VerdictEval {
      * Sonde du schema de generation chez Anthropic : un appel (corps de production, prompt d'une phrase, sortie limitee),
      * meme configuration que {@code generate}. N'affiche que le statut HTTP, {@code error.message} et la duree.
      */
+    /**
+     * Mesure C2 : prompt 5 seul (cas de test) sur les stories pretes de backlogs deja enregistres (sortie de
+     * {@code generate}), sans generation ; une sortie par fichier et par passe : {@code <source>-pass<N>.json}.
+     */
+    void testCases(Target target, String config, List<String> backlogs, String outOption, int passes, double budget,
+                   String phase) throws Exception {
+        if (backlogs.isEmpty()) throw new IllegalArgumentException("missing backlog file(s), see usage");
+        List<String> args = new ArrayList<>(List.of("--spring.config.location=file:" + config,
+                "--logging.level.root=WARN", "--logging.level.fr.heliocraft.refinr=WARN"));
+        args.addAll(target.analysisSpringArgs());
+        Setup s;
+        try (ConfigurableApplicationContext ctx = new SpringApplicationBuilder(LlmOnly.class).web(WebApplicationType.NONE)
+                .bannerMode(Banner.Mode.OFF).logStartupInfo(false).run(args.toArray(String[]::new))) {
+            LlmProperties props = ctx.getBean(LlmProperties.class);
+            s = new Setup(target, EvalLlmSettings.analysisRole(props), EvalLlmSettings.maxRepairAttempts(props), 0,
+                    languagePolicy(ctx));
+        }
+        Price price = price(s);
+        System.out.println("target=" + target.id + " describe=" + s.settings().describe() + " prompt=test-cases-v1"
+                + " api_key_set=" + !s.settings().apiKey().isBlank() + " price=" + (price == null ? "none" : price.describe()));
+        if (target != Target.ENV) {
+            if (s.settings().apiKey().isBlank()) throw new IllegalStateException("EVAL_ANTHROPIC_API_KEY is empty");
+            if (price == null) throw new IllegalStateException("no price for " + s.settings().model() + " in eval/verdict/prices.csv");
+        }
+        Path out = outOption != null ? Path.of(outOption) : root.resolve("eval/generation/results")
+                .resolve(LocalDate.now(ZONE) + "-test-cases-" + s.settings().model());
+        Files.createDirectories(out);
+        Files.createDirectories(stateDir);
+        Meter meter = new Meter(s, price, out.resolve("calls.csv"), null, budget, phase);
+        fr.heliocraft.refinr.adapters.out.llm.LlmTestCaseGenerator generator = new fr.heliocraft.refinr.adapters.out.llm
+                .LlmTestCaseGenerator(MeteredLlmClients.create(s.settings(), meter), new StructuredOutput(s.repairs()), 10);
+        JsonMapper json = JsonMapper.builder().build();
+        for (int pass = 1; pass <= passes; pass++) {
+            for (int f = 0; f < backlogs.size(); f++) {
+                Path source = Path.of(backlogs.get(f));
+                JsonNode backlog = json.readTree(Files.readString(source, StandardCharsets.UTF_8));
+                List<fr.heliocraft.refinr.domain.model.Story> ready = new ArrayList<>();
+                StringBuilder text = new StringBuilder();
+                for (JsonNode epic : backlog.path("epics")) {
+                    for (JsonNode feature : epic.path("features")) {
+                        for (JsonNode node : feature.path("stories")) {
+                            if (!node.path("aiReady").asBoolean(false)) continue;
+                            fr.heliocraft.refinr.domain.model.Story story = new fr.heliocraft.refinr.domain.model.Story();
+                            story.setTitle(node.path("title").asString(""));
+                            story.setDescription(node.path("description").asString(""));
+                            List<String> criteria = new ArrayList<>();
+                            node.path("acceptanceCriteria").forEach(c -> criteria.add(c.asString("")));
+                            story.setAcceptanceCriteria(criteria);
+                            ready.add(story);
+                            text.append(story.getTitle()).append('\n').append(story.getDescription()).append('\n');
+                        }
+                    }
+                }
+                String name = source.getParent().getFileName() + "--" + source.getFileName().toString().replaceFirst("\\.json$", "");
+                if (ready.isEmpty()) {
+                    System.out.println(name + ": no ready story, skipped");
+                    continue;
+                }
+                // Meme regle que la chaine : sans langue demandee ni propriete, detection sur les stories
+                fr.heliocraft.refinr.domain.model.Language language = s.languages().resolve(null, text.toString());
+                meter.run = pass;
+                meter.batch = f + 1;
+                List<List<fr.heliocraft.refinr.domain.model.TestCase>> result;
+                try {
+                    result = generator.generateTestCases(ready, language);
+                } catch (Stop stop) {
+                    stopFile(out, stop.reason, pass, f + 1, meter);
+                    return;
+                } catch (RuntimeException e) {
+                    stopFile(out, "error-" + e.getClass().getSimpleName(), pass, f + 1, meter);
+                    System.out.println("error: " + e.getMessage());
+                    return;
+                }
+                List<java.util.Map<String, Object>> stories = new ArrayList<>();
+                for (int i = 0; i < ready.size(); i++) {
+                    java.util.Map<String, Object> item = new java.util.LinkedHashMap<>();
+                    item.put("title", ready.get(i).getTitle());
+                    item.put("acceptanceCriteria", ready.get(i).getAcceptanceCriteria());
+                    item.put("testCases", result.get(i));
+                    stories.add(item);
+                }
+                writeString(out.resolve(name + "-pass" + pass + ".json"), json.writerWithDefaultPrettyPrinter()
+                        .writeValueAsString(java.util.Map.of("source", source.toString().replace("../", ""),
+                                "language", language.code(), "stories", stories)));
+                System.out.printf(Locale.ROOT, "%s pass %d: %d ready stor(ies), calls today %d%s%n", name, pass, ready.size(),
+                        meter.calls(), price == null ? "" : String.format(Locale.ROOT, ", spent %.4f USD", meter.spent()));
+            }
+        }
+        System.out.println("done: " + out);
+    }
+
     void probeSchema(Target target, String config, String outOption, double budget, String phase, String schema) throws Exception {
         List<String> args = new ArrayList<>(List.of("--spring.config.location=file:" + config,
                 "--logging.level.root=WARN", "--logging.level.fr.heliocraft.refinr=WARN"));

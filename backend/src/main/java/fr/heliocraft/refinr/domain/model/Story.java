@@ -21,6 +21,8 @@ public class Story {
     private String priority;
     private List<String> labels = new ArrayList<>();
     private List<Task> tasks = new ArrayList<>();
+    // Chaine C2 : cas de test (stories pretes seulement), ecrits dans la description
+    private List<TestCase> testCases = new ArrayList<>();
     private List<String> dependencies = new ArrayList<>();
     // Jugement de l'analyse : la story est-elle implementable par un agent de code sans decision humaine ?
     private Boolean aiReady;
@@ -110,6 +112,14 @@ public class Story {
 
     public void setTasks(List<Task> tasks) {
         this.tasks = tasks;
+    }
+
+    public List<TestCase> getTestCases() {
+        return testCases;
+    }
+
+    public void setTestCases(List<TestCase> testCases) {
+        this.testCases = testCases != null ? testCases : new ArrayList<>();
     }
 
     public List<String> getDependencies() {

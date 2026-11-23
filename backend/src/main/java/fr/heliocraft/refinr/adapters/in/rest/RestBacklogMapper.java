@@ -101,7 +101,9 @@ public final class RestBacklogMapper {
                 && Objects.equals(a.getEstimatedStoryPoints(), b.getEstimatedStoryPoints())
                 && Objects.equals(a.getPriority(), b.getPriority()) && Objects.equals(a.getLabels(), b.getLabels())
                 && Objects.equals(a.getDependencies(), b.getDependencies())
-                && Objects.equals(a.getJiraKey(), b.getJiraKey()) && sameTasks(a.getTasks(), b.getTasks());
+                && Objects.equals(a.getJiraKey(), b.getJiraKey()) && sameTasks(a.getTasks(), b.getTasks())
+                && Objects.equals(a.getTestCases() == null ? List.of() : a.getTestCases(),
+                        b.getTestCases() == null ? List.of() : b.getTestCases());
     }
 
     private static boolean sameTasks(List<TaskDto> a, List<TaskDto> b) {
@@ -171,6 +173,8 @@ public final class RestBacklogMapper {
         story.setPriority(dto.getPriority());
         story.setLabels(dto.getLabels());
         story.setTasks(map(dto.getTasks(), RestBacklogMapper::toDomain));
+        story.setTestCases(map(dto.getTestCases(), t -> t == null ? null
+                : new fr.heliocraft.refinr.domain.model.TestCase(t.title(), t.criterion(), t.kind(), t.given(), t.when(), t.then())));
         story.setDependencies(dto.getDependencies());
         // aiReady / aiReadyReason / aiReadySource du client ignores : le serveur recalcule le verdict sur le contenu final (create-jira)
         story.setTrackerKey(dto.getJiraKey());
@@ -250,6 +254,8 @@ public final class RestBacklogMapper {
         dto.setPriority(story.getPriority());
         dto.setLabels(story.getLabels());
         dto.setTasks(map(story.getTasks(), RestBacklogMapper::toDto));
+        dto.setTestCases(map(story.getTestCases(), t -> new fr.heliocraft.refinr.adapters.in.rest.dto.TestCaseDto(
+                t.title(), t.criterion(), t.kind(), t.given(), t.when(), t.then())));
         dto.setDependencies(story.getDependencies());
         dto.setAiReady(story.getAiReady());
         dto.setAiReadyReason(story.getAiReadyReason());

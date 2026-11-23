@@ -48,7 +48,7 @@ public record JobView(String id, Type type, Status status, Step step, Instant cr
 
     /** Etapes d'une analyse, dans l'ordre ; certaines sont sautees (texte fourni, pas de fournisseur de verdict distinct). */
     public enum Step {
-        READING_DOCUMENT, GENERATING, ASSESSING, GENERATING_TASKS, CREATING_ISSUES;
+        READING_DOCUMENT, GENERATING, ASSESSING, GENERATING_TASKS, GENERATING_TEST_CASES, CREATING_ISSUES;
 
         public String id() {
             return name().toLowerCase(Locale.ROOT).replace('_', '-');

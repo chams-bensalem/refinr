@@ -5,6 +5,7 @@ package fr.heliocraft.refinr.domain.service;
 
 import fr.heliocraft.refinr.domain.model.Readiness;
 import fr.heliocraft.refinr.domain.model.Story;
+import fr.heliocraft.refinr.domain.model.TestCase;
 
 import java.util.List;
 
@@ -20,7 +21,100 @@ public final class StoryMarkdown {
 
     /** Description complete d'une story, verdict de preparation compris. */
     public static String description(Story story) {
-        return userStory(story) + "\n\n" + acceptanceCriteria(story.getAcceptanceCriteria()) + readiness(story);
+        return userStory(story) + "\n\n" + acceptanceCriteria(story.getAcceptanceCriteria())
+                + testCasesBlock(story.getTestCases()) + readiness(story);
+    }
+
+    /** Limite de la description d'un ticket (Jira : 32 767 caracteres) ; au-dela, la section n'est pas ecrite. */
+    public static final int MAX_DESCRIPTION = 32_767;
+
+    /**
+     * Titre de la section des cas de test : une seule constante. {@link #TEST_CASES_TITLES} liste tous les titres
+     * reconnus (L2 y ajoutera un titre traduit) : une section deja presente n'est jamais ajoutee une seconde fois.
+     */
+    public static final String TEST_CASES_TITLE = "Test cases";
+    public static final List<String> TEST_CASES_TITLES = List.of(TEST_CASES_TITLE);
+    /** Debut de la ligne de verdict (creation et reevaluation) : la section se place juste avant. */
+    public static final String VERDICT_LINE_PREFIX = "AI readiness (";
+
+    /** Section {@code ### Test cases} (titre et lignes), sans saut de ligne autour ; chaine vide sans cas. */
+    public static String testCasesSection(List<TestCase> testCases) {
+        if (testCases == null || testCases.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder("### ").append(TEST_CASES_TITLE).append("\n\n");
+        for (int i = 0; i < testCases.size(); i++) {
+            TestCase t = testCases.get(i);
+            sb.append("- **TC").append(i + 1).append(" (").append(t.criterion()).append(", ").append(t.kind())
+                    .append("):** ").append(t.title()).append(" — Given ").append(t.given()).append(", When ")
+                    .append(t.when()).append(", Then ").append(t.then()).append("\n");
+        }
+        return sb.toString().stripTrailing();
+    }
+
+    private static String testCasesBlock(List<TestCase> testCases) {
+        String section = testCasesSection(testCases);
+        return section.isEmpty() ? "" : "\n" + section;
+    }
+
+    /** Vrai si le texte contient deja une section de cas de test (titre seul sur sa ligne, avec ou sans #). */
+    public static boolean hasTestCases(String text) {
+        if (text == null) {
+            return false;
+        }
+        for (String line : text.split("\n", -1)) {
+            String title = line.strip().replaceFirst("^#+\\s*", "");
+            if (TEST_CASES_TITLES.contains(title)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Texte Markdown avec la section inseree au meme endroit qu'a la creation : avant la premiere ligne de verdict si
+     * elle existe, sinon a la fin.
+     */
+    public static String insertTestCases(String markdown, String section) {
+        String text = markdown != null ? markdown.stripTrailing() : "";
+        int at = verdictLineStart(text);
+        if (at < 0) {
+            return text.isEmpty() ? section : text + "\n\n" + section;
+        }
+        String before = text.substring(0, at).stripTrailing();
+        return (before.isEmpty() ? "" : before + "\n\n") + section + "\n\n" + text.substring(at);
+    }
+
+    /** Index du debut de la premiere ligne de verdict, ou -1. */
+    static int verdictLineStart(String text) {
+        int from = 0;
+        while (from <= text.length()) {
+            int at = text.indexOf(VERDICT_LINE_PREFIX, from);
+            if (at < 0) {
+                return -1;
+            }
+            if (at == 0 || text.charAt(at - 1) == '\n') {
+                return at;
+            }
+            from = at + 1;
+        }
+        return -1;
+    }
+
+    /** Criteres d'une description ecrite par Refinr ({@code AC1:} …), dans l'ordre ; liste vide sinon. */
+    public static List<String> criteria(String description) {
+        List<String> criteria = new java.util.ArrayList<>();
+        if (description == null) {
+            return criteria;
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?m)^\\s*(?:-\\s*)?(?:\\*\\*)?AC(\\d+):(?:\\*\\*)?\\s*(.+)$")
+                .matcher(description);
+        while (m.find()) {
+            if (Integer.parseInt(m.group(1)) == criteria.size() + 1) {
+                criteria.add(m.group(2).strip());
+            }
+        }
+        return criteria;
     }
 
     /** Ligne de la precision fournie par l'utilisateur lors d'une reevaluation. */

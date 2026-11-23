@@ -69,6 +69,21 @@ public interface IssueTrackerPort {
 
     String createSubtask(Task task, String storyKey, String project);
 
+    /** Message d'une section qui ferait depasser la limite de la description : rien n'est ecrit, rien n'est tronque. */
+    String TEST_CASES_TOO_LONG = "the description would exceed " + fr.heliocraft.refinr.domain.service.StoryMarkdown.MAX_DESCRIPTION
+            + " characters with the test cases: they were not written";
+
+    /**
+     * Chaine C2 : section des cas de test ({@code markdown}, Markdown) inseree dans la description de la story, au
+     * meme endroit qu'a la creation (avant la ligne de verdict si elle existe, sinon a la fin). Description relue juste
+     * avant l'ecriture ; {@code false} si une section de cas de test y est deja (rien n'est ecrit).
+     *
+     * @throws IssueTrackerException {@link #TEST_CASES_TOO_LONG}, ou ecriture refusee
+     */
+    default boolean insertTestCases(String storyKey, String markdown) {
+        throw new IssueTrackerException(displayName() + " cannot write test cases");
+    }
+
     /** Relit une story existante pour la reevaluer. */
     TrackedStory findStory(String key);
 

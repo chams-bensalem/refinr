@@ -77,6 +77,34 @@ class BacklogPipelineTest {
     }
 
     @Test
+    @DisplayName("C2: test cases for the ready stories only (prompt 5), invalid ones dropped, step after the tasks")
+    void testCasesForReadyStories() {
+        BacklogGeneratorPort generator = mock(BacklogGeneratorPort.class);
+        ReadinessAssessorPort assessor = mock(ReadinessAssessorPort.class);
+        TaskGeneratorPort tasks = mock(TaskGeneratorPort.class);
+        fr.heliocraft.refinr.application.port.out.TestCaseGeneratorPort testCases =
+                mock(fr.heliocraft.refinr.application.port.out.TestCaseGeneratorPort.class);
+        Story a = story("A", false), b = story("B", true);
+        a.setAcceptanceCriteria(new ArrayList<>(List.of("Given …", "Given …")));
+        when(generator.generateStories(any(), any())).thenReturn(backlog(a, b));
+        when(assessor.assess(anyList(), anyList())).thenReturn(List.of(new Readiness(true, "ok"), new Readiness(false, "Quel format ?")));
+        when(tasks.generateTasks(anyList(), anyList(), any())).thenReturn(List.of(List.of(task("A1"))));
+        when(testCases.generateTestCases(anyList(), any())).thenReturn(List.of(List.of(
+                new fr.heliocraft.refinr.domain.model.TestCase("T1", "AC1", "nominal", "g", "w", "t"),
+                new fr.heliocraft.refinr.domain.model.TestCase("T2", "AC2", "edge", "g", "w", "t"),
+                new fr.heliocraft.refinr.domain.model.TestCase("T3", "AC3", "edge", "g", "w", "t"))));
+        List<JobView.Step> steps = new ArrayList<>();
+
+        new BacklogPipeline(generator, assessor, tasks, testCases).run("SPEC", Language.EN, steps::add);
+
+        assertEquals(List.of("T1", "T2"), a.getTestCases().stream().map(fr.heliocraft.refinr.domain.model.TestCase::title).toList(),
+                "AC3 does not exist: dropped");
+        assertTrue(b.getTestCases().isEmpty(), "not ready: no test case");
+        verify(testCases).generateTestCases(List.of(a), Language.EN);
+        assertEquals(JobView.Step.GENERATING_TEST_CASES, steps.getLast());
+    }
+
+    @Test
     @DisplayName("No ready story: no task call at all")
     void noReadyStoryNoCall() {
         BacklogGeneratorPort generator = mock(BacklogGeneratorPort.class);

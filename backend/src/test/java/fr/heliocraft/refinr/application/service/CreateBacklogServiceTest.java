@@ -35,6 +35,8 @@ class CreateBacklogServiceTest {
         IssueTrackerPort.FeatureLevel level = IssueTrackerPort.FeatureLevel.NONE;
         // Labels recus par chaque story creee
         final java.util.Map<String, List<String>> storyLabels = new java.util.LinkedHashMap<>();
+        // Cas de test recus par chaque story creee (C2)
+        final java.util.Map<String, Integer> storyTestCases = new java.util.LinkedHashMap<>();
         private int next = 1;
 
         @Override
@@ -76,6 +78,7 @@ class CreateBacklogServiceTest {
         public String createStory(Story story, String epicKey, String project) {
             fail(story.getTitle());
             storyLabels.put(story.getTitle(), story.getLabels());
+            storyTestCases.put(story.getTitle(), story.getTestCases().size());
             return record("story " + story.getTitle() + " parent=" + epicKey + " project=" + project);
         }
 
@@ -271,6 +274,54 @@ class CreateBacklogServiceTest {
         epic.setName(name);
         epic.setFeatures(new ArrayList<>(List.of(features)));
         return epic;
+    }
+
+    private static fr.heliocraft.refinr.domain.model.TestCase testCase(String then) {
+        return new fr.heliocraft.refinr.domain.model.TestCase("Case", "AC1", "nominal", "g", "w", then);
+    }
+
+    @Test
+    @DisplayName("Test cases written for a ready story; dropped with a warning for a story that is not ready")
+    void testCasesOnlyForReadyStories() {
+        RecordingTracker tracker = new RecordingTracker();
+        Story ready = story("Ready");
+        ready.setAiReady(true);
+        ready.setAcceptanceCriteria(List.of("Given …"));
+        ready.setTestCases(new ArrayList<>(List.of(testCase("ok"))));
+        Story blocked = story("Blocked");
+        blocked.setAiReady(false);
+        blocked.setAcceptanceCriteria(List.of("Given …"));
+        blocked.setTestCases(new ArrayList<>(List.of(testCase("ok"))));
+        Epic epic = new Epic();
+        epic.setName("E");
+        epic.setStories(new ArrayList<>(List.of(ready, blocked)));
+
+        BacklogCreationResult result = new CreateBacklogService(tracker).create(List.of(epic), null);
+
+        assertEquals(1, tracker.storyTestCases.get("Ready"));
+        assertEquals(0, tracker.storyTestCases.get("Blocked"));
+        assertEquals(List.of(CreateBacklogService.TEST_CASES_NOT_READY), result.warnings());
+    }
+
+    @Test
+    @DisplayName("Description over 32 767 characters with the test cases: section not written, explicit warning, nothing truncated")
+    void testCasesOverTheDescriptionLimit() {
+        RecordingTracker tracker = new RecordingTracker();
+        Story story = story("Long");
+        story.setAiReady(true);
+        story.setAcceptanceCriteria(List.of("Given …"));
+        story.setDescription("x".repeat(fr.heliocraft.refinr.domain.service.StoryMarkdown.MAX_DESCRIPTION - 200));
+        story.setTestCases(new ArrayList<>(List.of(testCase("y".repeat(500)))));
+        Epic epic = new Epic();
+        epic.setName("E");
+        epic.setStories(new ArrayList<>(List.of(story)));
+
+        BacklogCreationResult result = new CreateBacklogService(tracker).create(List.of(epic), null);
+
+        assertEquals(0, tracker.storyTestCases.get("Long"));
+        assertEquals(List.of(CreateBacklogService.TEST_CASES_TOO_LONG), result.warnings());
+        assertEquals(List.of("epic", "story"), result.created().stream().map(CreatedIssue::type).toList(),
+                "the story itself is created");
     }
 
     @Test

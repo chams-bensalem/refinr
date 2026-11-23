@@ -15,13 +15,27 @@ import java.util.List;
  * @param notReady         verdict non pret apres une reevaluation : rien n'a ete fait
  * @param error            message d'une erreur du modele ou du gestionnaire apres le verdict ({@code afterVerdict}),
  *                         sans contenu ; sinon null
+ * @param testCases        cas de test ecrits dans la description (C2), ou null s'ils ne l'ont pas ete
+ * @param testCasesSkipped la description avait deja une section de cas de test : rien n'a ete ecrit
+ * @param testCasesError   raison pour laquelle les cas de test n'ont pas ete ecrits (sans contenu), sinon null
  */
 public record StoryTasksResult(List<CreatedIssue> created, List<FailedIssue> failed, Integer existingSubtasks,
-                               boolean notReady, String error) {
+                               boolean notReady, String error, Integer testCases, boolean testCasesSkipped,
+                               String testCasesError) {
 
     public StoryTasksResult {
         created = created != null ? List.copyOf(created) : List.of();
         failed = failed != null ? List.copyOf(failed) : List.of();
+    }
+
+    public StoryTasksResult(List<CreatedIssue> created, List<FailedIssue> failed, Integer existingSubtasks,
+                            boolean notReady, String error) {
+        this(created, failed, existingSubtasks, notReady, error, null, false, null);
+    }
+
+    /** Meme resultat de sous-taches, avec celui des cas de test. */
+    public StoryTasksResult withTestCases(Integer written, boolean skipped, String testCaseError) {
+        return new StoryTasksResult(created, failed, existingSubtasks, notReady, error, written, skipped, testCaseError);
     }
 
     public static StoryTasksResult skipped(int existingSubtasks) {

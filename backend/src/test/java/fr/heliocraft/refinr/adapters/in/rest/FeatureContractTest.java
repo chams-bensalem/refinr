@@ -60,6 +60,7 @@ class FeatureContractTest {
         @MockitoBean DocumentSourcePort source;
         @MockitoBean BacklogGeneratorPort generator;
         @MockitoBean fr.heliocraft.refinr.application.port.out.TaskGeneratorPort taskGenerator;
+        @MockitoBean fr.heliocraft.refinr.application.port.out.TestCaseGeneratorPort testCaseGenerator;
         @MockitoBean ReadinessAssessorPort assessor;
         @MockitoBean IssueTrackerPort tracker;
 

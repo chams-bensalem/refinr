@@ -303,6 +303,9 @@ public class BacklogController {
             return BacklogResponses.creation(createEditedBacklog.create(epics, projectKey, verdictLanguage)
                     .withWarnings(shapeWarnings));
 
+        } catch (InvalidRequestException e) {
+            // Cas de test du client invalides : message ecrit par l'application, sans le contenu
+            return invalidRequest(e);
         } catch (FeatureLevelMissingException e) {
             return BacklogResponses.featureLevelMissing(e.getMessage());
         } catch (Exception e) {
@@ -473,6 +476,14 @@ public class BacklogController {
             body.put("tasksSkipped", result.skippedMessage());
         } else {
             body.put("tasks", Map.of("created", result.created(), "failed", result.failed()));
+        }
+        // Chaine C2 : cas de test ecrits dans la description, deja presents, ou raison de leur absence
+        if (result.testCases() != null) {
+            body.put("testCases", Map.of("written", result.testCases()));
+        } else if (result.testCasesSkipped()) {
+            body.put("testCasesSkipped", "the description already has a test cases section");
+        } else if (result.testCasesError() != null) {
+            body.put("testCasesError", result.testCasesError());
         }
     }
 
