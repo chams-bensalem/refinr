@@ -20,7 +20,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   `epics[].stories` est gardé (toutes les stories à plat, déprécié, au moins jusqu'à la 2.0) ; `create-jira` accepte
   toujours la forme d'avant, et `stories` l'emporte, avec un avertissement, s'il diffère des features. Pendant
   l'aperçu, le niveau Feature du gestionnaire est lu en 5 s au plus (cache par projet : 1 h, échec 1 min) ; sinon
-  l'aperçu part tout de suite avec *The Feature level of the tracker could not be checked*.
+  l'aperçu part tout de suite avec *The Feature level of the tracker could not be checked*. `analyze-preview` et
+  `jobs/analyze-preview` acceptent `projectKey` (optionnel, même format et même `400` qu'`analyze-and-create`) : le
+  niveau Feature lu est celui de ce projet, sinon celui du projet par défaut.
 - Interface web : niveau Feature affiché dans l'aperçu, avertissements dans l'aperçu et le résultat.
 - **Jobs d'analyse** : `analyze-preview` et `analyze-and-create` en arrière-plan. `POST /api/v1/jobs/analyze-preview`
   et `POST /api/v1/jobs/analyze-and-create` (même corps que les endpoints synchrones, mêmes `400` et `413` à la

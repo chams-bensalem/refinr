@@ -130,18 +130,18 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
     }
 
     @Override
-    public JobView submitPreview(String documentId, Language language) {
+    public JobView submitPreview(String documentId, String project, Language language) {
         DocumentAnalysis.requireValidId(documentSource, documentId);
         return submit(JobView.Type.ANALYZE_PREVIEW, documentId,
-                progress -> new Result(previewBacklog.preview(documentId, language, progress), null));
+                progress -> new Result(previewBacklog.preview(documentId, language, progress), null, project));
     }
 
     @Override
-    public JobView submitPreviewText(String title, String content, Language language) {
+    public JobView submitPreviewText(String title, String content, String project, Language language) {
         // Memes refus que l'endpoint synchrone (413, puis 400), avant de creer le job
         DocumentAnalysis.providedText(title, content, maxContentChars);
         return submit(JobView.Type.ANALYZE_PREVIEW, null,
-                progress -> new Result(previewBacklog.previewText(title, content, language, progress), null));
+                progress -> new Result(previewBacklog.previewText(title, content, language, progress), null, project));
     }
 
     @Override
@@ -340,7 +340,12 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
         Result run(AnalysisProgress progress);
     }
 
-    private record Result(List<Epic> preview, BacklogCreationResult creation) {}
+    /** {@code project} : projet demande pour un apercu (son niveau Feature donne les avertissements). */
+    private record Result(List<Epic> preview, BacklogCreationResult creation, String project) {
+        Result(List<Epic> preview, BacklogCreationResult creation) {
+            this(preview, creation, null);
+        }
+    }
 
     /** Arret demande (delai depasse, arret du serveur) : leve au debut de l'etape suivante. */
     private static final class JobStoppedException extends RuntimeException {
@@ -401,7 +406,7 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
                 Result result = work.run(this::step);
                 // Hors du verrou du job : la lecture du niveau Feature peut interroger le gestionnaire
                 List<String> warnings = result.preview() != null && describeTracker != null
-                        ? describeTracker.featureWarnings(result.preview(), null) : List.of();
+                        ? describeTracker.featureWarnings(result.preview(), result.project()) : List.of();
                 finish(v -> v.completed(result.preview(), result.creation(), clock.instant()).withWarnings(warnings));
             } catch (Exception e) {
                 boolean stopped;

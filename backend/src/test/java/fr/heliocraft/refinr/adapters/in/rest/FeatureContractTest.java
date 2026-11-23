@@ -255,4 +255,122 @@ class FeatureContractTest {
             assertTrue(body.at("/warnings/0").asString().contains("will be refused"), body.toString());
         }
     }
+
+    /**
+     * Projet demande ({@code projectKey}) sans niveau Feature, alors que le projet par defaut en a un : l'apercu, le job
+     * d'apercu et la creation lisent le niveau du projet demande (essai reel du 2026-11-23, refinr-spike-ro).
+     */
+    @Nested
+    @TestPropertySource(properties = {"jira.base-url=http://localhost:8080", "jira.project-key=TEST",
+            "refinr.features.without-level=label"})
+    class RequestedProject extends WebLayer {
+
+        private static final String NO_FEATURE = "NOFEAT";
+        private static final String LABELS = "features are kept as labels";
+
+        @BeforeEach
+        void levels() {
+            // Projet par defaut (null) : niveau natif ; projet demande : aucun niveau Feature
+            when(tracker.featureLevel(any())).thenAnswer(call ->
+                    NO_FEATURE.equals(call.getArgument(0)) ? FeatureLevel.NONE : FeatureLevel.OPTIONAL);
+        }
+
+        private String request(String projectKey) {
+            tools.jackson.databind.node.ObjectNode body = JSON.createObjectNode().put("content", SPEC);
+            if (projectKey != null) {
+                body.put("projectKey", projectKey);
+            }
+            return body.toString();
+        }
+
+        private JsonNode finishedJob(String id) throws Exception {
+            JsonNode job;
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            do {
+                Thread.sleep(10);
+                job = JSON.readTree(mockMvc.perform(get("/api/v1/jobs/" + id)).andReturn().getResponse()
+                        .getContentAsString());
+            } while (!job.get("status").asString().equals("succeeded") && System.nanoTime() < deadline);
+            assertEquals("succeeded", job.get("status").asString(), job.toString());
+            return JSON.readTree(mockMvc.perform(get("/api/v1/jobs/" + id + "/result")).andReturn().getResponse()
+                    .getContentAsString());
+        }
+
+        @Test
+        @DisplayName("Preview with projectKey of a project without feature level: labels warning (the default project has one)")
+        void previewReadsTheRequestedProject() throws Exception {
+            JsonNode requested = JSON.readTree(postJson("/api/v1/analyze-preview", request(NO_FEATURE))
+                    .getContentAsString());
+            assertEquals(1, requested.path("warnings").size(), requested.toString());
+            assertTrue(requested.at("/warnings/0").asString().contains(LABELS), requested.toString());
+            verify(tracker).featureLevel(NO_FEATURE);
+
+            JsonNode byDefault = JSON.readTree(postJson("/api/v1/analyze-preview", request(null)).getContentAsString());
+            assertFalse(byDefault.has("warnings"), "default project has a native feature level: " + byDefault);
+        }
+
+        @Test
+        @DisplayName("Preview with an invalid projectKey: 400, as analyze-and-create")
+        void previewRejectsAnInvalidProjectKey() throws Exception {
+            MockHttpServletResponse response = postJson("/api/v1/analyze-preview", request("not a key"));
+            assertEquals(400, response.getStatus());
+            assertEquals("Invalid projectKey: not a key",
+                    JSON.readTree(response.getContentAsString()).get("error").asString());
+            verify(generator, never()).generate(any(), any());
+        }
+
+        @Test
+        @DisplayName("Preview job with projectKey of a project without feature level: labels warning in the job result")
+        void previewJobReadsTheRequestedProject() throws Exception {
+            String requested = JSON.readTree(postJson("/api/v1/jobs/analyze-preview", request(NO_FEATURE))
+                    .getContentAsString()).get("jobId").asString();
+            JsonNode result = finishedJob(requested);
+            assertTrue(result.at("/warnings/0").asString().contains(LABELS), result.toString());
+
+            String byDefault = JSON.readTree(postJson("/api/v1/jobs/analyze-preview", request(null))
+                    .getContentAsString()).get("jobId").asString();
+            assertFalse(finishedJob(byDefault).has("warnings"));
+
+            MockHttpServletResponse invalid = postJson("/api/v1/jobs/analyze-preview", request("not a key"));
+            assertEquals(400, invalid.getStatus());
+        }
+
+        @Test
+        @DisplayName("create-jira to a project without feature level: no feature issue, feature-… labels, warning; default project: native")
+        void creationFollowsTheRequestedProject() throws Exception {
+            String explicit = JSON.readTree(postJson("/api/v1/analyze-preview", request(null))
+                    .getContentAsString()).get("epics").toString();
+
+            MockHttpServletResponse labelled = mockMvc.perform(post("/api/v1/create-jira").param("projectKey", NO_FEATURE)
+                    .contentType(MediaType.APPLICATION_JSON).content(explicit)).andReturn().getResponse();
+
+            assertEquals(200, labelled.getStatus(), labelled.getContentAsString());
+            verify(tracker, never()).createFeature(any(), anyString(), any());
+            ArgumentCaptor<Story> stories = ArgumentCaptor.forClass(Story.class);
+            verify(tracker, times(2)).createStory(stories.capture(), eq("TEST-1"), eq(NO_FEATURE));
+            assertTrue(stories.getAllValues().get(0).getLabels().contains("feature-booking"),
+                    stories.getAllValues().get(0).getLabels().toString());
+            assertTrue(stories.getAllValues().get(1).getLabels().contains("feature-administration"));
+            JsonNode body = JSON.readTree(labelled.getContentAsString());
+            assertTrue(body.at("/warnings/0").asString().contains(LABELS), body.toString());
+
+            MockHttpServletResponse nativeLevel = postJson("/api/v1/create-jira", explicit);
+            assertEquals(200, nativeLevel.getStatus());
+            verify(tracker, times(2)).createFeature(any(), eq("TEST-1"), isNull());
+            assertFalse(JSON.readTree(nativeLevel.getContentAsString()).has("warnings"));
+        }
+
+        @Test
+        @DisplayName("analyze-and-create to a project without feature level: feature-… labels and warning")
+        void analyzeAndCreateFollowsTheRequestedProject() throws Exception {
+            MockHttpServletResponse response = postJson("/api/v1/analyze-and-create", request(NO_FEATURE));
+
+            assertEquals(200, response.getStatus(), response.getContentAsString());
+            verify(tracker, never()).createFeature(any(), anyString(), any());
+            ArgumentCaptor<Story> stories = ArgumentCaptor.forClass(Story.class);
+            verify(tracker, times(2)).createStory(stories.capture(), anyString(), eq(NO_FEATURE));
+            assertTrue(stories.getAllValues().get(0).getLabels().contains("feature-booking"));
+            assertTrue(JSON.readTree(response.getContentAsString()).at("/warnings/0").asString().contains(LABELS));
+        }
+    }
 }

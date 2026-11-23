@@ -186,6 +186,11 @@ public class BacklogController {
 
     @PostMapping("/analyze-preview")
     public ResponseEntity<Map<String, Object>> analyzePreview(@RequestBody Map<String, String> request) {
+        // Projet cible optionnel : l'apercu ne cree rien, il lit seulement le niveau Feature de ce projet (avertissements)
+        String projectKey = request.get(AnalysisRequests.PROJECT_KEY);
+        if (!isValidProjectKey(projectKey)) {
+            return invalidProjectKey(projectKey);
+        }
         Language language;
         try {
             language = language(request.get(LANGUAGE));
@@ -198,13 +203,13 @@ public class BacklogController {
                 AnalysisRequests.logTextInput(log, "Preview", request);
                 List<Epic> epics = previewBacklog.previewText(request.get(AnalysisRequests.TITLE),
                         request.get(AnalysisRequests.CONTENT), language);
-                return BacklogResponses.preview(epics, describeTracker.featureWarnings(epics, null));
+                return BacklogResponses.preview(epics, describeTracker.featureWarnings(epics, projectKey));
             }
             String documentId = AnalysisRequests.documentId(request);
             log.info("Preview request for {} document: {}", describeSource.displayName(), documentId);
             List<Epic> epics = previewBacklog.preview(documentId, language);
             return BacklogResponses.withDocumentUrl(
-                    BacklogResponses.preview(epics, describeTracker.featureWarnings(epics, null)),
+                    BacklogResponses.preview(epics, describeTracker.featureWarnings(epics, projectKey)),
                     describeSource.documentUrl(documentId));
 
         } catch (InvalidRequestException e) {
