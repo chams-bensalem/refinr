@@ -69,6 +69,7 @@ class PipelineContractTest {
     @MockitoBean BacklogGeneratorPort generator;
     @MockitoBean ReadinessAssessorPort assessor;
     @MockitoBean TaskGeneratorPort taskGenerator;
+    @MockitoBean fr.heliocraft.refinr.application.port.out.TestCaseGeneratorPort testCaseGenerator;
     @MockitoBean IssueTrackerPort tracker;
 
     private static Story story(String title) {
@@ -206,7 +207,7 @@ class PipelineContractTest {
     void jobsWithPipeline() throws Exception {
         String id = read(send("/api/v1/jobs/analyze-preview", "{\"content\":\"" + SPEC + "\",\"pipeline\":true}"))
                 .get("jobId").asString();
-        assertEquals("generating-tasks", finished(id).get("step").asString());
+        assertEquals("generating-test-cases", finished(id).get("step").asString(), "last step of the pipeline (C2)");
         assertEquals(QUESTION, result(id).at("/questions/0/question").asString());
 
         String plain = read(send("/api/v1/jobs/analyze-preview", "{\"content\":\"" + SPEC + "\"}")).get("jobId").asString();
@@ -230,6 +231,63 @@ class PipelineContractTest {
         assertEquals("the story already has 2 sub-tasks", skipped.get("tasksSkipped").asString());
         verify(taskGenerator, times(1)).generateTasks(anyList(), anyList(), any());
         assertFalse(output.getAll().contains("Secret-marker-c1"), "no story content in the logs");
+    }
+
+    private static final String WITH_TEST_CASE = "[{\"name\":\"E\",\"stories\":[{\"title\":\"S\",\"acceptanceCriteria\":[\"Given a\"],"
+            + "\"testCases\":[{\"title\":\"T\",\"criterion\":\"%s\",\"kind\":\"%s\",\"given\":\"g\",\"when\":\"w\",\"then\":\"t\"}]}]}]";
+
+    @Test
+    @DisplayName("C2 create-jira: test cases edited by the client are validated (400, no model or tracker call); valid ones are written")
+    void createJiraValidatesTestCases() throws Exception {
+        MockHttpServletResponse unknown = send("/api/v1/create-jira", WITH_TEST_CASE.formatted("AC2", "nominal"));
+        assertEquals(400, unknown.getStatus());
+        assertEquals("testCases[0] of story 1.1: criterion must name an existing acceptance criterion (AC1 to AC1)",
+                read(unknown).get("error").asString());
+        MockHttpServletResponse kind = send("/api/v1/create-jira", WITH_TEST_CASE.formatted("AC1", "zz-injected"));
+        assertEquals(400, kind.getStatus());
+        assertFalse(kind.getContentAsString().contains("zz-injected"), "value never echoed");
+        verifyNoInteractions(assessor);
+        verify(tracker, never()).createEpic(any(), any());
+
+        when(assessor.assess(anyList(), anyList())).thenReturn(List.of(new Readiness(true, "clear")));
+        org.mockito.ArgumentCaptor<Story> created = org.mockito.ArgumentCaptor.forClass(Story.class);
+        assertEquals(200, send("/api/v1/create-jira", WITH_TEST_CASE.formatted("AC1", "edge")).getStatus());
+        verify(tracker).createStory(created.capture(), anyString(), any());
+        assertEquals("edge", created.getValue().getTestCases().getFirst().kind());
+    }
+
+    @Test
+    @DisplayName("C2 pipeline: test cases on the ready story only, in the preview")
+    void pipelineTestCases() throws Exception {
+        when(testCaseGenerator.generateTestCases(anyList(), any())).thenAnswer(call -> List.of(List.of(
+                new fr.heliocraft.refinr.domain.model.TestCase("T1", "AC1", "nominal", "g", "w", "t"))));
+        Epic epic = new Epic();
+        epic.setName("Orders");
+        Story ready = story("Export");
+        ready.setAcceptanceCriteria(new ArrayList<>(List.of("Given paid orders")));
+        epic.setStories(new ArrayList<>(List.of(ready, story("Separator"), story("Encoding"))));
+        when(generator.generateStories(any(), any())).thenReturn(new ArrayList<>(List.of(epic)));
+
+        JsonNode body = read(send("/api/v1/analyze-preview", "{\"content\":\"" + SPEC + "\",\"pipeline\":true}"));
+
+        assertEquals("T1", body.at("/epics/0/stories/0/testCases/0/title").asString(), body.toString());
+        assertEquals(0, body.at("/epics/0/stories/1/testCases").size());
+    }
+
+    @Test
+    @DisplayName("C2 story-tasks: written test cases reported; section already there: testCasesSkipped")
+    void storyTasksTestCases() throws Exception {
+        String description = "### Acceptance Criteria\n- **AC1:** Given a\nAI readiness (ai-ready): ok";
+        when(tracker.findStory("TEST-7")).thenReturn(new TrackedStory("TEST-7", "S", description, List.of("ai-ready"),
+                null, null, List.of("TEST-8")));
+        when(testCaseGenerator.generateTestCases(anyList(), any())).thenReturn(List.of(List.of(
+                new fr.heliocraft.refinr.domain.model.TestCase("T1", "AC1", "nominal", "g", "w", "t"))));
+        when(tracker.insertTestCases(eq("TEST-7"), any())).thenReturn(true, false);
+
+        JsonNode written = read(send("/api/v1/story-tasks", "{\"issueKey\":\"TEST-7\"}"));
+        assertEquals(1, written.at("/testCases/written").asInt(), written.toString());
+        JsonNode skipped = read(send("/api/v1/story-tasks", "{\"issueKey\":\"TEST-7\"}"));
+        assertEquals("the description already has a test cases section", skipped.get("testCasesSkipped").asString());
     }
 
     @Test

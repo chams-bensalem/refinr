@@ -8,6 +8,9 @@ import fr.heliocraft.refinr.application.port.in.JobView;
 import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
 import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
 import fr.heliocraft.refinr.application.port.out.TaskGeneratorPort;
+import fr.heliocraft.refinr.application.port.out.TestCaseGeneratorPort;
+import fr.heliocraft.refinr.domain.model.TestCase;
+import fr.heliocraft.refinr.domain.service.TestCasePolicy;
 import fr.heliocraft.refinr.domain.model.Epic;
 import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.domain.model.Story;
@@ -24,6 +27,7 @@ import java.util.List;
  * E0), puis sous-taches des seules stories pretes. Une story non prete n'a aucune sous-tache : elles viendront quand
  * elle deviendra prete ({@code story-tasks}, option {@code createTasks}). Une story prete dont les sous-taches n'ont pas
  * pu etre obtenues reste sans sous-taches (meme recours) ; si aucune ne peut l'etre, l'erreur du fournisseur remonte.
+ * Chaine C2 : puis les cas de test des stories pretes (prompt 5), un cas invalide etant ecarte.
  */
 public class BacklogPipeline {
 
@@ -32,11 +36,19 @@ public class BacklogPipeline {
     private final BacklogGeneratorPort generator;
     private final ReadinessAssessorPort assessor;
     private final TaskGeneratorPort taskGenerator;
+    // Chaine C2 : cas de test des stories pretes (prompt 5), ou null (pas de cas de test)
+    private final TestCaseGeneratorPort testCaseGenerator;
 
     public BacklogPipeline(BacklogGeneratorPort generator, ReadinessAssessorPort assessor, TaskGeneratorPort taskGenerator) {
+        this(generator, assessor, taskGenerator, null);
+    }
+
+    public BacklogPipeline(BacklogGeneratorPort generator, ReadinessAssessorPort assessor, TaskGeneratorPort taskGenerator,
+                           TestCaseGeneratorPort testCaseGenerator) {
         this.generator = generator;
         this.assessor = assessor;
         this.taskGenerator = taskGenerator;
+        this.testCaseGenerator = testCaseGenerator;
     }
 
     /** Backlog qualifie du texte {@code content} (deja controle), dans la langue {@code language} deja resolue. */
@@ -49,6 +61,7 @@ public class BacklogPipeline {
         for (Epic epic : epics) {
             for (Story story : epic.getStories()) {
                 story.setTasks(new ArrayList<>());
+                story.setTestCases(new ArrayList<>());
                 if (Boolean.TRUE.equals(story.getAiReady())) {
                     ready.add(story);
                 }
@@ -71,6 +84,22 @@ public class BacklogPipeline {
         }
         if (missing > 0) {
             log.warn("Sub-tasks unavailable for {} of {} ready stories", missing, ready.size());
+        }
+        if (testCaseGenerator != null) {
+            progress.step(JobView.Step.GENERATING_TEST_CASES);
+            List<List<TestCase>> testCases = LlmFailures.translate(() -> testCaseGenerator.generateTestCases(ready, language));
+            int dropped = 0;
+            for (int i = 0; i < ready.size(); i++) {
+                Story story = ready.get(i);
+                List<TestCase> found = i < testCases.size() ? testCases.get(i) : null;
+                List<TestCase> valid = TestCasePolicy.valid(found, story.getAcceptanceCriteria().size());
+                dropped += found == null ? 0 : found.size() - valid.size();
+                story.setTestCases(new ArrayList<>(valid));
+            }
+            if (dropped > 0) {
+                // Critere inexistant, champ vide ou trop long : ecarte, jamais corrige
+                log.warn("{} invalid test case(s) dropped", dropped);
+            }
         }
         return epics;
     }

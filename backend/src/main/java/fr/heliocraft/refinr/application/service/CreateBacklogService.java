@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.application.service;
 
+import fr.heliocraft.refinr.domain.service.StoryMarkdown;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult.CreatedIssue;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult.FailedIssue;
@@ -68,6 +69,7 @@ public class CreateBacklogService implements CreateBacklog {
                 project == null || project.isBlank() ? "(default)" : project);
         // Defense en profondeur : jamais de ticket Feature sans story (sortie du modele ou apercu renvoye par un client)
         List<String> dropped = dropEmptyFeatures(epics);
+        List<String> testCaseWarnings = new ArrayList<>();
         FeatureLevel level = FeatureLevels.levelOf(issueTracker, project);
         // Refus seulement quand l'absence de niveau Feature est connue ; un niveau inconnu (gestionnaire injoignable
         // ou mal configure) ne donne jamais un 422 trompeur : la creation de l'epic echoue alors avec la vraie cause
@@ -134,6 +136,7 @@ public class CreateBacklogService implements CreateBacklog {
                     if (featureLabel != null) {
                         addLabel(story, featureLabel);
                     }
+                    dropUnwritableTestCases(story, testCaseWarnings);
                     String storyParent = parentKey;
                     String storyKey = attempt(STORY, storyPosition, story.getTitle(),
                             () -> issueTracker.createStory(story, storyParent, project), created, failed);
@@ -173,11 +176,32 @@ public class CreateBacklogService implements CreateBacklog {
         }
         // Avertissement de ce qui a ete fait (labels), jamais celui du refus
         List<String> warnings = new ArrayList<>(dropped);
+        warnings.addAll(testCaseWarnings);
         warnings.addAll(FeatureLevels.warnings(epics, effective, FeatureLevels.Policy.LABEL));
         return new BacklogCreationResult(epics, created, failed, warnings);
     }
 
     static final String EMPTY_FEATURE_DROPPED = "an empty feature was dropped";
+    static final String TEST_CASES_NOT_READY = "the test cases of a story that is not ready were not written";
+    static final String TEST_CASES_TOO_LONG = "the test cases of a story were not written: its description would exceed "
+            + StoryMarkdown.MAX_DESCRIPTION + " characters";
+
+    /**
+     * Cas de test d'une story : seulement si elle est prete (verdict recalcule a create-jira), et si la description
+     * reste sous la limite du gestionnaire ; sinon retires, avec un avertissement (jamais de troncature).
+     */
+    private static void dropUnwritableTestCases(Story story, List<String> warnings) {
+        if (story.getTestCases() == null || story.getTestCases().isEmpty()) {
+            return;
+        }
+        if (!Boolean.TRUE.equals(story.getAiReady())) {
+            story.setTestCases(new ArrayList<>());
+            warnings.add(TEST_CASES_NOT_READY);
+        } else if (StoryMarkdown.description(story).length() > StoryMarkdown.MAX_DESCRIPTION) {
+            story.setTestCases(new ArrayList<>());
+            warnings.add(TEST_CASES_TOO_LONG);
+        }
+    }
 
     /**
      * Retire les Features sans story (aucune story non nulle), avant tout appel au gestionnaire ; un avertissement par

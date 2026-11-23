@@ -30,6 +30,9 @@ public class StoryDto {
     private String priority;
     private List<String> labels = new ArrayList<>();
     private List<TaskDto> tasks = new ArrayList<>();
+
+    // Chaine C2 (ajout retrocompatible) : cas de test des stories pretes
+    private List<TestCaseDto> testCases = new ArrayList<>();
     private List<String> dependencies = new ArrayList<>();
     
     // Jira fields
@@ -120,6 +123,14 @@ public class StoryDto {
 
     public List<TaskDto> getTasks() {
         return tasks;
+    }
+
+    public List<TestCaseDto> getTestCases() {
+        return testCases;
+    }
+
+    public void setTestCases(List<TestCaseDto> testCases) {
+        this.testCases = testCases;
     }
 
     public void setTasks(List<TaskDto> tasks) {

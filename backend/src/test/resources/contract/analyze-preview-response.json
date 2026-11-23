@@ -35,6 +35,16 @@
               "parentStoryKey": "PROJ-2"
             }
           ],
+          "testCases": [
+            {
+              "title": "Stock shown",
+              "criterion": "AC1",
+              "kind": "nominal",
+              "given": "a product in stock",
+              "when": "the developer opens it",
+              "then": "the level is shown"
+            }
+          ],
           "dependencies": [
             "PROJ-0"
           ],
@@ -82,6 +92,16 @@
                   "jiraKey": "PROJ-3",
                   "jiraUrl": "https://your-site.atlassian.net/browse/PROJ-3",
                   "parentStoryKey": "PROJ-2"
+                }
+              ],
+              "testCases": [
+                {
+                  "title": "Stock shown",
+                  "criterion": "AC1",
+                  "kind": "nominal",
+                  "given": "a product in stock",
+                  "when": "the developer opens it",
+                  "then": "the level is shown"
                 }
               ],
               "dependencies": [

@@ -1,0 +1,110 @@
+// SPDX-FileCopyrightText: 2026 Chams Bensalem
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package fr.heliocraft.refinr.domain.service;
+
+import fr.heliocraft.refinr.domain.model.Readiness;
+import fr.heliocraft.refinr.domain.model.Story;
+import fr.heliocraft.refinr.domain.model.TestCase;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/** Regles des cas de test (C2) et leur place dans la description. */
+class TestCasePolicyTest {
+
+    private static TestCase tc(String criterion, String kind) {
+        return new TestCase("Book a room", criterion, kind, "a free room", "the employee books it", "the booking is saved");
+    }
+
+    private static Story story(TestCase... testCases) {
+        Story story = new Story();
+        story.setTitle("Book");
+        story.setAcceptanceCriteria(List.of("Given …, When …, Then …", "Given …, When …, Then …"));
+        story.setTestCases(new ArrayList<>(List.of(testCases)));
+        story.setAiReady(true);
+        story.setAiReadyReason("clear");
+        return story;
+    }
+
+    @Test
+    @DisplayName("Client test cases: criterion must exist, kind valid, steps filled, lengths bounded; message never quotes content")
+    void violations() {
+        assertNull(TestCasePolicy.violation(story(tc("AC1", "nominal"), tc("AC2", "edge")), "1.1"));
+        assertEquals("testCases[1] of story 1.1: criterion must name an existing acceptance criterion (AC1 to AC2)",
+                TestCasePolicy.violation(story(tc("AC1", "nominal"), tc("AC3", "nominal")), "1.1"));
+        assertTrue(TestCasePolicy.violation(story(tc("ac1", "nominal")), "1.1").contains("criterion"));
+        assertTrue(TestCasePolicy.violation(story(tc("AC1", "smoke")), "1.1").contains("kind must be nominal, error or edge"));
+        assertTrue(TestCasePolicy.violation(story(new TestCase("t", "AC1", "error", " ", "w", "t")), "1.1")
+                .contains("title, given, when and then are required"));
+        String secret = "Secret-marker-c2 " + "x".repeat(TestCasePolicy.MAX_STEP);
+        String tooLong = TestCasePolicy.violation(story(new TestCase("t", "AC1", "error", secret, "w", "t")), "2.3");
+        assertTrue(tooLong.startsWith("testCases[0] of story 2.3: given, when and then are limited to"), tooLong);
+        assertFalse(tooLong.contains("Secret-marker-c2"), "content never quoted");
+        assertTrue(TestCasePolicy.violation(story(new TestCase("t".repeat(201), "AC1", "edge", "g", "w", "t")), "1.1")
+                .contains("title is longer than 200"));
+    }
+
+    @Test
+    @DisplayName("Model output: invalid test cases are dropped (never corrected), valid ones trimmed")
+    void validKeepsOnlyValid() {
+        List<TestCase> kept = TestCasePolicy.valid(List.of(tc(" AC1 ", "nominal"), tc("AC9", "nominal"), tc("AC2", "bad")), 2);
+        assertEquals(List.of(tc("AC1", "nominal")), kept);
+        assertTrue(TestCasePolicy.valid(null, 2).isEmpty());
+    }
+
+    @Test
+    @DisplayName("Creation: ### Test cases after the acceptance criteria, before the verdict line; one line per case")
+    void sectionBeforeTheVerdictLine() {
+        String description = StoryMarkdown.description(story(tc("AC1", "nominal"), tc("AC2", "error")));
+        int criteria = description.indexOf("### Acceptance Criteria");
+        int section = description.indexOf("### " + StoryMarkdown.TEST_CASES_TITLE);
+        int verdict = description.indexOf(StoryMarkdown.VERDICT_LINE_PREFIX);
+        assertTrue(criteria >= 0 && criteria < section && section < verdict, description);
+        assertTrue(description.contains("- **TC1 (AC1, nominal):** Book a room — Given a free room, When the employee books it, "
+                + "Then the booking is saved"), description);
+        assertTrue(description.contains("- **TC2 (AC2, error):**"));
+        assertFalse(StoryMarkdown.description(story()).contains(StoryMarkdown.TEST_CASES_TITLE), "no section without cases");
+    }
+
+    @Test
+    @DisplayName("Later insertion: same place as at creation (before the verdict line if any, otherwise at the end)")
+    void insertionSamePlace() {
+        String section = StoryMarkdown.testCasesSection(List.of(tc("AC1", "nominal")));
+        Story story = story();
+        String created = StoryMarkdown.description(story);
+        String inserted = StoryMarkdown.insertTestCases(created, section);
+        assertEquals(StoryMarkdown.description(story(tc("AC1", "nominal"))).strip(), inserted.strip(),
+                "inserted later = written at creation");
+        assertEquals("Intro\n\n" + section, StoryMarkdown.insertTestCases("Intro\n", section), "no verdict line: at the end");
+        assertEquals("text AI readiness (x) inline\n\n" + section,
+                StoryMarkdown.insertTestCases("text AI readiness (x) inline", section), "verdict prefix only at a line start");
+        String reassessed = created + "\n\nAI readiness (ai-ready): later line";
+        String twice = StoryMarkdown.insertTestCases(reassessed, section);
+        assertTrue(twice.indexOf(section) < twice.indexOf("AI readiness (validation-necessaire)") + 1_000_000);
+        assertTrue(twice.indexOf(section) < twice.indexOf(StoryMarkdown.VERDICT_LINE_PREFIX), "before the first verdict line");
+    }
+
+    @Test
+    @DisplayName("Idempotence: the section is found by its title (constant list, ready for a translated title in L2)")
+    void detection() {
+        assertTrue(StoryMarkdown.hasTestCases("x\n### Test cases\n- TC1"));
+        assertTrue(StoryMarkdown.hasTestCases("x\nTest cases\nTC1"), "Jira plain text of the heading");
+        assertFalse(StoryMarkdown.hasTestCases("We need test cases soon"));
+        assertFalse(StoryMarkdown.hasTestCases(null));
+        assertEquals(List.of(StoryMarkdown.TEST_CASES_TITLE), StoryMarkdown.TEST_CASES_TITLES);
+    }
+
+    @Test
+    @DisplayName("Criteria read back from a description written by Refinr (Markdown and Jira plain text)")
+    void criteriaReadBack() {
+        Story story = story();
+        assertEquals(story.getAcceptanceCriteria(), StoryMarkdown.criteria(StoryMarkdown.description(story)));
+        assertEquals(List.of("first", "second"), StoryMarkdown.criteria("Description\nAC1: first\nAC2: second\nAC4: gap"));
+        assertTrue(StoryMarkdown.criteria("no criteria here").isEmpty());
+    }
+}

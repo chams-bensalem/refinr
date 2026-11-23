@@ -296,6 +296,78 @@ class OpenProjectIssueTrackerTest {
     }
 
     @Nested
+    class TestCases {
+
+        private String withDescription(int lockVersion, String raw) {
+            return workPackage(39, lockVersion, "ai-ready").replace("\"raw\":\"Alert when stock is low\\n\"",
+                    "\"raw\":" + JSON.writeValueAsString(raw));
+        }
+
+        private static final String DESCRIPTION = "Alert when stock is low\n\n### Acceptance Criteria\n\n- **AC1:** Given a\n\n"
+                + "AI readiness (ai-ready): clear\n\nLabels: backend";
+
+        @Test
+        @DisplayName("C2: section inserted before the verdict line, work package read again (fresh lockVersion) before the PATCH")
+        void insertedBeforeTheVerdictLine() throws Exception {
+            server.enqueue(json(200, withDescription(4, DESCRIPTION)));
+            server.enqueue(json(200, withDescription(5, DESCRIPTION)));
+
+            assertTrue(tracker.insertTestCases("39", "### Test cases\n\n- **TC1 (AC1, nominal):** x"));
+
+            assertEquals("GET", next().getMethod());
+            RecordedRequest patch = next();
+            assertEquals("PATCH", patch.getMethod());
+            JsonNode body = body(patch);
+            assertEquals(4, body.at("/lockVersion").asInt());
+            assertEquals("Alert when stock is low\n\n### Acceptance Criteria\n\n- **AC1:** Given a\n\n### Test cases\n\n"
+                    + "- **TC1 (AC1, nominal):** x\n\nAI readiness (ai-ready): clear\n\nLabels: backend",
+                    body.at("/description/raw").asString());
+        }
+
+        @Test
+        @DisplayName("C2: 409 conflict -> read again and one retry; a description that already has the section: no PATCH")
+        void conflictRetriedOnceAndNeverTwice() throws Exception {
+            server.enqueue(json(200, withDescription(4, DESCRIPTION)));
+            server.enqueue(json(409, "{\"_type\":\"Error\",\"errorIdentifier\":\"urn:openproject-org:api:v3:errors:UpdateConflict\"}"));
+            server.enqueue(json(200, withDescription(6, DESCRIPTION)));
+            server.enqueue(json(200, withDescription(7, DESCRIPTION)));
+            assertTrue(tracker.insertTestCases("39", "### Test cases\n\n- TC1"));
+            next();
+            next();
+            next();
+            assertEquals(6, body(next()).at("/lockVersion").asInt(), "lockVersion read again after the conflict");
+
+            server.enqueue(json(200, withDescription(8, DESCRIPTION.replace("AI readiness", "### Test cases\n\n- TC1\n\nAI readiness"))));
+            assertFalse(tracker.insertTestCases("39", "### Test cases\n\n- TC2"));
+            assertEquals("GET", next().getMethod());
+            assertNull(server.takeRequest(200, java.util.concurrent.TimeUnit.MILLISECONDS), "no PATCH");
+        }
+
+        @Test
+        @DisplayName("C2: reassessment with the section present: comment and verdict field only, the description is never rewritten")
+        void reassessmentLeavesTheDescription() throws Exception {
+            server.enqueue(json(200, withDescription(0, DESCRIPTION.replace("AI readiness", "### Test cases\n\n- TC1\n\nAI readiness"))
+                    .replace("custom_options/1", "custom_options/2").replace("\"title\":\"ai-ready\"", "\"title\":\"validation-necessaire\"")));
+            server.enqueue(json(200, TYPES));
+            server.enqueue(json(200, FORM));
+            TrackedStory story = tracker.findStory("39");
+            for (int i = 0; i < 3; i++) {
+                next();
+            }
+            server.enqueue(json(201, "{\"_type\":\"Activity::Comment\",\"id\":64}"));
+            server.enqueue(json(200, workPackage(39, 1, "validation-necessaire")));
+            server.enqueue(json(200, workPackage(39, 2, "ai-ready")));
+
+            tracker.applyReassessment(story, "precision", new Readiness(true, "Now clear."));
+
+            assertEquals("POST", next().getMethod());
+            next();
+            JsonNode patch = body(next());
+            assertTrue(patch.at("/description").isMissingNode(), "description untouched: " + patch);
+        }
+    }
+
+    @Nested
     class Creation {
 
         @Test

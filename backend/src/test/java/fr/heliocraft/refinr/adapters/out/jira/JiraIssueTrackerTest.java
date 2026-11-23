@@ -349,6 +349,70 @@ class JiraIssueTrackerTest {
         assertEquals(List.of("OTHER-8", "OTHER-9"), story.subtaskKeys());
     }
 
+    /** Description ADF comme a la creation : criteres, puis ligne de verdict. */
+    private static final String STORY_ADF = "{\"type\":\"doc\",\"version\":1,\"content\":["
+            + "{\"type\":\"heading\",\"attrs\":{\"level\":3},\"content\":[{\"type\":\"text\",\"text\":\"Acceptance Criteria\"}]},"
+            + "{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"AC1: Given a, When b, Then c\"}]},"
+            + "{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"AI readiness (ai-ready): clear\"}]}]}";
+
+    @Test
+    @DisplayName("C2: test cases inserted before the verdict line, description read again just before the PUT, labels untouched")
+    void insertsTestCasesBeforeTheVerdictLine() throws Exception {
+        mockWebServer.enqueue(jsonResponse("{\"key\":\"TEST-7\",\"fields\":{\"description\":" + STORY_ADF + "}}"));
+        mockWebServer.enqueue(new MockResponse().setResponseCode(204));
+
+        assertTrue(jiraService.insertTestCases("TEST-7", "### Test cases\n\n- **TC1 (AC1, nominal):** x — Given a, When b, Then c"));
+
+        RecordedRequest read = mockWebServer.takeRequest();
+        assertEquals("GET", read.getMethod());
+        assertTrue(read.getPath().contains("fields=description"), read.getPath());
+        RecordedRequest put = mockWebServer.takeRequest();
+        assertEquals("PUT", put.getMethod());
+        String body = put.getBody().readUtf8();
+        assertFalse(body.contains("\"labels\""), "only the description is sent: " + body);
+        int criteria = body.indexOf("AC1: Given a"), section = body.indexOf("Test cases"), verdict = body.indexOf("AI readiness");
+        assertTrue(criteria < section && section < verdict, body);
+        assertTrue(body.contains("TC1 (AC1, nominal):"), body);
+    }
+
+    @Test
+    @DisplayName("C2: a description that already has the section is left untouched (no PUT); too long: nothing written")
+    void testCasesNeverTwiceNorTruncated() {
+        String withSection = STORY_ADF.replace("{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"AI readiness",
+                "{\"type\":\"heading\",\"attrs\":{\"level\":3},\"content\":[{\"type\":\"text\",\"text\":\"Test cases\"}]},"
+                + "{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"AI readiness");
+        mockWebServer.enqueue(jsonResponse("{\"key\":\"TEST-7\",\"fields\":{\"description\":" + withSection + "}}"));
+        assertFalse(jiraService.insertTestCases("TEST-7", "### Test cases\n\n- TC1"));
+        assertEquals(1, mockWebServer.getRequestCount(), "no PUT");
+
+        mockWebServer.enqueue(jsonResponse("{\"key\":\"TEST-7\",\"fields\":{\"description\":" + STORY_ADF + "}}"));
+        fr.heliocraft.refinr.application.port.out.IssueTrackerException tooLong = assertThrows(
+                fr.heliocraft.refinr.application.port.out.IssueTrackerException.class,
+                () -> jiraService.insertTestCases("TEST-7", "### Test cases\n\n" + "x".repeat(32_767)));
+        assertEquals(fr.heliocraft.refinr.application.port.out.IssueTrackerPort.TEST_CASES_TOO_LONG, tooLong.getMessage());
+        assertEquals(2, mockWebServer.getRequestCount(), "still no PUT");
+    }
+
+    @Test
+    @DisplayName("C2: reassessment of a story whose description has the section: section kept in place, new verdict line at the end")
+    void reassessmentKeepsTheSection() throws Exception {
+        mockWebServer.enqueue(new MockResponse().setResponseCode(204));
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> adf = new tools.jackson.databind.json.JsonMapper().readValue(STORY_ADF.replace(
+                "{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"AI readiness",
+                "{\"type\":\"heading\",\"attrs\":{\"level\":3},\"content\":[{\"type\":\"text\",\"text\":\"Test cases\"}]},"
+                + "{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"TC1 (AC1, nominal): x\"}]},"
+                + "{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"AI readiness"), java.util.Map.class);
+        TrackedStory story = new TrackedStory("TEST-7", "Export", "text", List.of("validation-necessaire"), new JiraAdfContent(adf));
+
+        jiraService.applyReassessment(story, "format A4", new Readiness(true, "Now clear"));
+
+        String body = mockWebServer.takeRequest().getBody().readUtf8();
+        int section = body.indexOf("Test cases"), testCase = body.indexOf("TC1 (AC1, nominal)");
+        int original = body.indexOf("AI readiness (ai-ready): clear"), reassessed = body.indexOf("AI readiness (ai-ready): Now clear");
+        assertTrue(section >= 0 && section < testCase && testCase < original && original < reassessed, body);
+    }
+
     @Test
     @DisplayName("Should record the user's precision and swap the readiness label")
     void shouldApplyReassessment() throws InterruptedException {

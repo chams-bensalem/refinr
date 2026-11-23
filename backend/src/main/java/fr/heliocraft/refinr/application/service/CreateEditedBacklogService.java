@@ -36,6 +36,20 @@ public class CreateEditedBacklogService implements CreateEditedBacklog {
 
     @Override
     public BacklogCreationResult create(List<Epic> epics, String project, Language language) {
+        // Cas de test envoyes par le client : controles avant tout appel (modele ou gestionnaire), 400 sinon
+        for (int e = 0; e < epics.size(); e++) {
+            List<fr.heliocraft.refinr.domain.model.Story> stories = epics.get(e) != null ? epics.get(e).getStories() : List.of();
+            for (int s = 0; s < stories.size(); s++) {
+                if (stories.get(s) == null) {
+                    continue;
+                }
+                String violation = fr.heliocraft.refinr.domain.service.TestCasePolicy.violation(stories.get(s),
+                        (e + 1) + "." + (s + 1));
+                if (violation != null) {
+                    throw new fr.heliocraft.refinr.application.port.in.InvalidRequestException(violation);
+                }
+            }
+        }
         // Sans langue demandee : la propriete, puis la detection story par story
         StoryVerdicts.apply(epics, assessor, story -> languagePolicy.resolve(language, StoryText.of(story)));
         return createBacklog.create(epics, project);

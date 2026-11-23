@@ -139,7 +139,8 @@ class AnthropicLlmClientTest extends AbstractLlmClientTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest(name = "{0}")
-    @org.junit.jupiter.params.provider.ValueSource(strings = {LlmSchemas.BACKLOG_STORIES, LlmSchemas.STORY_TASKS})
+    @org.junit.jupiter.params.provider.ValueSource(strings = {LlmSchemas.BACKLOG_STORIES, LlmSchemas.STORY_TASKS,
+            LlmSchemas.STORY_TEST_CASES})
     @DisplayName("Pipeline schemas (C1): every property required on the Anthropic side, empty values accepted")
     void pipelineSchemasHaveNoOptionalProperty(String name) {
         JsonNode local = LlmSchemas.load(name);
@@ -147,7 +148,10 @@ class AnthropicLlmClientTest extends AbstractLlmClientTest {
         java.util.List<String> optional = new java.util.ArrayList<>();
         optionalProperties(sent, "", optional);
         assertTrue(optional.isEmpty(), "optional properties sent to Anthropic: " + optional);
-        String empty = name.equals(LlmSchemas.STORY_TASKS)
+        String empty = name.equals(LlmSchemas.STORY_TEST_CASES)
+                ? "{\"stories\":[{\"id\":\"s1\",\"testCases\":[{\"title\":\"t\",\"criterion\":\"AC1\",\"kind\":\"edge\","
+                  + "\"given\":\"g\",\"when\":\"w\",\"then\":\"t\"}]}]}"
+                : name.equals(LlmSchemas.STORY_TASKS)
                 ? "{\"stories\":[{\"id\":\"s1\",\"tasks\":[{\"title\":\"t\",\"description\":\"\",\"estimatedHours\":0,\"labels\":[]}]}]}"
                 : "{\"epics\":[{\"name\":\"e\",\"description\":\"\",\"priority\":\"Medium\",\"labels\":[],\"features\":[{"
                   + "\"name\":\"f\",\"description\":\"\",\"priority\":\"Medium\",\"labels\":[],\"stories\":[{\"asA\":\"\","

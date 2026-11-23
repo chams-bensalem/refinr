@@ -494,6 +494,62 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
         applyVerdict(story, null, readiness);
     }
 
+    /**
+     * Section des cas de test inseree avant la ligne de verdict (sinon a la fin). Jira n'a pas de verrou optimiste : la
+     * description est relue juste avant le PUT (fenetre minimale) ; une modification humaine faite entre les deux peut
+     * etre ecrasee (limite connue, DECISIONS.md). Seule la description est envoyee (labels intacts).
+     */
+    @Override
+    public boolean insertTestCases(String issueKey, String markdown) {
+        log.info("Writing test cases into Jira issue {}", issueKey);
+        Map<?, ?> fields;
+        try {
+            Map<String, Object> response = webClient.get()
+                    .uri("/rest/api/3/issue/{issueKey}?fields=description", issueKey)
+                    .retrieve().bodyToMono(Map.class).block();
+            fields = response != null && response.get("fields") instanceof Map<?, ?> f ? f : Map.of();
+        } catch (WebClientResponseException e) {
+            throw new IssueTrackerException("Failed to read issue " + issueKey + ": HTTP " + e.getStatusCode().value());
+        }
+        Object description = fields.get("description");
+        String text = adfToText(description);
+        if (StoryMarkdown.hasTestCases(text)) {
+            return false;
+        }
+        if (text.strip().length() + markdown.length() + 2 > StoryMarkdown.MAX_DESCRIPTION) {
+            throw new IssueTrackerException(TEST_CASES_TOO_LONG);
+        }
+        List<Object> content = new ArrayList<>();
+        if (description instanceof Map<?, ?> adf && adf.get("content") instanceof List<?> existing) {
+            content.addAll(existing);
+        }
+        int at = content.size();
+        for (int i = 0; i < content.size(); i++) {
+            if (adfToText(content.get(i)).strip().startsWith(StoryMarkdown.VERDICT_LINE_PREFIX)) {
+                at = i;
+                break;
+            }
+        }
+        if (MarkdownAdf.toDocument(markdown).get("content") instanceof List<?> section) {
+            content.addAll(at, section);
+        }
+        Map<String, Object> document = new HashMap<>();
+        document.put("type", "doc");
+        document.put("version", 1);
+        document.put("content", content);
+        try {
+            webClient.put()
+                    .uri("/rest/api/3/issue/{issueKey}", issueKey)
+                    .bodyValue(Map.of("fields", Map.of("description", document)))
+                    .retrieve().bodyToMono(Void.class).block();
+        } catch (WebClientResponseException e) {
+            // Ni corps de reponse (il peut citer la description envoyee) ni cause
+            throw new IssueTrackerException("Failed to update issue " + issueKey + ": HTTP " + e.getStatusCode().value()
+                    + JiraErrors.of(e).shape());
+        }
+        return true;
+    }
+
     /** Description d'origine + precision (si fournie) + ligne du verdict, et label de verdict remplace. */
     private void applyVerdict(TrackedStory story, String precision, Readiness readiness) {
         boolean aiReady = readiness.aiReady();

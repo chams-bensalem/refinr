@@ -13,6 +13,7 @@ import fr.heliocraft.refinr.adapters.out.llm.LlmHealthCheck;
 import fr.heliocraft.refinr.adapters.out.llm.LlmProvider;
 import fr.heliocraft.refinr.adapters.out.llm.LlmReadinessAssessor;
 import fr.heliocraft.refinr.adapters.out.llm.LlmTaskGenerator;
+import fr.heliocraft.refinr.adapters.out.llm.LlmTestCaseGenerator;
 import fr.heliocraft.refinr.adapters.out.llm.LlmSettings;
 import fr.heliocraft.refinr.adapters.out.llm.MaxTokensParam;
 import fr.heliocraft.refinr.adapters.out.llm.RetryPolicy;
@@ -20,6 +21,7 @@ import fr.heliocraft.refinr.adapters.out.llm.StructuredOutput;
 import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
 import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
 import fr.heliocraft.refinr.application.port.out.TaskGeneratorPort;
+import fr.heliocraft.refinr.application.port.out.TestCaseGeneratorPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -92,6 +94,12 @@ public class LlmConfiguration {
     @Bean
     public BacklogGeneratorPort backlogGenerator(StructuredOutput structuredOutput) {
         return new LlmBacklogGenerator(analysisClient, structuredOutput);
+    }
+
+    /** Chaine C2 : cas de test des stories pretes par le fournisseur d'analyse, par lots de 10 stories. */
+    @Bean
+    public TestCaseGeneratorPort testCaseGenerator(StructuredOutput structuredOutput) {
+        return new LlmTestCaseGenerator(analysisClient, structuredOutput, TASK_BATCH_SIZE);
     }
 
     /** Chaine C1 : sous-taches des stories pretes par le fournisseur d'analyse, par lots de 10 stories. */

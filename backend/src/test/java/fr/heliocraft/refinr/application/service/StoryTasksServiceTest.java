@@ -69,6 +69,73 @@ class StoryTasksServiceTest {
         assertEquals("Export the orders", stories.getValue().getFirst().getTitle());
     }
 
+    private final fr.heliocraft.refinr.application.port.out.TestCaseGeneratorPort testCaseGenerator =
+            mock(fr.heliocraft.refinr.application.port.out.TestCaseGeneratorPort.class);
+    private final StoryTasksService withTestCases = new StoryTasksService(tracker, generator, OutputLanguagePolicy.DETECT,
+            new StoryLocks(), testCaseGenerator);
+
+    private static TrackedStory written(List<String> subtasks, String extra) {
+        return new TrackedStory("PROJ-7", "Export the orders", "As a customer I want to export my orders\n"
+                + "### Acceptance Criteria\n- **AC1:** Given paid orders, When I export, Then a CSV is downloaded\n" + extra
+                + "AI readiness (ai-ready): clear", List.of(ReadinessPolicy.LABEL_AI_READY), null, "PROJ", subtasks);
+    }
+
+    private static fr.heliocraft.refinr.domain.model.TestCase tc(String criterion) {
+        return new fr.heliocraft.refinr.domain.model.TestCase("CSV", criterion, "nominal", "paid orders", "I export", "a CSV");
+    }
+
+    @Test
+    @DisplayName("C2: after its sub-tasks, the story's test cases are written into its description (criteria read back from it)")
+    void testCasesWritten() {
+        when(tracker.findStory("PROJ-7")).thenReturn(written(List.of("PROJ-8"), ""));
+        when(testCaseGenerator.generateTestCases(anyList(), any())).thenReturn(List.of(List.of(tc("AC1"), tc("AC5"))));
+        when(tracker.insertTestCases(eq("PROJ-7"), any())).thenReturn(true);
+
+        StoryTasksResult result = withTestCases.generate("PROJ-7", null, Language.EN);
+
+        assertEquals(1, result.existingSubtasks(), "sub-tasks already there: skipped");
+        assertEquals(1, result.testCases(), "AC5 does not exist: dropped");
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Story>> input = ArgumentCaptor.forClass(List.class);
+        verify(testCaseGenerator).generateTestCases(input.capture(), eq(Language.EN));
+        assertEquals(List.of("Given paid orders, When I export, Then a CSV is downloaded"),
+                input.getValue().getFirst().getAcceptanceCriteria());
+        ArgumentCaptor<String> section = ArgumentCaptor.forClass(String.class);
+        verify(tracker).insertTestCases(eq("PROJ-7"), section.capture());
+        assertTrue(section.getValue().startsWith("### Test cases\n\n- **TC1 (AC1, nominal):** CSV"), section.getValue());
+    }
+
+    @Test
+    @DisplayName("C2: section already there -> testCasesSkipped, no model call; no criteria -> testCasesError")
+    void testCasesSkippedOrImpossible() {
+        when(tracker.findStory("PROJ-7")).thenReturn(written(List.of("PROJ-8"), "### Test cases\n- TC1\n"));
+        assertTrue(withTestCases.generate("PROJ-7", null, null).testCasesSkipped());
+        verifyNoInteractions(testCaseGenerator);
+
+        when(tracker.findStory("PROJ-7")).thenReturn(story(ReadinessPolicy.LABEL_AI_READY, List.of("PROJ-8")));
+        assertEquals(StoryTasksService.NO_CRITERIA, withTestCases.generate("PROJ-7", null, null).testCasesError());
+    }
+
+    @Test
+    @DisplayName("C2: model failure or a description that would be too long -> testCasesError; the sub-tasks stay created")
+    void testCasesErrors() {
+        when(tracker.findStory("PROJ-7")).thenReturn(written(List.of(), ""));
+        when(generator.generateTasks(anyList(), anyList(), any())).thenReturn(List.of(List.of(task("API"))));
+        when(tracker.createSubtask(any(), eq("PROJ-7"), any())).thenReturn("PROJ-8");
+        when(testCaseGenerator.generateTestCases(anyList(), any()))
+                .thenThrow(new LlmException(LlmException.Reason.UNAVAILABLE, "down"));
+
+        StoryTasksResult failed = withTestCases.generate("PROJ-7", null, null);
+        assertEquals(1, failed.created().size());
+        assertEquals(StoryTasksService.TEST_CASES_MODEL_FAILED, failed.testCasesError());
+
+        reset(testCaseGenerator);
+        when(tracker.findStory("PROJ-7")).thenReturn(written(List.of("PROJ-8"), ""));
+        when(testCaseGenerator.generateTestCases(anyList(), any())).thenReturn(List.of(List.of(tc("AC1"))));
+        when(tracker.insertTestCases(eq("PROJ-7"), any())).thenThrow(new IssueTrackerException(IssueTrackerPort.TEST_CASES_TOO_LONG));
+        assertEquals(IssueTrackerPort.TEST_CASES_TOO_LONG, withTestCases.generate("PROJ-7", null, null).testCasesError());
+    }
+
     @Test
     @DisplayName("Story that already has sub-tasks: nothing generated nor created, their number is given")
     void neverTwice() {

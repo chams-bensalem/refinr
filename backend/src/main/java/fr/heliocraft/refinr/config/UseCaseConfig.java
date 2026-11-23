@@ -20,6 +20,7 @@ import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
 import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
 import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
 import fr.heliocraft.refinr.application.port.out.TaskGeneratorPort;
+import fr.heliocraft.refinr.application.port.out.TestCaseGeneratorPort;
 import fr.heliocraft.refinr.application.port.in.GenerateStoryTasks;
 import fr.heliocraft.refinr.application.service.BacklogPipeline;
 import fr.heliocraft.refinr.application.service.StoryTasksService;
@@ -101,8 +102,8 @@ public class UseCaseConfig {
     /** Chaine C1 ("pipeline": true) : le verdict du prompt 2 y est toujours execute, fournisseur distinct ou non. */
     @Bean
     public BacklogPipeline backlogPipeline(BacklogGeneratorPort generator, ReadinessAssessorPort assessor,
-                                           TaskGeneratorPort taskGenerator) {
-        return new BacklogPipeline(generator, assessor, taskGenerator);
+                                           TaskGeneratorPort taskGenerator, TestCaseGeneratorPort testCaseGenerator) {
+        return new BacklogPipeline(generator, assessor, taskGenerator, testCaseGenerator);
     }
 
     @Bean
@@ -122,8 +123,8 @@ public class UseCaseConfig {
 
     @Bean
     public GenerateStoryTasks generateStoryTasks(IssueTrackerPort issueTracker, TaskGeneratorPort taskGenerator,
-                                                 StoryLocks storyLocks) {
-        return new StoryTasksService(issueTracker, taskGenerator, languagePolicy, storyLocks);
+                                                 StoryLocks storyLocks, TestCaseGeneratorPort testCaseGenerator) {
+        return new StoryTasksService(issueTracker, taskGenerator, languagePolicy, storyLocks, testCaseGenerator);
     }
 
     @Bean

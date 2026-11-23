@@ -394,6 +394,57 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
         }
     }
 
+    /**
+     * Section des cas de test inseree avant la ligne de verdict de la description (sinon a la fin) : relecture du work
+     * package (lockVersion a jour) juste avant le PATCH, une seule nouvelle tentative sur conflit 409.
+     */
+    @Override
+    public boolean insertTestCases(String key, String markdown) {
+        log.info("Writing test cases into OpenProject work package {}", key);
+        try {
+            return patchTestCases(key, markdown);
+        } catch (WebClientResponseException e) {
+            if (e.getStatusCode().value() != 409) {
+                throw failure("write the test cases of work package " + key, e);
+            }
+            log.warn("Update conflict on work package {}: reading it again and retrying once", key);
+            try {
+                return patchTestCases(key, markdown);
+            } catch (WebClientResponseException again) {
+                throw failure("write the test cases of work package " + key
+                        + (again.getStatusCode().value() == 409 ? " (conflict persisted after one retry)" : ""), again);
+            }
+        }
+    }
+
+    private boolean patchTestCases(String key, String markdown) {
+        WorkPackage current = read(key);
+        if (StoryMarkdown.hasTestCases(current.description())) {
+            return false;
+        }
+        String updated = StoryMarkdown.insertTestCases(current.description(), markdown);
+        if (updated.length() > StoryMarkdown.MAX_DESCRIPTION) {
+            throw new IssueTrackerException(TEST_CASES_TOO_LONG);
+        }
+        Map<String, Object> body = Map.of("lockVersion", current.lockVersion(),
+                "description", Map.of("format", "markdown", "raw", updated));
+        String id = workPackageId(key);
+        try {
+            block(webClient.patch()
+                    .uri(uri -> uri.path("/api/v3/work_packages/{id}").queryParam("notify", "false").build(id))
+                    .bodyValue(body)
+                    .retrieve()
+                    .toBodilessEntity());
+        } catch (WebClientRequestException e) {
+            throw new IssueTrackerException("OpenProject unreachable");
+        } catch (WebClientResponseException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw timeoutOr(e, "OpenProject did not answer within " + timeout.toSeconds() + "s while updating");
+        }
+        return true;
+    }
+
     /** Relit le work package (lockVersion a jour) puis PATCH du verdict ; laisse passer les erreurs HTTP du PATCH. */
     private void patchVerdict(String key, String verdict) {
         WorkPackage current = read(key);
