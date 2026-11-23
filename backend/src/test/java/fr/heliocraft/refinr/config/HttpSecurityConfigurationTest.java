@@ -80,6 +80,7 @@ class HttpSecurityConfigurationTest {
         @MockitoBean SearchDocuments searchDocuments;
         @MockitoBean DescribeTracker describeTracker;
         @MockitoBean DescribeSource describeSource;
+        @MockitoBean fr.heliocraft.refinr.application.port.in.GenerateStoryTasks generateStoryTasks;
         @MockitoBean CheckHealth checkHealth;
 
         @BeforeEach
@@ -227,6 +228,21 @@ class HttpSecurityConfigurationTest {
             mockMvc.perform(get(TRACKER).header("X-API-Key", "test-api-key-123"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.name").value("OpenProject"));
+        }
+
+        @Test
+        @DisplayName("POST /api/v1/story-tasks (pipeline) is protected like the other endpoints: 401 without the key")
+        void storyTasksRequiresTheKey() throws Exception {
+            String body = "{\"issueKey\":\"PROJ-1\"}";
+            mockMvc.perform(post("/api/v1/story-tasks").contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.error").value("Missing or invalid API key"));
+            org.mockito.Mockito.when(generateStoryTasks.generate("PROJ-1", null, null))
+                    .thenReturn(fr.heliocraft.refinr.application.port.in.StoryTasksResult.skipped(1));
+            mockMvc.perform(post("/api/v1/story-tasks").header("X-API-Key", "test-api-key-123")
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.tasksSkipped").value("the story already has 1 sub-task"));
         }
 
         @Test

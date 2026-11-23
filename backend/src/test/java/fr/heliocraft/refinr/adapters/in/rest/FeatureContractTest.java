@@ -59,6 +59,7 @@ class FeatureContractTest {
         @Autowired MockMvc mockMvc;
         @MockitoBean DocumentSourcePort source;
         @MockitoBean BacklogGeneratorPort generator;
+        @MockitoBean fr.heliocraft.refinr.application.port.out.TaskGeneratorPort taskGenerator;
         @MockitoBean ReadinessAssessorPort assessor;
         @MockitoBean IssueTrackerPort tracker;
 

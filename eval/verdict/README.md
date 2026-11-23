@@ -79,6 +79,8 @@ scripts/eval-verdict.sh run anthropic 5 --set en               # APPELLE LE MOD�
 scripts/eval-verdict.sh summarize eval/verdict/results/<dossier>-en --set en
 scripts/eval-verdict.sh generate anthropic eval/generation/specs/<spec>.md --out eval/generation/results/<dossier>   # APPELLE LE MODÈLE : génération du backlog
 scripts/eval-verdict.sh probe-schema anthropic --out eval/generation/results/<dossier>   # APPELLE LE MODÈLE : 1 appel, n'affiche que le statut HTTP, error.message et la durée (schéma de génération accepté par Anthropic ?)
+scripts/eval-verdict.sh probe-schema anthropic --schema story-tasks --out eval/generation/results/<dossier>   # idem pour un schéma de la chaîne C1 (backlog-stories, story-tasks)
+scripts/eval-verdict.sh generate anthropic eval/generation/specs/<spec>.md --pipeline true --out eval/generation/results/<dossier>   # APPELLE LE MODÈLE : chaîne C1 (génération sans sous-tâches, verdict, sous-tâches des stories prêtes)
 ```
 
 Cibles :

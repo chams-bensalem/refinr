@@ -130,32 +130,34 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
     }
 
     @Override
-    public JobView submitPreview(String documentId, String project, Language language) {
+    public JobView submitPreview(String documentId, String project, Language language, boolean pipeline) {
         DocumentAnalysis.requireValidId(documentSource, documentId);
-        return submit(JobView.Type.ANALYZE_PREVIEW, documentId,
-                progress -> new Result(previewBacklog.preview(documentId, language, progress), null, project));
+        return submit(JobView.Type.ANALYZE_PREVIEW, documentId, pipeline,
+                progress -> new Result(previewBacklog.preview(documentId, language, pipeline, progress), null, project));
     }
 
     @Override
-    public JobView submitPreviewText(String title, String content, String project, Language language) {
+    public JobView submitPreviewText(String title, String content, String project, Language language,
+                                     boolean pipeline) {
         // Memes refus que l'endpoint synchrone (413, puis 400), avant de creer le job
         DocumentAnalysis.providedText(title, content, maxContentChars);
-        return submit(JobView.Type.ANALYZE_PREVIEW, null,
-                progress -> new Result(previewBacklog.previewText(title, content, language, progress), null, project));
+        return submit(JobView.Type.ANALYZE_PREVIEW, null, pipeline, progress ->
+                new Result(previewBacklog.previewText(title, content, language, pipeline, progress), null, project));
     }
 
     @Override
-    public JobView submitAnalyzeAndCreate(String documentId, String project, Language language) {
+    public JobView submitAnalyzeAndCreate(String documentId, String project, Language language, boolean pipeline) {
         DocumentAnalysis.requireValidId(documentSource, documentId);
-        return submit(JobView.Type.ANALYZE_AND_CREATE, documentId,
-                progress -> new Result(null, analyzeDocument.analyzeAndCreate(documentId, project, language, progress)));
+        return submit(JobView.Type.ANALYZE_AND_CREATE, documentId, pipeline, progress ->
+                new Result(null, analyzeDocument.analyzeAndCreate(documentId, project, language, pipeline, progress)));
     }
 
     @Override
-    public JobView submitAnalyzeTextAndCreate(String title, String content, String project, Language language) {
+    public JobView submitAnalyzeTextAndCreate(String title, String content, String project, Language language,
+                                              boolean pipeline) {
         DocumentAnalysis.providedText(title, content, maxContentChars);
-        return submit(JobView.Type.ANALYZE_AND_CREATE, null, progress -> new Result(null,
-                analyzeDocument.analyzeTextAndCreate(title, content, project, language, progress)));
+        return submit(JobView.Type.ANALYZE_AND_CREATE, null, pipeline, progress -> new Result(null,
+                analyzeDocument.analyzeTextAndCreate(title, content, project, language, pipeline, progress)));
     }
 
     @Override
@@ -244,7 +246,7 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
         log.info("Analysis jobs stopped");
     }
 
-    private JobView submit(JobView.Type type, String documentId, Work work) {
+    private JobView submit(JobView.Type type, String documentId, boolean pipeline, Work work) {
         if (!accepting) {
             throw new RejectedException(SHUTTING_DOWN);
         }
@@ -254,7 +256,7 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
             throw new RejectedException(QUEUE_FULL);
         }
         String id = UUID.randomUUID().toString();
-        JobView view = JobView.queued(id, type, documentId, clock.instant());
+        JobView view = JobView.queued(id, type, documentId, clock.instant(), pipeline);
         if (!store.save(view)) {
             log.warn("Job rejected: the job store is full of unfinished jobs");
             throw new RejectedException(QUEUE_FULL);

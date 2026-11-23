@@ -24,6 +24,8 @@ public class PreviewBacklogService implements PreviewBacklog {
     // Taille maximale (caracteres Unicode) d'un document fourni en texte
     private final int maxContentChars;
     private final OutputLanguagePolicy languagePolicy;
+    // Chaine C1, ou null : "pipeline": true refuse
+    private final BacklogPipeline pipeline;
 
     public PreviewBacklogService(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
                                  ReadinessAssessorPort separateAssessor, int maxContentChars) {
@@ -33,6 +35,13 @@ public class PreviewBacklogService implements PreviewBacklog {
     public PreviewBacklogService(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
                                  ReadinessAssessorPort separateAssessor, int maxContentChars,
                                  OutputLanguagePolicy languagePolicy) {
+        this(documentSource, generator, separateAssessor, maxContentChars, languagePolicy, null);
+    }
+
+    public PreviewBacklogService(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
+                                 ReadinessAssessorPort separateAssessor, int maxContentChars,
+                                 OutputLanguagePolicy languagePolicy, BacklogPipeline pipeline) {
+        this.pipeline = pipeline;
         this.languagePolicy = languagePolicy;
         this.documentSource = documentSource;
         this.generator = generator;
@@ -47,10 +56,29 @@ public class PreviewBacklogService implements PreviewBacklog {
 
     @Override
     public List<Epic> preview(String documentId, Language language, AnalysisProgress progress) {
+        return preview(documentId, language, false, progress);
+    }
+
+    @Override
+    public List<Epic> preview(String documentId, Language language, boolean pipelined, AnalysisProgress progress) {
+        requirePipeline(pipelined);
         DocumentAnalysis.requireValidId(documentSource, documentId);
         progress.step(JobView.Step.READING_DOCUMENT);
         String content = SourceFailures.translate(() -> documentSource.getDocumentContent(documentId));
-        return analyze(content, language, progress);
+        return analyze(content, language, pipelined, progress);
+    }
+
+    @Override
+    public List<Epic> previewText(String title, String content, Language language, boolean pipelined,
+                                  AnalysisProgress progress) {
+        requirePipeline(pipelined);
+        return analyze(DocumentAnalysis.providedText(title, content, maxContentChars), language, pipelined, progress);
+    }
+
+    private void requirePipeline(boolean pipelined) {
+        if (pipelined && pipeline == null) {
+            throw new UnsupportedOperationException("pipeline not configured");
+        }
     }
 
     @Override
@@ -61,14 +89,17 @@ public class PreviewBacklogService implements PreviewBacklog {
     @Override
     public List<Epic> previewText(String title, String content, Language language, AnalysisProgress progress) {
         // Texte fourni : aucun appel a la source active
-        return analyze(DocumentAnalysis.providedText(title, content, maxContentChars), language, progress);
+        return previewText(title, content, language, false, progress);
     }
 
     /** Chemin commun aux deux entrees : texte utile, generation, verdict distinct eventuel. */
-    private List<Epic> analyze(String content, Language requested, AnalysisProgress progress) {
+    private List<Epic> analyze(String content, Language requested, boolean pipelined, AnalysisProgress progress) {
         DocumentAnalysis.requireUsefulText(content);
         // Langue resolue une fois sur le document : la generation et le verdict distinct la partagent
         Language language = languagePolicy.resolve(requested, content);
+        if (pipelined) {
+            return pipeline.run(content, language, progress);
+        }
         progress.step(JobView.Step.GENERATING);
         List<Epic> epics = LlmFailures.translate(() -> generator.generate(content, language));
         if (separateAssessor != null) {

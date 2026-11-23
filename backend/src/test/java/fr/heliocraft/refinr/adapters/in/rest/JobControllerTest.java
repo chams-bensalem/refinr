@@ -88,6 +88,7 @@ class JobControllerTest {
 
     @MockitoBean
     private BacklogGeneratorPort generator;
+    @MockitoBean fr.heliocraft.refinr.application.port.out.TaskGeneratorPort taskGenerator;
 
     @MockitoBean
     private ReadinessAssessorPort assessor;

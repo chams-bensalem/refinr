@@ -19,6 +19,11 @@ import fr.heliocraft.refinr.application.port.out.HealthCheckable;
 import fr.heliocraft.refinr.application.port.out.IssueTrackerPort;
 import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
 import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
+import fr.heliocraft.refinr.application.port.out.TaskGeneratorPort;
+import fr.heliocraft.refinr.application.port.in.GenerateStoryTasks;
+import fr.heliocraft.refinr.application.service.BacklogPipeline;
+import fr.heliocraft.refinr.application.service.StoryTasksService;
+import fr.heliocraft.refinr.application.service.StoryLocks;
 import fr.heliocraft.refinr.application.service.AnalyzeDocumentService;
 import fr.heliocraft.refinr.application.service.CheckHealthService;
 import fr.heliocraft.refinr.application.service.CreateBacklogService;
@@ -77,9 +82,15 @@ public class UseCaseConfig {
         this.maxContentChars = maxContentChars;
     }
 
+    /** Verrous par story partages par la creation et story-tasks (sous-taches jamais creees par deux chemins). */
     @Bean
-    public CreateBacklog createBacklog(IssueTrackerPort issueTracker) {
-        return new CreateBacklogService(issueTracker, featurePolicy);
+    public StoryLocks storyLocks() {
+        return new StoryLocks();
+    }
+
+    @Bean
+    public CreateBacklog createBacklog(IssueTrackerPort issueTracker, StoryLocks storyLocks) {
+        return new CreateBacklogService(issueTracker, featurePolicy, storyLocks);
     }
 
     @Bean
@@ -87,18 +98,32 @@ public class UseCaseConfig {
         return new CreateEditedBacklogService(assessor, createBacklog, languagePolicy);
     }
 
+    /** Chaine C1 ("pipeline": true) : le verdict du prompt 2 y est toujours execute, fournisseur distinct ou non. */
+    @Bean
+    public BacklogPipeline backlogPipeline(BacklogGeneratorPort generator, ReadinessAssessorPort assessor,
+                                           TaskGeneratorPort taskGenerator) {
+        return new BacklogPipeline(generator, assessor, taskGenerator);
+    }
+
     @Bean
     public PreviewBacklog previewBacklog(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
-                                         ReadinessAssessorPort assessor) {
+                                         ReadinessAssessorPort assessor, BacklogPipeline pipeline) {
         return new PreviewBacklogService(documentSource, generator, separateVerdict ? assessor : null, maxContentChars,
-                languagePolicy);
+                languagePolicy, pipeline);
     }
 
     @Bean
     public AnalyzeDocument analyzeDocument(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
-                                           ReadinessAssessorPort assessor, CreateBacklog createBacklog) {
+                                           ReadinessAssessorPort assessor, CreateBacklog createBacklog,
+                                           BacklogPipeline pipeline) {
         return new AnalyzeDocumentService(documentSource, generator, separateVerdict ? assessor : null, createBacklog,
-                maxContentChars, languagePolicy);
+                maxContentChars, languagePolicy, pipeline);
+    }
+
+    @Bean
+    public GenerateStoryTasks generateStoryTasks(IssueTrackerPort issueTracker, TaskGeneratorPort taskGenerator,
+                                                 StoryLocks storyLocks) {
+        return new StoryTasksService(issueTracker, taskGenerator, languagePolicy, storyLocks);
     }
 
     @Bean

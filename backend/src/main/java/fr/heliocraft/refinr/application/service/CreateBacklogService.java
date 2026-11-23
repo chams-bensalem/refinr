@@ -45,14 +45,21 @@ public class CreateBacklogService implements CreateBacklog {
 
     private final IssueTrackerPort issueTracker;
     private final FeatureLevels.Policy policy;
+    // Partages avec story-tasks : une story creee ici garde son verrou jusqu'a la fin de ses sous-taches
+    private final StoryLocks locks;
 
     public CreateBacklogService(IssueTrackerPort issueTracker) {
         this(issueTracker, FeatureLevels.Policy.LABEL);
     }
 
     public CreateBacklogService(IssueTrackerPort issueTracker, FeatureLevels.Policy policy) {
+        this(issueTracker, policy, new StoryLocks());
+    }
+
+    public CreateBacklogService(IssueTrackerPort issueTracker, FeatureLevels.Policy policy, StoryLocks locks) {
         this.issueTracker = issueTracker;
         this.policy = policy;
+        this.locks = locks;
     }
 
     @Override
@@ -135,14 +142,22 @@ public class CreateBacklogService implements CreateBacklog {
                     story.setTrackerKey(storyKey);
                     story.setEpicTrackerKey(epicKey);
 
-                    int taskIndex = 0;
-                    for (Task task : nonNull(story.getTasks())) {
-                        String taskPosition = storyPosition + "." + ++taskIndex;
-                        String taskKey = attempt(SUBTASK, taskPosition, task.getTitle(),
-                                () -> issueTracker.createSubtask(task, storyKey, project), created, failed);
-                        if (taskKey != null) {
-                            task.setTrackerKey(taskKey);
-                            task.setParentTrackerKey(storyKey);
+                    // La story existe deja (label ai-ready compris) : story-tasks attend la fin de ses sous-taches
+                    boolean locked = locks.tryLock(storyKey);
+                    try {
+                        int taskIndex = 0;
+                        for (Task task : nonNull(story.getTasks())) {
+                            String taskPosition = storyPosition + "." + ++taskIndex;
+                            String taskKey = attempt(SUBTASK, taskPosition, task.getTitle(),
+                                    () -> issueTracker.createSubtask(task, storyKey, project), created, failed);
+                            if (taskKey != null) {
+                                task.setTrackerKey(taskKey);
+                                task.setParentTrackerKey(storyKey);
+                            }
+                        }
+                    } finally {
+                        if (locked) {
+                            locks.unlock(storyKey);
                         }
                     }
                 }

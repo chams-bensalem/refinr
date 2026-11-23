@@ -325,7 +325,10 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
         if (verdict != null) {
             labels.add(verdict);
         }
-        return new TrackedStory(key, workPackage.subject(), workPackage.description(), labels, null);
+        // Id canonique rendu par OpenProject (039 -> 39) : un seul verrou par story
+        String canonical = workPackage.selfId() != null ? workPackage.selfId() : key;
+        return new TrackedStory(canonical, workPackage.subject(), workPackage.description(), labels, null,
+                workPackage.projectId(), workPackage.childKeys());
     }
 
     /**
@@ -738,6 +741,25 @@ public class OpenProjectIssueTracker implements IssueTrackerPort, HealthCheckabl
             Object subject = body.get("subject");
             return new WorkPackage(subject != null ? subject.toString() : "", description, lockVersion, projectId,
                     links);
+        }
+
+        /** Id du work package d'apres son lien {@code self}, ou null. */
+        String selfId() {
+            return links.get("self") instanceof Map<?, ?> self && self.get("href") instanceof String href
+                    && href.lastIndexOf('/') < href.length() - 1 ? href.substring(href.lastIndexOf('/') + 1) : null;
+        }
+
+        /** Ids des work packages enfants ({@code _links.children}, absent quand il n'y en a pas). */
+        List<String> childKeys() {
+            List<String> keys = new ArrayList<>();
+            if (links.get("children") instanceof List<?> children) {
+                for (Object child : children) {
+                    if (child instanceof Map<?, ?> link && link.get("href") instanceof String href && !href.isBlank()) {
+                        keys.add(href.substring(href.lastIndexOf('/') + 1));
+                    }
+                }
+            }
+            return keys;
         }
 
         /** Titre d'un lien (ex. valeur de l'option du champ liste), ou null s'il est vide. */

@@ -18,6 +18,10 @@ import java.io.UncheckedIOException;
 final class LlmSchemas {
 
     static final String BACKLOG = "backlog";
+    /** Chaine C1 : backlog sans sous-taches. */
+    static final String BACKLOG_STORIES = "backlog-stories";
+    /** Chaine C1 : sous-taches de stories pretes, par identifiant. */
+    static final String STORY_TASKS = "story-tasks";
     static final String READINESS = "readiness";
     static final String READINESS_BATCH = "readiness-batch";
 

@@ -240,12 +240,13 @@ public final class VerdictEval {
                 refuseAutomatedRun(System.getenv(), System.getProperties());
                 eval.generate(Target.of(arg(positional, 1)), config, positional.subList(2, positional.size()), opts.get("out"),
                         opts.containsKey("cap") ? Integer.valueOf(opts.get("cap")) : null, Double.parseDouble(opts.getOrDefault("budget", "20")),
-                        opts.getOrDefault("phase", "E0"));
+                        opts.getOrDefault("phase", "E0"), Boolean.parseBoolean(opts.getOrDefault("pipeline", "false")));
             }
             case "probe-schema" -> {
                 refuseAutomatedRun(System.getenv(), System.getProperties());
                 eval.probeSchema(Target.of(arg(positional, 1)), config, opts.get("out"),
-                        Double.parseDouble(opts.getOrDefault("budget", "20")), opts.getOrDefault("phase", "E0"));
+                        Double.parseDouble(opts.getOrDefault("budget", "20")), opts.getOrDefault("phase", "E0"),
+                        opts.getOrDefault("schema", "backlog"));
             }
             default -> usage();
         }
@@ -284,8 +285,8 @@ public final class VerdictEval {
                   estimate  <target> <runs> [--assume-model ID]      calls and cost estimate (no model call)
                   run       <target> <runs> [--out DIR] [--pause 15] [--cap N] [--budget 20] [--phase E0]   CALLS THE MODEL
                   summarize <resultsDir> [--baseline DIR[,DIR]]      metrics against the labels (no model call)
-                  generate  <target> <spec.md>... [--out DIR] [--cap N] [--budget 20] [--phase E0]   CALLS THE MODEL
-                  probe-schema <target> [--out DIR] [--budget 20] [--phase E0]   CALLS THE MODEL (Anthropic, 1 call)
+                  generate  <target> <spec.md>... [--out DIR] [--cap N] [--budget 20] [--phase E0] [--pipeline true]   CALLS THE MODEL
+                  probe-schema <target> [--out DIR] [--budget 20] [--phase E0] [--schema backlog|backlog-stories|story-tasks]   CALLS THE MODEL (Anthropic, 1 call)
                             backlog generation (analysis role) of each spec, one call each, saved as <spec>.json""");
     }
 
@@ -875,7 +876,7 @@ public final class VerdictEval {
      * Sonde du schema de generation chez Anthropic : un appel (corps de production, prompt d'une phrase, sortie limitee),
      * meme configuration que {@code generate}. N'affiche que le statut HTTP, {@code error.message} et la duree.
      */
-    void probeSchema(Target target, String config, String outOption, double budget, String phase) throws Exception {
+    void probeSchema(Target target, String config, String outOption, double budget, String phase, String schema) throws Exception {
         List<String> args = new ArrayList<>(List.of("--spring.config.location=file:" + config,
                 "--logging.level.root=WARN", "--logging.level.fr.heliocraft.refinr=WARN"));
         args.addAll(target.analysisSpringArgs());
@@ -895,7 +896,8 @@ public final class VerdictEval {
         Files.createDirectories(out);
         Files.createDirectories(stateDir);
         Meter meter = new Meter(s, price, out.resolve("calls.csv"), null, budget, phase);
-        fr.heliocraft.refinr.adapters.out.llm.LlmRequest request = fr.heliocraft.refinr.adapters.out.llm.SchemaProbe.request();
+        fr.heliocraft.refinr.adapters.out.llm.LlmRequest request = fr.heliocraft.refinr.adapters.out.llm.SchemaProbe.request(schema);
+        System.out.println("schema=" + schema);
         meter.before(s.settings(), request);
         fr.heliocraft.refinr.adapters.out.llm.SchemaProbe.Result result = fr.heliocraft.refinr.adapters.out.llm.SchemaProbe
                 .probe(s.settings(), request, Duration.ofMinutes(4));
@@ -910,7 +912,8 @@ public final class VerdictEval {
         }
     }
 
-    void generate(Target target, String config, List<String> specs, String outOption, Integer cap, double budget, String phase) throws Exception {
+    void generate(Target target, String config, List<String> specs, String outOption, Integer cap, double budget, String phase,
+                  boolean pipeline) throws Exception {
         if (specs.isEmpty()) throw new IllegalArgumentException("missing spec file(s), see usage");
         List<String> args = new ArrayList<>(List.of("--spring.config.location=file:" + config,
                 "--logging.level.root=WARN", "--logging.level.fr.heliocraft.refinr=WARN"));
@@ -941,7 +944,16 @@ public final class VerdictEval {
         Files.createDirectories(stateDir);
         Meter meter = new Meter(s, price, out.resolve("calls.csv"), cap, budget, phase);
         LlmBacklogGenerator generator = new LlmBacklogGenerator(MeteredLlmClients.create(s.settings(), meter), new StructuredOutput(s.repairs()));
-        PreviewBacklogService preview = new PreviewBacklogService(null, generator, null, 200_000, s.languages());
+        // Chaine C1 (--pipeline true) : meme fournisseur pour la generation, le verdict (prompt 2, lots de 10) et les
+        // sous-taches (prompt 4), comme une instance a un seul fournisseur ; tous les appels passent par le compteur
+        fr.heliocraft.refinr.application.service.BacklogPipeline chain = !pipeline ? null
+                : new fr.heliocraft.refinr.application.service.BacklogPipeline(generator,
+                        new fr.heliocraft.refinr.adapters.out.llm.LlmReadinessAssessor(
+                                MeteredLlmClients.create(s.settings(), meter), new StructuredOutput(s.repairs()), 10),
+                        new fr.heliocraft.refinr.adapters.out.llm.LlmTaskGenerator(
+                                MeteredLlmClients.create(s.settings(), meter), new StructuredOutput(s.repairs()), 10));
+        PreviewBacklogService preview = new PreviewBacklogService(null, generator, null, 200_000, s.languages(), chain);
+        System.out.println("pipeline=" + pipeline);
         JsonMapper json = JsonMapper.builder().build();
         for (int i = 0; i < specs.size(); i++) {
             Path spec = Path.of(specs.get(i));
@@ -954,7 +966,8 @@ public final class VerdictEval {
             meter.batch = i + 1;
             List<Epic> epics;
             try {
-                epics = preview.previewText(name, content);
+                epics = pipeline ? preview.previewText(name, content, null, true,
+                        fr.heliocraft.refinr.application.port.in.AnalysisProgress.NONE) : preview.previewText(name, content);
             } catch (Stop stop) {
                 stopFile(out, stop.reason, 1, i + 1, meter);
                 return;

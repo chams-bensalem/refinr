@@ -623,6 +623,25 @@ class OpenProjectIssueTrackerTest {
             assertNull(story.originalContent());
             assertEquals("/api/v3/work_packages/39", next().getPath());
             assertEquals("/api/v3/projects/3/types", next().getPath(), "setup of the project of the work package");
+            assertEquals("3", story.project());
+            assertEquals(List.of(), story.subtaskKeys(), "no children link: no sub-task");
+        }
+
+        @Test
+        @DisplayName("findStory: the children of the work package are its sub-tasks (pipeline: never created twice)")
+        void findStoryWithChildren() {
+            String withChildren = workPackage(39, 0, "ai-ready").replace("\"customField1\"",
+                    "\"children\":[{\"href\":\"/api/v3/work_packages/40\",\"title\":\"API\"},"
+                    + "{\"href\":\"/api/v3/work_packages/41\",\"title\":\"Tests\"}],\"customField1\"");
+            server.enqueue(json(200, withChildren));
+            server.enqueue(json(200, TYPES));
+            server.enqueue(json(200, FORM));
+
+            TrackedStory story = tracker.findStory("039");
+
+            assertEquals("39", story.key(), "canonical id from the self link (one lock per story)");
+            assertEquals(List.of("40", "41"), story.subtaskKeys());
+            assertEquals(List.of("ai-ready"), story.labels());
         }
 
         @Test

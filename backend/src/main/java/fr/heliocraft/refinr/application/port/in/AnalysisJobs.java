@@ -40,7 +40,12 @@ public interface AnalysisJobs {
      * Apercu d'un document de la source active ; {@code project} (null ou vide : projet par defaut) : projet dont le
      * niveau Feature donne les avertissements de l'apercu.
      */
-    JobView submitPreview(String documentId, String project, Language language);
+    default JobView submitPreview(String documentId, String project, Language language) {
+        return submitPreview(documentId, project, language, false);
+    }
+
+    /** {@code pipeline} : chaine C1 ({@code "pipeline": true}) ; false : comportement par defaut. */
+    JobView submitPreview(String documentId, String project, Language language, boolean pipeline);
 
     /** Apercu d'un document fourni en texte, avertissements du projet par defaut. */
     default JobView submitPreviewText(String title, String content, Language language) {
@@ -48,13 +53,29 @@ public interface AnalysisJobs {
     }
 
     /** Apercu d'un document fourni en texte ; {@code project} : comme {@link #submitPreview(String, String, Language)}. */
-    JobView submitPreviewText(String title, String content, String project, Language language);
+    default JobView submitPreviewText(String title, String content, String project, Language language) {
+        return submitPreviewText(title, content, project, language, false);
+    }
+
+    /** {@code pipeline} : chaine C1 ({@code "pipeline": true}) ; false : comportement par defaut. */
+    JobView submitPreviewText(String title, String content, String project, Language language, boolean pipeline);
 
     /** Analyse et creation d'un document de la source active ; {@code project} null ou vide : projet par defaut. */
-    JobView submitAnalyzeAndCreate(String documentId, String project, Language language);
+    default JobView submitAnalyzeAndCreate(String documentId, String project, Language language) {
+        return submitAnalyzeAndCreate(documentId, project, language, false);
+    }
+
+    /** {@code pipeline} : chaine C1 ({@code "pipeline": true}) ; false : comportement par defaut. */
+    JobView submitAnalyzeAndCreate(String documentId, String project, Language language, boolean pipeline);
 
     /** Analyse et creation d'un document fourni en texte. */
-    JobView submitAnalyzeTextAndCreate(String title, String content, String project, Language language);
+    default JobView submitAnalyzeTextAndCreate(String title, String content, String project, Language language) {
+        return submitAnalyzeTextAndCreate(title, content, project, language, false);
+    }
+
+    /** {@code pipeline} : chaine C1 ({@code "pipeline": true}) ; false : comportement par defaut. */
+    JobView submitAnalyzeTextAndCreate(String title, String content, String project, Language language,
+                                       boolean pipeline);
 
     /** Etat du job, vide s'il est inconnu ou expire. */
     Optional<JobView> find(String id);

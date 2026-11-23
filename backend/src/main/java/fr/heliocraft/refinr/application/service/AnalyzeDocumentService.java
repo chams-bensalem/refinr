@@ -31,6 +31,8 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
     // Taille maximale (caracteres Unicode) d'un document fourni en texte
     private final int maxContentChars;
     private final OutputLanguagePolicy languagePolicy;
+    // Chaine C1, ou null : "pipeline": true refuse
+    private final BacklogPipeline pipeline;
 
     public AnalyzeDocumentService(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
                                   ReadinessAssessorPort separateAssessor, CreateBacklog createBacklog,
@@ -41,6 +43,13 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
     public AnalyzeDocumentService(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
                                   ReadinessAssessorPort separateAssessor, CreateBacklog createBacklog,
                                   int maxContentChars, OutputLanguagePolicy languagePolicy) {
+        this(documentSource, generator, separateAssessor, createBacklog, maxContentChars, languagePolicy, null);
+    }
+
+    public AnalyzeDocumentService(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
+                                  ReadinessAssessorPort separateAssessor, CreateBacklog createBacklog,
+                                  int maxContentChars, OutputLanguagePolicy languagePolicy, BacklogPipeline pipeline) {
+        this.pipeline = pipeline;
         this.languagePolicy = languagePolicy;
         this.documentSource = documentSource;
         this.generator = generator;
@@ -57,11 +66,18 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
     @Override
     public BacklogCreationResult analyzeAndCreate(String documentId, String project, Language language,
                                                   AnalysisProgress progress) {
+        return analyzeAndCreate(documentId, project, language, false, progress);
+    }
+
+    @Override
+    public BacklogCreationResult analyzeAndCreate(String documentId, String project, Language language, boolean pipelined,
+                                                  AnalysisProgress progress) {
+        requirePipeline(pipelined);
         DocumentAnalysis.requireValidId(documentSource, documentId);
         log.info("Step 1: Reading source document...");
         progress.step(JobView.Step.READING_DOCUMENT);
         String content = SourceFailures.translate(() -> documentSource.getDocumentContent(documentId));
-        return analyzeAndCreateFrom(content, project, language, progress);
+        return analyzeAndCreateFrom(content, project, language, pipelined, progress);
     }
 
     @Override
@@ -72,25 +88,43 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
     @Override
     public BacklogCreationResult analyzeTextAndCreate(String title, String content, String project, Language language,
                                                       AnalysisProgress progress) {
+        return analyzeTextAndCreate(title, content, project, language, false, progress);
+    }
+
+    @Override
+    public BacklogCreationResult analyzeTextAndCreate(String title, String content, String project, Language language,
+                                                      boolean pipelined, AnalysisProgress progress) {
+        requirePipeline(pipelined);
         // Texte fourni : aucun appel a la source active
         log.info("Step 1: Using the provided text...");
         return analyzeAndCreateFrom(DocumentAnalysis.providedText(title, content, maxContentChars), project, language,
-                progress);
+                pipelined, progress);
+    }
+
+    private void requirePipeline(boolean pipelined) {
+        if (pipelined && pipeline == null) {
+            throw new UnsupportedOperationException("pipeline not configured");
+        }
     }
 
     /** Chemin commun aux deux entrees : texte utile, generation, verdict distinct eventuel, creation. */
     private BacklogCreationResult analyzeAndCreateFrom(String content, String project, Language requested,
-                                                       AnalysisProgress progress) {
+                                                       boolean pipelined, AnalysisProgress progress) {
         DocumentAnalysis.requireUsefulText(content);
 
         log.info("Step 2: Analyzing document with AI...");
         // Langue resolue une fois sur le document : la generation et le verdict distinct la partagent
         Language language = languagePolicy.resolve(requested, content);
-        progress.step(JobView.Step.GENERATING);
-        List<Epic> epics = LlmFailures.translate(() -> generator.generate(content, language));
-        if (separateAssessor != null) {
-            progress.step(JobView.Step.ASSESSING);
-            StoryVerdicts.apply(epics, separateAssessor, story -> language);
+        List<Epic> epics;
+        if (pipelined) {
+            epics = pipeline.run(content, language, progress);
+        } else {
+            progress.step(JobView.Step.GENERATING);
+            epics = LlmFailures.translate(() -> generator.generate(content, language));
+            if (separateAssessor != null) {
+                progress.step(JobView.Step.ASSESSING);
+                StoryVerdicts.apply(epics, separateAssessor, story -> language);
+            }
         }
 
         // Dernier point d'arret possible : une creation commencee va toujours au bout
