@@ -817,7 +817,10 @@ at the same place. `story-tasks` on a story that already has its sub-tasks but n
 test cases only (`tasksSkipped` and `testCases`): it is also how to recover after a `testCasesError`. A section is
 never added twice (found by its title). The description is limited to 32,767 characters (Jira's limit): beyond, the
 section is not written and the response says so, never truncated. `create-jira` validates the test cases edited by a
-client (`400` otherwise). **Known limit (Jira)**: Jira has no optimistic locking; the description is read again just
+client (`400` otherwise): each case names an existing criterion and, for a story that has test cases, every criterion
+has 1 to 3 of them (the `400` names the story and the criteria); a story sent without test cases is created without
+a section. If prompt 5 fails for the whole backlog (for example `503`), the rest goes on: each ready story gets
+`testCasesError` and a single warning says so. **Known limit (Jira)**: Jira has no optimistic locking; the description is read again just
 before it is rewritten, but a human edit made in the meantime can be overwritten.
 
 ### Feed your coding agent

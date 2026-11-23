@@ -128,6 +128,34 @@ class BacklogPipelineTest {
     }
 
     @Test
+    @DisplayName("C2 degraded mode: prompt 5 fails for every batch (503) -> testCasesError on each ready story, backlog continues")
+    void totalTestCaseFailureIsDegraded() {
+        BacklogGeneratorPort generator = mock(BacklogGeneratorPort.class);
+        ReadinessAssessorPort assessor = mock(ReadinessAssessorPort.class);
+        TaskGeneratorPort tasks = mock(TaskGeneratorPort.class);
+        fr.heliocraft.refinr.application.port.out.TestCaseGeneratorPort testCases =
+                mock(fr.heliocraft.refinr.application.port.out.TestCaseGeneratorPort.class);
+        Story a = story("A", true), b = story("B", true);
+        a.setAcceptanceCriteria(new ArrayList<>(List.of("Given …")));
+        b.setAcceptanceCriteria(new ArrayList<>(List.of("Given …")));
+        when(generator.generateStories(any(), any())).thenReturn(backlog(a, b));
+        when(assessor.assess(anyList(), anyList())).thenReturn(List.of(new Readiness(true, "ok"), new Readiness(true, "ok")));
+        when(tasks.generateTasks(anyList(), anyList(), any())).thenReturn(List.of(List.of(task("A1")), List.of(task("B1"))));
+        when(testCases.generateTestCases(anyList(), any()))
+                .thenThrow(new LlmException(LlmException.Reason.OVERLOADED, "HTTP 503"));
+
+        List<Epic> epics = new BacklogPipeline(generator, assessor, tasks, testCases).run("SPEC", Language.EN, AnalysisProgress.NONE);
+
+        assertEquals(2, epics.getFirst().getStories().size());
+        for (Story story : List.of(a, b)) {
+            assertEquals(fr.heliocraft.refinr.domain.service.TestCasePolicy.MODEL_UNAVAILABLE, story.getTestCasesError());
+            assertTrue(story.getTestCases().isEmpty());
+            assertEquals(1, story.getTasks().size(), "sub-tasks kept");
+            assertTrue(story.getAiReady(), "verdict kept");
+        }
+    }
+
+    @Test
     @DisplayName("No ready story: no task call at all")
     void noReadyStoryNoCall() {
         BacklogGeneratorPort generator = mock(BacklogGeneratorPort.class);
