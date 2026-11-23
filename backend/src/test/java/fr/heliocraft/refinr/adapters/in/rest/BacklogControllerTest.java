@@ -1222,15 +1222,24 @@ class BacklogControllerTest {
         when(jiraService.findStory("TEST-7")).thenReturn(story);
 
         mockMvc.perform(post("/api/v1/validate-story").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"issueKey\":\"TEST-7\"}"))
+                        .content("{\"issueKey\":\"TEST-7\",\"language\":\"fr\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.issueKey").value("TEST-7"))
                 .andExpect(jsonPath("$.aiReady").value(true))
                 .andExpect(jsonPath("$.aiReadySource").value("human"))
-                .andExpect(jsonPath("$.aiReadyReason").value("validee par un humain, sans appel au modele"));
+                .andExpect(jsonPath("$.aiReadyReason").value("validée par un humain, sans appel au modèle"));
+        // Raison ecrite dans le ticket : francais avec ses accents, anglais pour toute autre langue
+        mockMvc.perform(post("/api/v1/validate-story").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"issueKey\":\"TEST-7\",\"language\":\"en\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.aiReadyReason").value("validated by a human, without a model call"));
+        mockMvc.perform(post("/api/v1/validate-story").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"issueKey\":\"TEST-7\",\"language\":\"zz\"}"))
+                .andExpect(status().isBadRequest());
 
-        verify(jiraService).applyHumanValidation(eq(story), argThat(v -> v.aiReady() && v.source() == ReadinessSource.HUMAN));
+        verify(jiraService).applyHumanValidation(eq(story), argThat(v -> v.aiReady() && v.source() == ReadinessSource.HUMAN
+                && v.aiReadyReason().equals("validée par un humain, sans appel au modèle")));
         verifyNoInteractions(assessor, generator);
     }
 

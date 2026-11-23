@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.domain.service;
 
+import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.domain.model.Readiness;
 import fr.heliocraft.refinr.domain.model.ReadinessSource;
 
@@ -60,11 +61,19 @@ public final class ReadinessPolicy {
                 ReadinessSource.FALLBACK);
     }
 
-    /** Raison du verdict d'une validation humaine directe (ecrite dans le ticket). */
-    public static final String HUMAN_VALIDATION_REASON = "validee par un humain, sans appel au modele";
+    /** Raison du verdict d'une validation humaine directe (ecrite dans le ticket), en francais. */
+    public static final String HUMAN_VALIDATION_REASON = "validée par un humain, sans appel au modèle";
+    /** La meme raison en anglais (toute autre langue que le francais, comme les prompts). */
+    public static final String HUMAN_VALIDATION_REASON_EN = "validated by a human, without a model call";
 
-    /** Verdict d'une validation humaine directe : ai-ready, sans appel au modele. */
+    /** Verdict d'une validation humaine directe : ai-ready, sans appel au modele ; raison en francais. */
     public static Readiness humanValidation() {
-        return new Readiness(true, HUMAN_VALIDATION_REASON, ReadinessSource.HUMAN);
+        return humanValidation(Language.FR);
+    }
+
+    /** Verdict d'une validation humaine directe, raison dans {@code language} (francais, sinon anglais). */
+    public static Readiness humanValidation(Language language) {
+        boolean french = language == null || language.isFrench();
+        return new Readiness(true, french ? HUMAN_VALIDATION_REASON : HUMAN_VALIDATION_REASON_EN, ReadinessSource.HUMAN);
     }
 }

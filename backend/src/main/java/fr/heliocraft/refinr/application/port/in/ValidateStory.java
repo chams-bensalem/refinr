@@ -12,5 +12,14 @@ public interface ValidateStory {
      * @return le verdict ecrit : ai-ready, source {@code human}
      * @throws StoryNotAwaitingValidationException si la story n'est pas en attente de validation
      */
-    Readiness validate(String storyKey);
+    default Readiness validate(String storyKey) {
+        return validate(storyKey, null);
+    }
+
+    /**
+     * @param language langue de la raison ecrite (null : propriete, puis detection sur la story)
+     * @return le verdict ecrit : ai-ready, source {@code human}
+     * @throws StoryNotAwaitingValidationException si la story n'est pas en attente de validation
+     */
+    Readiness validate(String storyKey, fr.heliocraft.refinr.domain.model.Language language);
 }

@@ -383,7 +383,7 @@ class JiraIssueTrackerTest {
         assertEquals("PUT", request.getMethod());
         String body = request.getBody().readUtf8();
         assertTrue(body.contains("Exporter en PDF"));
-        assertTrue(body.contains("AI readiness (ai-ready): validee par un humain, sans appel au modele"));
+        assertTrue(body.contains("AI readiness (ai-ready): validée par un humain, sans appel au modèle"));
         assertFalse(body.contains("Precision de l'utilisateur"));
         assertTrue(body.contains("\"ai-ready\""));
         assertFalse(body.contains("\"validation-necessaire\""));

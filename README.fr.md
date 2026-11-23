@@ -787,7 +787,7 @@ Ou validez-la vous-même, sans appel à l'IA (même garde : `409` si la story n'
 ```bash
 curl -s -X POST http://localhost:8080/api/v1/validate-story -H "Content-Type: application/json" \
   -d '{"issueKey": "PROJ-42"}'
-# { "success": true, "issueKey": "PROJ-42", "aiReady": true, "aiReadyReason": "validee par un humain, sans appel au modele", "aiReadySource": "human" }
+# { "success": true, "issueKey": "PROJ-42", "aiReady": true, "aiReadyReason": "validée par un humain, sans appel au modèle", "aiReadySource": "human" }
 ```
 
 ### Chaîne : questions au PO, sous-tâches des seules stories prêtes

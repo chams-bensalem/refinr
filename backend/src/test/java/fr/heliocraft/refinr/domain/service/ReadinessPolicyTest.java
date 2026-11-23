@@ -56,7 +56,7 @@ class ReadinessPolicyTest {
         Readiness verdict = ReadinessPolicy.humanValidation();
         assertTrue(verdict.aiReady());
         assertEquals(ReadinessSource.HUMAN, verdict.source());
-        assertEquals("validee par un humain, sans appel au modele", verdict.aiReadyReason());
+        assertEquals("validée par un humain, sans appel au modèle", verdict.aiReadyReason());
     }
 
     @Test

@@ -704,7 +704,7 @@ class OpenProjectIssueTrackerTest {
             tracker.applyHumanValidation(story, fr.heliocraft.refinr.domain.service.ReadinessPolicy.humanValidation());
 
             RecordedRequest comment = next();
-            assertEquals("AI readiness (ai-ready): validee par un humain, sans appel au modele",
+            assertEquals("AI readiness (ai-ready): validée par un humain, sans appel au modèle",
                     body(comment).at("/comment/raw").asString());
             next();
             RecordedRequest patch = next();

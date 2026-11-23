@@ -383,14 +383,14 @@ public class BacklogController {
             return ResponseEntity.badRequest().body(ErrorResponses.error(e.getMessage()));
         }
         try {
-            // Langue lue seulement pour les sous-taches : sans createTasks, validate-story reste inchange
-            language = createTasks ? language(request.get(LANGUAGE)) : null;
+            // Langue de la raison ecrite (et des sous-taches avec createTasks) : requete, puis propriete, puis detection
+            language = language(request.get(LANGUAGE));
         } catch (IllegalArgumentException e) {
             return invalidLanguage();
         }
         log.info("Human validation request for {}", issueKey);
         try {
-            Readiness verdict = validateStory.validate(issueKey);
+            Readiness verdict = validateStory.validate(issueKey, language);
             Map<String, Object> body = new LinkedHashMap<>(Map.of(
                     "success", true,
                     "issueKey", issueKey,
