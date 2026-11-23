@@ -151,6 +151,30 @@ class StoryTasksServiceTest {
     }
 
     @Test
+    @DisplayName("M1/R3: prompt 5 receives the PO note on both trackers (OpenProject: after the labels line; Jira: end of the text)")
+    void poNoteReachesPrompt5OnBothTrackers() {
+        String openProject = "As a user\n\n### Acceptance Criteria\n\n- **AC1:** Given a, Then b\n\n"
+                + "AI readiness (ai-ready): ok\n\n**Labels:** backend\n\nNote du PO : affichage par semaine.";
+        String jira = "As a user\nAcceptance Criteria\nAC1: Given a, Then b\nAI readiness (ai-ready): ok\n"
+                + "Labels: backend\nNote du PO : affichage par semaine.";
+        for (String description : List.of(openProject, jira)) {
+            reset(testCaseGenerator, tracker);
+            when(tracker.findStory("PROJ-7")).thenReturn(new TrackedStory("PROJ-7", "S", description,
+                    List.of(ReadinessPolicy.LABEL_AI_READY), null, "PROJ", List.of("PROJ-8")));
+            when(testCaseGenerator.generateTestCases(anyList(), anyList(), any())).thenReturn(List.of(List.of(tc("AC1"))));
+            when(tracker.insertTestCases(eq("PROJ-7"), any())).thenReturn(true);
+
+            withTestCases.generate("PROJ-7", null, Language.FR);
+
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<List<Story>> input = ArgumentCaptor.forClass(List.class);
+            verify(testCaseGenerator).generateTestCases(input.capture(), anyList(), any());
+            assertTrue(input.getValue().getFirst().getDescription().contains("Note du PO : affichage par semaine."),
+                    input.getValue().getFirst().getDescription());
+        }
+    }
+
+    @Test
     @DisplayName("C2 real trial: on the createTasks path, prompt 5 receives the same PO clarification as prompt 4")
     void clarificationReachesPrompt5() {
         when(tracker.findStory("PROJ-7")).thenReturn(written(List.of(), ""));

@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Chams Bensalem -->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
-# Refinr LLM prompts, English version (verdict-v3.2, generation-v2, generation-v3, tasks-v1, test-cases-v1)
+# Refinr LLM prompts, English version (verdict-v3.2, verdict-v3.4, generation-v2, generation-v3, tasks-v1, test-cases-v1)
 
 Faithful translation of `prompts.fr.md` (same sections, same markers, same JSON, same number of rules).
 Source: PO decision of 2026-11-16. Loaded as is by `LlmPrompts`: only the eight code blocks count, in this order.
@@ -107,16 +107,20 @@ Answer ONLY with the JSON, with exactly one verdict per story, identified by its
 {"verdicts":[{"id":"s1","aiReady":false,"aiReadyReason":""}]}
 ```
 
-## Prompt 3: reassessment (verdict-v3.3)
+## Prompt 3: reassessment (verdict-v3.4)
+
+R3: the clarification is judged first on the previous question; a new point blocks only if it is a READINESS problem or the clarification introduces it.
 
 The `{{IF_QUESTION}}` line carries the last open question (reason of the last `validation-necessaire` line); it is removed when there is none, and the text is then that of `verdict-v3.2`. Verdict lines are removed from the description sent (B3).
 
 ```
-MISSION: this User Story was judged not ready. The user provides a clarification. Reassess the story taking it into account.
+MISSION: this User Story was judged not ready because of a blocking question. The user provides a clarification. Reassess the story in two steps.
 
 {{READINESS}}
 
-The user's clarification is authoritative on what it settles. Assume nothing else. If another question remains open, the story stays not ready and aiReadyReason gives that question.
+STEP 1. Decide whether the clarification settles the previous blocking question (without a previous question: the blocker described by the story). The clarification is authoritative on what it settles; assume nothing else.
+STEP 2. Another point blocks the story only if it is one of the problems listed under "aiReady = false only if" above, or if the clarification itself introduces it (for example a new value that contradicts a criterion). Not blocking: what the developer settles alone according to that same list (technical format, display order, wording, an edge case involving no amount, rights or personal data), and a point that is not needed to implement the story and pass its acceptance criteria (for example a point that belongs to another story).
+If the clarification settles the question and no step-2 point remains open: aiReady = true. Otherwise aiReady = false, and aiReadyReason gives the remaining blocking question.
 
 STORY:
 Title: {{TITLE}}

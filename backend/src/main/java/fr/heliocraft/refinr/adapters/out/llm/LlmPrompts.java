@@ -45,7 +45,7 @@ final class LlmPrompts {
     /** Version des prompts de verdict : fait partie de la cle du cache (un prompt modifie invalide le cache). */
     static final String VERDICT_PROMPT_VERSION = "verdict-v3.2";
     /** Version du prompt 3 (reevaluation) : derniere question ouverte en champ separe, lignes de verdict retirees (B3). */
-    static final String REASSESSMENT_PROMPT_VERSION = "verdict-v3.3";
+    static final String REASSESSMENT_PROMPT_VERSION = "verdict-v3.4";
     /** Marqueur de ligne du prompt 3 : gardee seulement s'il y a une question ouverte precedente. */
     static final String IF_QUESTION = "{{IF_QUESTION}}";
 
