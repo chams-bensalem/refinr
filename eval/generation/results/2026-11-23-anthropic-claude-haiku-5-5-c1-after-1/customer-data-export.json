@@ -1,0 +1,56 @@
+{
+  "epics" : [ {
+    "description" : "Support agents need to export the data of a customer account so that they can answer customer requests. The specification defines only this single user need; format, encoding and delimiter, access rights, exported content, size limits and delivery mode are all undecided and must be settled by the Product Owner before development starts.",
+    "features" : [ {
+      "description" : "Capability for a support agent to export the data of a customer account. The specification gives no acceptance criteria yet, and every open point (format, encoding and delimiter, access rights, content, size limits and delivery) must be decided before implementation.",
+      "labels" : [ "backend", "security" ],
+      "name" : "Customer data export",
+      "priority" : "Medium",
+      "stories" : [ {
+        "acceptanceCriteria" : [ "Given a support agent who needs to answer a customer request, When they request an export of a customer account, Then an export of the data of that customer account is produced.", "Given an export produced for a customer account, When its content is checked, Then it contains only the data of that customer account." ],
+        "aiReady" : false,
+        "aiReadyReason" : "The export format, the fields included (personal data and GDPR scope), the allowed roles and the delivery mode are all left open, so a developer would have to make business and compliance choices; which fields and roles should the export include, and in which format and delivery mode?",
+        "aiReadySource" : "MODEL",
+        "asA" : "support agent",
+        "dependencies" : [ ],
+        "description" : "A support agent can request an export of the data of one customer account in order to answer a customer request. The specification leaves open the export format (CSV, JSON or a ZIP archive with several files), the encoding and delimiter (UTF-8 or Windows-1252, comma or semicolon), the roles allowed to export, the fields included (orders, invoices, personal data, support history, subject to GDPR review), the size limits for very large accounts, and the delivery mode (browser download or email).",
+        "epicTrackerKey" : null,
+        "estimatedStoryPoints" : 5,
+        "iWant" : "to export the data of a customer account",
+        "labels" : [ "backend", "security" ],
+        "priority" : "High",
+        "soThat" : "I can answer customer requests",
+        "tasks" : [ ],
+        "title" : "Export the data of a customer account",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "labels" : [ "backend", "security" ],
+    "name" : "Customer data export",
+    "priority" : "Medium",
+    "stories" : [ {
+      "acceptanceCriteria" : [ "Given a support agent who needs to answer a customer request, When they request an export of a customer account, Then an export of the data of that customer account is produced.", "Given an export produced for a customer account, When its content is checked, Then it contains only the data of that customer account." ],
+      "aiReady" : false,
+      "aiReadyReason" : "The export format, the fields included (personal data and GDPR scope), the allowed roles and the delivery mode are all left open, so a developer would have to make business and compliance choices; which fields and roles should the export include, and in which format and delivery mode?",
+      "aiReadySource" : "MODEL",
+      "asA" : "support agent",
+      "dependencies" : [ ],
+      "description" : "A support agent can request an export of the data of one customer account in order to answer a customer request. The specification leaves open the export format (CSV, JSON or a ZIP archive with several files), the encoding and delimiter (UTF-8 or Windows-1252, comma or semicolon), the roles allowed to export, the fields included (orders, invoices, personal data, support history, subject to GDPR review), the size limits for very large accounts, and the delivery mode (browser download or email).",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 5,
+      "iWant" : "to export the data of a customer account",
+      "labels" : [ "backend", "security" ],
+      "priority" : "High",
+      "soThat" : "I can answer customer requests",
+      "tasks" : [ ],
+      "title" : "Export the data of a customer account",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "trackerKey" : null,
+    "trackerUrl" : null
+  } ]
+}
