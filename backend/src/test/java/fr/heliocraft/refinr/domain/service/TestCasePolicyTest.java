@@ -121,6 +121,15 @@ class TestCasePolicyTest {
     }
 
     @Test
+    @DisplayName("Security review: the criteria pattern stays linear on a long line of spaces (no catastrophic backtracking)")
+    @org.junit.jupiter.api.Timeout(2)
+    void criteriaPatternIsLinear() {
+        String hostile = "AC1: x" + " ".repeat(30_000) + "y" + " \t".repeat(10_000);
+        assertEquals(1, StoryMarkdown.criteria(hostile).size());
+        assertTrue(StoryMarkdown.criteria(" ".repeat(32_000)).isEmpty());
+    }
+
+    @Test
     @DisplayName("HTML entities: named and numeric decoded, unknown ones left as they are")
     void entities() {
         assertEquals("l'occupation & « d\"un » <b> é", StoryMarkdown.decodeEntities("l&#x27;occupation &amp; « d&quot;un » &lt;b&gt; &#233;"));
