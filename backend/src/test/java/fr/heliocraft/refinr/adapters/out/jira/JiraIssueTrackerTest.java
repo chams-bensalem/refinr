@@ -376,6 +376,18 @@ class JiraIssueTrackerTest {
     }
 
     @Test
+    @DisplayName("C2 review: Jira unreachable while writing the test cases -> IssueTrackerException, never the raw error")
+    void unreachableJiraIsATrackerError() throws Exception {
+        mockWebServer.shutdown();
+        fr.heliocraft.refinr.application.port.out.IssueTrackerException error = assertThrows(
+                fr.heliocraft.refinr.application.port.out.IssueTrackerException.class,
+                () -> jiraService.insertTestCases("TEST-7", "### Test cases\n\n- TC1"));
+        assertEquals("Failed to read issue TEST-7: Jira unreachable or unreadable answer", error.getMessage());
+        mockWebServer = new MockWebServer();
+        mockWebServer.start();
+    }
+
+    @Test
     @DisplayName("C2: a description that already has the section is left untouched (no PUT); too long: nothing written")
     void testCasesNeverTwiceNorTruncated() {
         String withSection = STORY_ADF.replace("{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"AI readiness",

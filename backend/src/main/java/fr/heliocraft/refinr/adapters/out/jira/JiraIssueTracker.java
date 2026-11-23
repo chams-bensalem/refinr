@@ -510,6 +510,9 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
             fields = response != null && response.get("fields") instanceof Map<?, ?> f ? f : Map.of();
         } catch (WebClientResponseException e) {
             throw new IssueTrackerException("Failed to read issue " + issueKey + ": HTTP " + e.getStatusCode().value());
+        } catch (RuntimeException e) {
+            // Jira injoignable, delai, reponse illisible : jamais l'exception brute (URL, corps)
+            throw new IssueTrackerException("Failed to read issue " + issueKey + ": Jira unreachable or unreadable answer");
         }
         Object description = fields.get("description");
         String text = adfToText(description);
@@ -546,6 +549,8 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
             // Ni corps de reponse (il peut citer la description envoyee) ni cause
             throw new IssueTrackerException("Failed to update issue " + issueKey + ": HTTP " + e.getStatusCode().value()
                     + JiraErrors.of(e).shape());
+        } catch (RuntimeException e) {
+            throw new IssueTrackerException("Failed to update issue " + issueKey + ": Jira unreachable");
         }
         return true;
     }

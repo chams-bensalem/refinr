@@ -129,6 +129,7 @@ public class StoryTasksService implements GenerateStoryTasks {
         return new StoryTasksResult(created, failed, null, false, null);
     }
 
+    static final String TEST_CASES_WRITE_FAILED = "The test cases could not be written: try again with POST /api/v1/story-tasks";
     static final String NO_CRITERIA = "no acceptance criteria (AC1, AC2…) found in the description: test cases not written";
     static final String NO_VALID_TEST_CASE = "the model gave no valid test case: try again with POST /api/v1/story-tasks";
     static final String TEST_CASES_MODEL_FAILED = "The model could not generate the test cases: try again with POST /api/v1/story-tasks";
@@ -174,6 +175,10 @@ public class StoryTasksService implements GenerateStoryTasks {
         } catch (IssueTrackerException e) {
             log.error("Test cases of {} not written: {}", story.key(), e.getMessage());
             return result.withTestCases(null, false, e.clientMessage());
+        } catch (RuntimeException e) {
+            // Jamais perdre le resultat des sous-taches deja creees : l'erreur reste dans le resultat
+            log.error("Unexpected error writing the test cases of {}", story.key(), e);
+            return result.withTestCases(null, false, TEST_CASES_WRITE_FAILED);
         }
     }
 
