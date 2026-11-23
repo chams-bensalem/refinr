@@ -99,6 +99,35 @@ class TestCasePolicyTest {
         assertEquals(List.of(StoryMarkdown.TEST_CASES_TITLE), StoryMarkdown.TEST_CASES_TITLES);
     }
 
+
+    @Test
+    @DisplayName("Description rewritten by the OpenProject editor: '*   **AC1:**', indented blank lines, entities, trailing spaces")
+    void editorRewrittenDescription() {
+        assertEquals(List.of(
+                "Given un gestionnaire connecté, When il ouvre le tableau de bord, Then l'occupation des salles est affichée.",
+                "Given une salle sans réservation sur la période affichée, When le gestionnaire consulte le tableau de bord, "
+                        + "Then cette salle apparaît comme inoccupée."), StoryMarkdown.criteria(fr.heliocraft.refinr.TrackerFixtures.OPENPROJECT_EDITED));
+        assertFalse(StoryMarkdown.criteria(fr.heliocraft.refinr.TrackerFixtures.OPENPROJECT_EDITED).toString().contains("&#x27;"), "entities decoded");
+
+        String section = StoryMarkdown.testCasesSection(List.of(tc("AC1", "nominal"), tc("AC2", "edge")));
+        String inserted = StoryMarkdown.insertTestCases(fr.heliocraft.refinr.TrackerFixtures.OPENPROJECT_EDITED, section);
+        int verdict = fr.heliocraft.refinr.TrackerFixtures.OPENPROJECT_EDITED.indexOf("AI readiness (");
+        String tail = fr.heliocraft.refinr.TrackerFixtures.OPENPROJECT_EDITED.substring(verdict);
+        assertTrue(inserted.endsWith(tail), "verdict line, labels and the PO note intact");
+        assertTrue(inserted.indexOf(section) < inserted.indexOf("AI readiness ("), "section before the verdict line");
+        assertTrue(inserted.contains("Note du PO : affichage par semaine en priorité."));
+        assertTrue(inserted.startsWith(fr.heliocraft.refinr.TrackerFixtures.OPENPROJECT_EDITED.substring(0, fr.heliocraft.refinr.TrackerFixtures.OPENPROJECT_EDITED.indexOf("\n\nAI readiness")).stripTrailing()),
+                "text before the verdict line kept (only trailing blanks trimmed)");
+    }
+
+    @Test
+    @DisplayName("HTML entities: named and numeric decoded, unknown ones left as they are")
+    void entities() {
+        assertEquals("l'occupation & « d\"un » <b> é", StoryMarkdown.decodeEntities("l&#x27;occupation &amp; « d&quot;un » &lt;b&gt; &#233;"));
+        assertEquals("&unknown; stays", StoryMarkdown.decodeEntities("&unknown; stays"));
+        assertNull(StoryMarkdown.decodeEntities(null));
+    }
+
     @Test
     @DisplayName("Criteria read back from a description written by Refinr (Markdown and Jira plain text)")
     void criteriaReadBack() {

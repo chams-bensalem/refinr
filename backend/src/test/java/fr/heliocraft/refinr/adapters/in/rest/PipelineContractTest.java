@@ -284,7 +284,7 @@ class PipelineContractTest {
         String description = "### Acceptance Criteria\n- **AC1:** Given a\nAI readiness (ai-ready): ok";
         when(tracker.findStory("TEST-7")).thenReturn(new TrackedStory("TEST-7", "S", description, List.of("ai-ready"),
                 null, null, List.of("TEST-8")));
-        when(testCaseGenerator.generateTestCases(anyList(), any())).thenReturn(List.of(List.of(
+        when(testCaseGenerator.generateTestCases(anyList(), anyList(), any())).thenReturn(List.of(List.of(
                 new fr.heliocraft.refinr.domain.model.TestCase("T1", "AC1", "nominal", "g", "w", "t"))));
         when(tracker.insertTestCases(eq("TEST-7"), any())).thenReturn(true, false);
 
@@ -300,7 +300,7 @@ class PipelineContractTest {
         String description = "### Acceptance Criteria\n- **AC1:** Given a\nAI readiness (ai-ready): ok";
         when(tracker.findStory("TEST-9")).thenReturn(new TrackedStory("TEST-9", "S", description, List.of("ai-ready"),
                 null, null, List.of("TEST-10", "TEST-11")));
-        when(testCaseGenerator.generateTestCases(anyList(), any())).thenReturn(List.of(List.of(
+        when(testCaseGenerator.generateTestCases(anyList(), anyList(), any())).thenReturn(List.of(List.of(
                 new fr.heliocraft.refinr.domain.model.TestCase("T1", "AC1", "nominal", "g", "w", "t"))));
         when(tracker.insertTestCases(eq("TEST-9"), any())).thenReturn(true);
 

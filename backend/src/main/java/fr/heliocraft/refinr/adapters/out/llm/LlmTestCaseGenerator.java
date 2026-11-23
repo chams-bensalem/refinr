@@ -46,9 +46,13 @@ public class LlmTestCaseGenerator extends LlmStoryBatches<List<TestCase>> implem
      * d'origine est rendue, l'application refuse alors d'ecrire une section partielle.
      */
     @Override
-    public List<List<TestCase>> generateTestCases(List<Story> stories, Language language) {
+    public List<List<TestCase>> generateTestCases(List<Story> stories, List<String> precisions, Language language) {
+        if (precisions.size() != stories.size()) {
+            throw new IllegalArgumentException("one precision (or null) per story is required");
+        }
         List<List<TestCase>> results = new java.util.ArrayList<>(run(stories, language, (indexes, ids, lang) ->
-                LlmPrompts.testCases(indexes.stream().map(stories::get).toList(), ids, lang)));
+                LlmPrompts.testCases(indexes.stream().map(stories::get).toList(),
+                        indexes.stream().map(precisions::get).toList(), ids, lang)));
         for (int i = 0; i < stories.size(); i++) {
             List<TestCase> found = results.get(i);
             int criteria = stories.get(i).getAcceptanceCriteria() != null ? stories.get(i).getAcceptanceCriteria().size() : 0;
@@ -57,20 +61,21 @@ public class LlmTestCaseGenerator extends LlmStoryBatches<List<TestCase>> implem
             }
             List<String> problems = fr.heliocraft.refinr.domain.service.TestCasePolicy.coverageProblems(found, criteria);
             if (!problems.isEmpty()) {
-                results.set(i, repair(stories.get(i), found, problems, language, i + 1, stories.size()));
+                results.set(i, repair(stories.get(i), precisions.get(i), found, problems, language, i + 1, stories.size()));
             }
         }
         return results;
     }
 
-    private List<TestCase> repair(Story story, List<TestCase> previous, List<String> problems, Language language, int position,
-                                  int size) {
+    private List<TestCase> repair(Story story, String precision, List<TestCase> previous, List<String> problems,
+                                  Language language, int position, int size) {
         repairs.incrementAndGet();
         // Position et nombre de problemes seulement : jamais le titre ni les cas
         log.warn("Test cases of ready story {}/{}: {} coverage problem(s), one repair for this story only", position, size,
                 problems.size());
         LlmRequest request = LlmRequest.of(LlmPrompts.system(language),
-                LlmPrompts.testCases(List.of(story), List.of("s1"), language), schemaName(), LlmSchemas.forProvider(schema()))
+                LlmPrompts.testCases(List.of(story), java.util.Collections.singletonList(precision), List.of("s1"), language),
+                schemaName(), LlmSchemas.forProvider(schema()))
                 .followUp(answer(previous), StructuredOutput.repairMessage(problems));
         try {
             int criteria = story.getAcceptanceCriteria() != null ? story.getAcceptanceCriteria().size() : 0;

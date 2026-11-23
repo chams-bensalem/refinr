@@ -375,6 +375,42 @@ class JiraIssueTrackerTest {
         assertTrue(body.contains("TC1 (AC1, nominal):"), body);
     }
 
+    /** Description modifiee dans l'interface Jira : criteres en bulletList, « AC1: » en gras, note du PO apres les labels. */
+    private static final String JIRA_EDITED_ADF = "{\"type\":\"doc\",\"version\":1,\"content\":["
+            + "{\"type\":\"heading\",\"attrs\":{\"level\":3},\"content\":[{\"type\":\"text\",\"text\":\"Acceptance Criteria\"}]},"
+            + "{\"type\":\"bulletList\",\"content\":["
+            + "{\"type\":\"listItem\",\"content\":[{\"type\":\"paragraph\",\"content\":["
+            + "{\"type\":\"text\",\"text\":\"AC1:\",\"marks\":[{\"type\":\"strong\"}]},"
+            + "{\"type\":\"text\",\"text\":\" Given un gestionnaire connecté, When il ouvre le tableau de bord, Then l'occupation est affichée. \"}]}]},"
+            + "{\"type\":\"listItem\",\"content\":[{\"type\":\"paragraph\",\"content\":["
+            + "{\"type\":\"text\",\"text\":\"AC2:\",\"marks\":[{\"type\":\"strong\"}]},"
+            + "{\"type\":\"text\",\"text\":\" Given une salle libre, When il consulte, Then elle est inoccupée.\"}]}]}]},"
+            + "{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"AI readiness (validation-necessaire): Quels indicateurs ?\"}]},"
+            + "{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Labels:\",\"marks\":[{\"type\":\"strong\"}]},"
+            + "{\"type\":\"text\",\"text\":\" frontend\"}]},"
+            + "{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Note du PO : affichage par semaine en priorité.\"}]}]}";
+
+    @Test
+    @DisplayName("C2 real trial (Jira): description edited in the Jira UI -> criteria found, section before the verdict, PO note last")
+    void jiraEditedDescription() throws Exception {
+        mockWebServer.enqueue(jsonResponse("{\"key\":\"TEST-7\",\"fields\":{\"summary\":\"S\",\"labels\":[\"ai-ready\"],"
+                + "\"description\":" + JIRA_EDITED_ADF + "}}"));
+        TrackedStory story = jiraService.findStory("TEST-7");
+        assertEquals(List.of("Given un gestionnaire connecté, When il ouvre le tableau de bord, Then l'occupation est affichée.",
+                "Given une salle libre, When il consulte, Then elle est inoccupée."),
+                fr.heliocraft.refinr.domain.service.StoryMarkdown.criteria(story.description()));
+        mockWebServer.takeRequest();
+
+        mockWebServer.enqueue(jsonResponse("{\"key\":\"TEST-7\",\"fields\":{\"description\":" + JIRA_EDITED_ADF + "}}"));
+        mockWebServer.enqueue(new MockResponse().setResponseCode(204));
+        assertTrue(jiraService.insertTestCases("TEST-7", "### Test cases\n\n- **TC1 (AC1, nominal):** x"));
+        mockWebServer.takeRequest();
+        String body = mockWebServer.takeRequest().getBody().readUtf8();
+        int list = body.indexOf("bulletList"), section = body.indexOf("Test cases"), verdict = body.indexOf("AI readiness");
+        int note = body.indexOf("Note du PO");
+        assertTrue(list < section && section < verdict && verdict < note, body);
+    }
+
     @Test
     @DisplayName("C2 review: Jira unreachable while writing the test cases -> IssueTrackerException, never the raw error")
     void unreachableJiraIsATrackerError() throws Exception {

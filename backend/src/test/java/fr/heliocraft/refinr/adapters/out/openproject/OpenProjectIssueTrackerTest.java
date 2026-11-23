@@ -325,6 +325,22 @@ class OpenProjectIssueTrackerTest {
         }
 
         @Test
+        @DisplayName("C2 real trial: description rewritten by the OpenProject editor -> section before the verdict line, PO note intact")
+        void editorRewrittenDescription() throws Exception {
+            String raw = fr.heliocraft.refinr.TrackerFixtures.OPENPROJECT_EDITED;
+            server.enqueue(json(200, withDescription(9, raw)));
+            server.enqueue(json(200, withDescription(10, raw)));
+
+            assertTrue(tracker.insertTestCases("39", "### Test cases\n\n- **TC1 (AC1, nominal):** x"));
+
+            next();
+            String patched = body(next()).at("/description/raw").asString();
+            int section = patched.indexOf("### Test cases"), verdict = patched.indexOf("AI readiness (validation-necessaire)");
+            assertTrue(patched.indexOf("**AC2:**") < section && section < verdict, patched);
+            assertTrue(patched.endsWith("**Labels:** frontend, backend, api\n\nNote du PO : affichage par semaine en priorité."), patched);
+        }
+
+        @Test
         @DisplayName("C2: 409 conflict -> read again and one retry; a description that already has the section: no PATCH")
         void conflictRetriedOnceAndNeverTwice() throws Exception {
             server.enqueue(json(200, withDescription(4, DESCRIPTION)));
