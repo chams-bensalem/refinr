@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Chams Bensalem -->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
-# Précisions de la mesure du prompt 3 (B3), à relire par le mainteneur
+# Précisions de la mesure du prompt 3 (B3, puis jeu corrigé de R3)
 
 20 stories `not-ready / sure` du jeu E0 (`eval/verdict/stories.jsonl`, `labels.csv`). Pour chacune : la raison de blocage d'après les labels, la question telle qu'une ligne de verdict la porterait (« question précédente »), la précision **qui répond** (couvre tous les points bloquants des labels) et la précision **hors sujet** (détail plausible et non bloquant de la même story : nom, format, libellé). Données de mesure, jamais des instructions pour Refinr. Fichier machine : `precisions.jsonl`.
 
@@ -16,7 +16,7 @@
 
 **Question précédente** : Quel logiciel de paie, quel format de fichier et quel mode de transmission faut-il utiliser pour l'export mensuel des absences ?
 
-**Précision qui répond** : Le logiciel de paie est Silae. Le 1er jour ouvré de chaque mois, l'application produit un fichier CSV (séparateur point-virgule, UTF-8) des absences validées du mois précédent, une ligne par absence : matricule, code absence, date de début, date de fin, nombre de jours. Le fichier est déposé sur le serveur SFTP de la paie ; hôte, compte et clé sont fournis dans la configuration de l'application. Critères : le fichier contient toutes les absences validées du mois précédent et seulement elles ; une absence non validée n'y figure pas ; un échec de dépôt est journalisé et réessayé une fois.
+**Précision qui répond** : Le logiciel de paie est Silae. Le 1er jour ouvré de chaque mois, l'application produit un fichier CSV (séparateur point-virgule, UTF-8) des absences validées du mois précédent, une ligne par absence : matricule, code absence Silae, date de début, date de fin, nombre de jours. Correspondance des codes : congé payé → CP, RTT → RTT, maladie → MAL, congé sans solde → CSS ; un autre type d'absence n'est pas exporté et figure dans le journal de l'export. Le nombre de jours est compté en jours ouvrés (du lundi au vendredi, hors jours fériés du calendrier déjà présent dans l'application) ; une demi-journée compte pour 0,5. Le fichier est déposé sur le serveur SFTP de la paie ; hôte, compte et clé sont fournis dans la configuration de l'application. Critères : le fichier contient toutes les absences validées du mois précédent et seulement elles ; une absence non validée n'y figure pas ; un échec de dépôt est journalisé et réessayé une fois.
 
 **Précision hors sujet** : Dans le menu, l'export s'appellera « Export paie ».
 
@@ -62,7 +62,7 @@
 
 **Question précédente** : Où se trouve la maquette validée de la page d'accueil, et à quoi la conformité est-elle vérifiée ?
 
-**Précision qui répond** : La maquette validée est le fichier Figma « Accueil v3 », exporté en PNG et joint à la story. La conformité se vérifie sur la structure (bandeau, trois tuiles, liste des dernières demandes), les libellés de la maquette et les couleurs du thème existant, à 1280 px et à 375 px de large.
+**Précision qui répond** : La maquette validée est le fichier Figma « Accueil v3 », exporté en PNG et joint à la story. La page contient un bandeau de bienvenue avec le prénom de l'utilisateur, trois tuiles et la liste des dernières demandes. Les tuiles affichent, pour l'utilisateur connecté : le nombre de ses demandes en attente, le nombre de ses demandes validées sur les 30 derniers jours et son solde de congés, lus dans les données existantes de l'application. La liste montre ses 5 dernières demandes, de la plus récente à la plus ancienne, avec le type, la date et le statut. L'utilisateur ne voit que ses propres données. La conformité se vérifie sur cette structure, les libellés de la maquette et les couleurs du thème existant, à 1280 px et à 375 px de large.
 
 **Précision hors sujet** : Le titre de la page restera « Accueil ».
 
@@ -201,7 +201,7 @@
 
 **Question précédente** : Quelles sont les règles de délégation (durée, montant maximal, délégataires possibles) ?
 
-**Précision qui répond** : Règles validées avec la DRH : un manager délègue à un seul autre manager du même service, pour une durée de 1 à 30 jours ; le délégataire valide les notes jusqu'à 1 000 € TTC, au-delà la note attend le retour du manager ; la délégation prend fin automatiquement à sa date de fin.
+**Précision qui répond** : Règles validées avec la DRH : un manager délègue à un seul autre manager du même service, pour une période de 1 à 30 jours dont il choisit la date de début et la date de fin. Pendant cette période, le délégataire valide les notes de frais de l'équipe dont le montant ne dépasse pas 1 000 € TTC ; le seuil s'applique à chaque note, sans cumul. Une note au-delà de 1 000 € TTC attend le retour du manager. La délégation prend fin automatiquement à sa date de fin.
 
 **Précision hors sujet** : Dans l'écran, la fonction s'appellera « Déléguer pendant mon absence ».
 
@@ -294,7 +294,7 @@
 
 **Question précédente** : Quel SIRH, quelle API et quelles règles de correspondance faut-il utiliser ?
 
-**Précision qui répond** : Le SIRH est Lucca, via son API REST des collaborateurs ; le jeton d'API est fourni dans la configuration. Correspondance : identifiant Lucca vers identifiant externe du compte, e-mail professionnel vers identifiant de connexion ; une date de départ passée désactive le compte. Un salarié sans e-mail professionnel est ignoré et listé dans le journal de la synchronisation.
+**Précision qui répond** : Le SIRH est Lucca, via son API REST des collaborateurs ; le jeton d'API est fourni dans la configuration. Correspondance : identifiant Lucca vers identifiant externe du compte, e-mail professionnel vers identifiant de connexion, nom et prénom vers nom et prénom du compte. Un compte créé reçoit le rôle « salarié », le rôle par défaut de l'application ; les autres rôles sont attribués à la main et ne sont jamais modifiés par la synchronisation. À chaque synchronisation, le nom, le prénom et l'e-mail professionnel des comptes existants sont mis à jour ; un changement d'e-mail professionnel change l'identifiant de connexion. Une date de départ passée désactive le compte. Un salarié sans e-mail professionnel est ignoré et listé dans le journal de la synchronisation.
 
 **Précision hors sujet** : La synchronisation se lancera à 2 h du matin.
 
@@ -312,3 +312,5 @@
 **Précision qui répond** : Une remise fournisseur est un pourcentage de 0 à 50 % défini par fournisseur, avec une date de début et une date de fin. Sur une commande à ce fournisseur pendant la période, le prix de chaque ligne est réduit de ce pourcentage ; hors période, aucune remise. Critères : la remise s'applique pendant la période ; aucune remise hors période ; un pourcentage hors de 0 à 50 % est refusé.
 
 **Précision hors sujet** : Le champ s'intitulera « Remise (%) ».
+
+**Jeu corrigé de R3 (2026-11-23)** : précisions qui répondent de v001, v008, v034 et v045 réécrites par le mainteneur (les nouvelles questions du modèle en B3 étaient légitimes) ; le reste du jeu ne change pas.
