@@ -41,7 +41,7 @@ class FeatureLevelLookupTest {
     @DisplayName("Slow tracker: the preview gets its warnings in less than 6 s, with 'could not be checked'")
     void slowTrackerIsBounded() {
         IssueTrackerPort tracker = mock(IssueTrackerPort.class);
-        when(tracker.featureLevel(any())).thenAnswer(call -> {
+        when(tracker.previewFeatureLevel(any())).thenAnswer(call -> {
             Thread.sleep(20_000);
             return FeatureLevel.OPTIONAL;
         });
@@ -60,28 +60,49 @@ class FeatureLevelLookupTest {
     @DisplayName("Failure cached: two close previews make one tracker call, both with 'could not be checked'")
     void failureIsCached() {
         IssueTrackerPort tracker = mock(IssueTrackerPort.class);
-        when(tracker.featureLevel(any())).thenThrow(new IllegalStateException("tracker down"));
+        when(tracker.previewFeatureLevel(any())).thenThrow(new IllegalStateException("tracker down"));
         DescribeTrackerService describe = new DescribeTrackerService(tracker, FeatureLevels.Policy.LABEL);
 
         assertEquals(List.of(FeatureLevels.UNCHECKED_WARNING), describe.featureWarnings(explicitFeatures(), null));
         assertEquals(List.of(FeatureLevels.UNCHECKED_WARNING), describe.featureWarnings(explicitFeatures(), null));
 
-        verify(tracker, times(1)).featureLevel(any());
+        verify(tracker, times(1)).previewFeatureLevel(any());
     }
 
     @Test
     @DisplayName("Success cached: two previews make one tracker call; the cache is per project")
     void successIsCached() {
         IssueTrackerPort tracker = mock(IssueTrackerPort.class);
-        when(tracker.featureLevel(any())).thenReturn(FeatureLevel.NONE);
+        when(tracker.previewFeatureLevel(any())).thenReturn(FeatureLevel.NONE);
         DescribeTrackerService describe = new DescribeTrackerService(tracker, FeatureLevels.Policy.LABEL);
 
         assertEquals(List.of(FeatureLevels.LABELS_WARNING), describe.featureWarnings(explicitFeatures(), null));
         assertEquals(List.of(FeatureLevels.LABELS_WARNING), describe.featureWarnings(explicitFeatures(), null));
         describe.featureWarnings(explicitFeatures(), "OTHER");
 
-        verify(tracker, times(1)).featureLevel(null);
-        verify(tracker, times(1)).featureLevel("OTHER");
+        verify(tracker, times(1)).previewFeatureLevel(null);
+        verify(tracker, times(1)).previewFeatureLevel("OTHER");
+    }
+
+    @Test
+    @DisplayName("Missing permission: the warning says it (not 'could not be checked'), kept 1 min like a failure")
+    void missingPermissionIsSaid() {
+        AtomicLong now = new AtomicLong();
+        IssueTrackerPort tracker = mock(IssueTrackerPort.class);
+        String noPermission = "Refinr has no permission to create work packages in project refinr-spike-ro";
+        when(tracker.previewFeatureLevel("refinr-spike-ro"))
+                .thenThrow(new fr.heliocraft.refinr.application.port.out.TrackerPermissionException(noPermission))
+                .thenReturn(FeatureLevel.NONE);
+        FeatureLevelLookup lookup = new FeatureLevelLookup(tracker, Duration.ofSeconds(5), Duration.ofHours(1),
+                Duration.ofMinutes(1), now::get);
+        DescribeTrackerService describe = new DescribeTrackerService(tracker, FeatureLevels.Policy.LABEL, lookup);
+
+        assertEquals(List.of(noPermission), describe.featureWarnings(explicitFeatures(), "refinr-spike-ro"));
+        assertEquals(List.of(noPermission), describe.featureWarnings(explicitFeatures(), "refinr-spike-ro"), "cached");
+        verify(tracker, times(1)).previewFeatureLevel("refinr-spike-ro");
+        now.addAndGet(Duration.ofSeconds(61).toNanos());
+        assertEquals(List.of(FeatureLevels.LABELS_WARNING), describe.featureWarnings(explicitFeatures(), "refinr-spike-ro"),
+                "permission granted later: read again after 1 min");
     }
 
     @Test
@@ -89,7 +110,7 @@ class FeatureLevelLookupTest {
     void cacheExpiry() {
         AtomicLong now = new AtomicLong();
         IssueTrackerPort tracker = mock(IssueTrackerPort.class);
-        when(tracker.featureLevel(any())).thenThrow(new IllegalStateException("down")).thenReturn(FeatureLevel.OPTIONAL);
+        when(tracker.previewFeatureLevel(any())).thenThrow(new IllegalStateException("down")).thenReturn(FeatureLevel.OPTIONAL);
         FeatureLevelLookup lookup = new FeatureLevelLookup(tracker, Duration.ofSeconds(5), Duration.ofHours(1),
                 Duration.ofMinutes(1), now::get);
 
@@ -100,9 +121,9 @@ class FeatureLevelLookupTest {
         assertEquals(FeatureLevel.OPTIONAL, lookup.level(null), "failure expired after 1 min");
         now.addAndGet(Duration.ofMinutes(59).toNanos());
         assertEquals(FeatureLevel.OPTIONAL, lookup.level(null));
-        verify(tracker, times(2)).featureLevel(any());
+        verify(tracker, times(2)).previewFeatureLevel(any());
         now.addAndGet(Duration.ofMinutes(2).toNanos());
         lookup.level(null);
-        verify(tracker, times(3)).featureLevel(any());
+        verify(tracker, times(3)).previewFeatureLevel(any());
     }
 }

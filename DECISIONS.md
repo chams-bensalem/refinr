@@ -575,6 +575,11 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
   chaque côté au lieu de 2, **sans changer les seuils** : 3,20 → 3,60 stories, 46,7 % → 43,3 % ai-ready, tenus.
   **M1 devra utiliser des specs plus grandes, ou des seuils en nombre de stories.** Résultats :
   `eval/generation/results/2026-11-23-f1-summary.md`.
+- **Niveau Feature de l'aperçu lu en lecture seule** (`IssueTrackerPort.previewFeatureLevel`, par défaut
+  `featureLevel`) : OpenProject lit le projet (lien `createWorkPackage`, présent seulement si le compte peut créer) et
+  ses types, plutôt que le formulaire de création, qui demande le droit de créer (`403 MissingPermission` sur un projet
+  en lecture seule, essai réel du 2026-11-23). La création garde le formulaire, qui vérifie aussi ce droit. Droit
+  manquant : `TrackerPermissionException`, dont le message devient l'avertissement de l'aperçu.
 - **Limite connue de Gemini (`gemini-3.6-flash`) : Gemini regroupe en moins de Features ; le niveau Feature reste
   visible dès 2 Features explicites.** Vérification du 2026-11-23, règle fixée par le mainteneur avant la relance :
   au moins 2 exécutions sur 3 de reservation-salles avec au moins 3 Features explicites. Résultat : 1 sur 3 (2, 2 et

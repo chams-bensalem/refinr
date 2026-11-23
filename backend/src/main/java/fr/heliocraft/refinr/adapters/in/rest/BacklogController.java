@@ -181,7 +181,7 @@ public class BacklogController {
     }
 
     private static ResponseEntity<Map<String, Object>> invalidProjectKey(String projectKey) {
-        return ResponseEntity.badRequest().body(ErrorResponses.error("Invalid projectKey: " + projectKey));
+        return ResponseEntity.badRequest().body(ErrorResponses.error(AnalysisRequests.INVALID_PROJECT_KEY));
     }
 
     @PostMapping("/analyze-preview")
