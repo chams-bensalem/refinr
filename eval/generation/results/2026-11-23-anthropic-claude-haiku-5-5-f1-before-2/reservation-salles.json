@@ -1,0 +1,447 @@
+{
+  "epics" : [ {
+    "description" : "Permettre à un salarié connecté de consulter le planning journalier des salles par tranches de 30 minutes, de réserver une salle libre pour une durée de 30 minutes à 4 heures au plus 30 jours à l'avance, d'annuler sa réservation avant son début, et de gérer la libération automatique des réservations non confirmées par check-in dans les 15 minutes suivant leur début. Deux réservations d'une même salle ne peuvent pas se chevaucher.",
+    "labels" : [ "backend", "frontend", "api", "database" ],
+    "name" : "Réservation de salles",
+    "priority" : "High",
+    "stories" : [ {
+      "acceptanceCriteria" : [ "Given un salarié connecté, When il ouvre le planning d'une journée, Then il voit les salles de la liste avec leur planning par tranches de 30 minutes.", "Given un planning affiché pour une journée contenant des réservations, When le salarié le consulte, Then chaque réservation apparaît sur les tranches horaires qu'elle couvre.", "Given un visiteur non connecté, When il tente d'accéder au planning, Then l'accès au planning est refusé." ],
+      "aiReady" : true,
+      "aiReadyReason" : "Le comportement de consultation par journée et par tranches de 30 minutes est entièrement défini, ce qui rend la story implémentable.",
+      "aiReadySource" : "MODEL",
+      "asA" : "salarié connecté",
+      "dependencies" : [ ],
+      "description" : "Le salarié connecté voit, pour une journée choisie, le planning de toutes les salles de la liste, découpé en tranches de 30 minutes, avec les réservations existantes. Le planning est lu seul : il ne modifie aucune donnée.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 3,
+      "iWant" : "consulter le planning des salles sur une journée par tranches de 30 minutes",
+      "labels" : [ "frontend", "api", "database" ],
+      "priority" : "High",
+      "soThat" : "je repère rapidement les salles libres",
+      "tasks" : [ {
+        "description" : "Créer le point d'accès qui renvoie les réservations d'une journée pour toutes les salles, pour alimenter le planning.",
+        "estimatedHours" : 4,
+        "labels" : [ "backend", "api" ],
+        "parentTrackerKey" : null,
+        "title" : "Exposer la lecture des réservations par salle et par journée",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Afficher le planning journalier des salles avec une tranche de 30 minutes et les réservations existantes.",
+        "estimatedHours" : 6,
+        "labels" : [ "frontend" ],
+        "parentTrackerKey" : null,
+        "title" : "Afficher la grille du planning par tranches de 30 minutes",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Vérifier que le planning affiche les réservations sur les bonnes tranches et que l'accès est refusé à un utilisateur non connecté.",
+        "estimatedHours" : 3,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester l'affichage du planning et le contrôle d'accès",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Consulter le planning journalier des salles",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "acceptanceCriteria" : [ "Given une salle libre sur un créneau, When le salarié réserve ce créneau pour une durée de 30 minutes à 4 heures, débuté au plus 30 jours à l'avance, Then la réservation est créée et le créneau apparaît comme occupé.", "Given une demande de réservation d'une durée inférieure à 30 minutes ou supérieure à 4 heures, When le salarié valide, Then la réservation est refusée.", "Given une salle déjà réservée sur un créneau qui chevauche la demande, When le salarié tente de réserver ce créneau, Then la réservation est refusée et aucun chevauchement n'est créé.", "Given une demande pour un début au-delà de 30 jours, When le salarié valide, Then la réservation est refusée." ],
+      "aiReady" : true,
+      "aiReadyReason" : "Les règles de durée, d'anticipation et de non-chevauchement sont définies, ce qui permet de les implémenter et de les tester.",
+      "aiReadySource" : "MODEL",
+      "asA" : "salarié connecté",
+      "dependencies" : [ "Consulter le planning journalier des salles" ],
+      "description" : "Le salarié choisit une salle libre, une date et une durée comprise entre 30 minutes et 4 heures. La réservation peut être faite au plus 30 jours à l'avance. Deux réservations d'une même salle ne peuvent pas se chevaucher.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 5,
+      "iWant" : "réserver une salle libre pour une durée de 30 minutes à 4 heures, jusqu'à 30 jours à l'avance",
+      "labels" : [ "backend", "api", "database", "frontend" ],
+      "priority" : "High",
+      "soThat" : "je dispose de la salle pour ma réunion",
+      "tasks" : [ {
+        "description" : "Définir la structure de stockage d'une réservation (salle, salarié, début, fin) en garantissant l'absence de chevauchement pour une même salle.",
+        "estimatedHours" : 4,
+        "labels" : [ "database", "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Modéliser la réservation et ses contraintes de données",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Créer le point d'accès de réservation qui applique les règles de durée (30 min à 4 h), d'anticipation (30 jours) et de non-chevauchement.",
+        "estimatedHours" : 6,
+        "labels" : [ "backend", "api" ],
+        "parentTrackerKey" : null,
+        "title" : "Implémenter la création de réservation avec contrôles métier",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Permettre de sélectionner un créneau libre dans le planning et d'afficher le résultat ou le refus de la réservation.",
+        "estimatedHours" : 5,
+        "labels" : [ "frontend" ],
+        "parentTrackerKey" : null,
+        "title" : "Ajouter le parcours de réservation dans le planning",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Vérifier les cas nominaux, les durées hors bornes, le dépassement des 30 jours et le chevauchement de réservations.",
+        "estimatedHours" : 4,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester les règles de réservation",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Réserver une salle libre",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "acceptanceCriteria" : [ "Given une réservation dont le salarié est l'auteur et dont le début n'est pas atteint, When le salarié l'annule, Then la réservation disparaît et le créneau redevient libre.", "Given une réservation dont le début est atteint, When le salarié tente de l'annuler, Then l'annulation est refusée.", "Given une réservation créée par un autre salarié, When le salarié tente de l'annuler, Then l'annulation est refusée." ],
+      "aiReady" : true,
+      "aiReadyReason" : "La règle d'annulation avant le début et la restriction aux réservations propres sont définies.",
+      "aiReadySource" : "MODEL",
+      "asA" : "salarié connecté",
+      "dependencies" : [ "Réserver une salle libre" ],
+      "description" : "Le salarié peut annuler uniquement ses propres réservations, tant que leur début n'est pas atteint. Une fois la réservation commencée, l'annulation n'est plus possible.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 2,
+      "iWant" : "annuler ma propre réservation jusqu'à son début",
+      "labels" : [ "backend", "api", "frontend" ],
+      "priority" : "Medium",
+      "soThat" : "la salle redevienne disponible pour les autres si je n'en ai plus besoin",
+      "tasks" : [ {
+        "description" : "Créer le point d'accès d'annulation qui vérifie l'auteur de la réservation et l'heure de début avant de la supprimer.",
+        "estimatedHours" : 3,
+        "labels" : [ "backend", "api" ],
+        "parentTrackerKey" : null,
+        "title" : "Implémenter l'annulation contrôlée d'une réservation",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Afficher l'action d'annulation sur les réservations propres non commencées et mettre à jour le planning après annulation.",
+        "estimatedHours" : 3,
+        "labels" : [ "frontend" ],
+        "parentTrackerKey" : null,
+        "title" : "Ajouter l'action d'annulation dans le planning",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Vérifier l'annulation avant début, le refus après début et le refus pour une réservation d'un autre salarié.",
+        "estimatedHours" : 2,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester les cas d'annulation",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Annuler sa réservation avant son début",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "acceptanceCriteria" : [ "Given une réservation dont le début est passé, When le salarié effectue le check-in dans les 15 minutes suivant ce début, Then la réservation est confirmée et conservée." ],
+      "aiReady" : false,
+      "aiReadyReason" : "Quel moyen le salarié utilise-t-il pour effectuer son check-in (action dans l'application, scan, bouton sur la salle) ?",
+      "aiReadySource" : "MODEL",
+      "asA" : "salarié ayant réservé une salle",
+      "dependencies" : [ "Réserver une salle libre" ],
+      "description" : "Une réservation non confirmée par check-in dans les 15 minutes suivant son début est libérée automatiquement. Le moyen de réaliser le check-in n'est pas défini dans la spécification : la story ne peut pas être implémentée en l'état.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 3,
+      "iWant" : "confirmer ma présence par un check-in au début de ma réservation",
+      "labels" : [ "backend", "frontend", "api" ],
+      "priority" : "High",
+      "soThat" : "ma réservation est conservée et la salle ne me est pas libérée automatiquement",
+      "tasks" : [ {
+        "description" : "Stocker l'état confirmé ou non confirmé d'une réservation. Dépend de la décision manquante sur le moyen de check-in.",
+        "estimatedHours" : 3,
+        "labels" : [ "database", "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Enregistrer l'état de check-in d'une réservation",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Créer l'action permettant de confirmer une réservation. Dépend de la décision manquante sur le moyen de check-in.",
+        "estimatedHours" : 4,
+        "labels" : [ "api", "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Exposer l'action de check-in",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Vérifier qu'un check-in effectué dans les 15 minutes conserve la réservation.",
+        "estimatedHours" : 2,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester la confirmation dans le délai de 15 minutes",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Confirmer sa présence par check-in",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "acceptanceCriteria" : [ "Given une réservation non confirmée dont 15 minutes se sont écoulées depuis son début, When le délai est atteint, Then la réservation est libérée et le créneau redevient libre.", "Given une réservation confirmée par check-in dans les 15 minutes suivant son début, When le délai est atteint, Then la réservation n'est pas libérée." ],
+      "aiReady" : false,
+      "aiReadyReason" : "Quel moyen le salarié utilise-t-il pour effectuer son check-in, nécessaire pour déterminer si la réservation est confirmée ?",
+      "aiReadySource" : "MODEL",
+      "asA" : "salarié ayant réservé une salle",
+      "dependencies" : [ "Confirmer sa présence par check-in" ],
+      "description" : "Une réservation non confirmée par check-in dans les 15 minutes suivant son début est libérée automatiquement. La règle de délai est définie ; le moyen de check-in dépend de la story Confirmer sa présence par check-in.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 3,
+      "iWant" : "que ma réservation non confirmée soit libérée automatiquement 15 minutes après son début",
+      "labels" : [ "backend", "database" ],
+      "priority" : "High",
+      "soThat" : "la salle reste disponible pour d'autres personnes",
+      "tasks" : [ {
+        "description" : "Mettre en place le mécanisme qui libère les réservations non confirmées 15 minutes après leur début. Dépend de la décision manquante sur le moyen de check-in.",
+        "estimatedHours" : 5,
+        "labels" : [ "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Implémenter la libération automatique au délai de 15 minutes",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Vérifier la libération des réservations non confirmées et la conservation des réservations confirmées.",
+        "estimatedHours" : 2,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester la libération et la conservation des réservations",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Libérer automatiquement une réservation non confirmée",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "trackerKey" : null,
+    "trackerUrl" : null
+  }, {
+    "description" : "Informer le salarié de sa réservation et de sa libération automatique. Le canal de notification (e-mail, Teams ou les deux) reste à choisir.",
+    "labels" : [ "integration", "backend" ],
+    "name" : "Notifications",
+    "priority" : "Medium",
+    "stories" : [ {
+      "acceptanceCriteria" : [ "Given une réservation créée avec succès, When la réservation est enregistrée, Then le salarié reçoit une notification de sa réservation." ],
+      "aiReady" : false,
+      "aiReadyReason" : "Par quel canal (e-mail, Teams ou les deux) le salarié doit-il être notifié de sa réservation ?",
+      "aiReadySource" : "MODEL",
+      "asA" : "salarié ayant réservé une salle",
+      "dependencies" : [ "Réserver une salle libre" ],
+      "description" : "Le salarié est prévenu lorsqu'une réservation est créée. Le canal (e-mail, Teams ou les deux) n'est pas défini dans la spécification.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 3,
+      "iWant" : "être prévenu de ma réservation",
+      "labels" : [ "integration", "backend" ],
+      "priority" : "Medium",
+      "soThat" : "je sois certain que la salle m'est attribuée",
+      "tasks" : [ {
+        "description" : "Déclencher une notification au moment de la création d'une réservation. Dépend de la décision manquante sur le canal.",
+        "estimatedHours" : 4,
+        "labels" : [ "backend", "integration" ],
+        "parentTrackerKey" : null,
+        "title" : "Mettre en place l'envoi de notification à la réservation",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Vérifier qu'une notification est émise après chaque réservation créée.",
+        "estimatedHours" : 2,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester la notification de réservation",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Notifier le salarié de sa réservation",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "acceptanceCriteria" : [ "Given une réservation libérée automatiquement faute de check-in, When la libération est effectuée, Then le salarié reçoit une notification de cette libération." ],
+      "aiReady" : false,
+      "aiReadyReason" : "Par quel canal (e-mail, Teams ou les deux) le salarié doit-il être notifié de la libération automatique de sa réservation ?",
+      "aiReadySource" : "MODEL",
+      "asA" : "salarié ayant réservé une salle",
+      "dependencies" : [ "Libérer automatiquement une réservation non confirmée" ],
+      "description" : "Le salarié est prévenu lorsque sa réservation est libérée automatiquement faute de check-in. Le canal n'est pas défini dans la spécification.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 2,
+      "iWant" : "être prévenu de la libération automatique de ma réservation",
+      "labels" : [ "integration", "backend" ],
+      "priority" : "Medium",
+      "soThat" : "je comprenne pourquoi ma salle n'est plus réservée à mon nom",
+      "tasks" : [ {
+        "description" : "Émettre une notification lors de la libération automatique. Dépend de la décision manquante sur le canal.",
+        "estimatedHours" : 3,
+        "labels" : [ "backend", "integration" ],
+        "parentTrackerKey" : null,
+        "title" : "Déclencher la notification de libération",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Vérifier qu'une notification est envoyée lors de la libération automatique d'une réservation.",
+        "estimatedHours" : 2,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester la notification de libération",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Notifier le salarié de la libération automatique",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "trackerKey" : null,
+    "trackerUrl" : null
+  }, {
+    "description" : "Permettre à l'accueil, avec le rôle gestionnaire, de gérer la liste des salles (nom, capacité, équipements) et de disposer d'un tableau de bord sur l'occupation des salles.",
+    "labels" : [ "backend", "frontend", "api", "database", "security" ],
+    "name" : "Administration des salles",
+    "priority" : "High",
+    "stories" : [ {
+      "acceptanceCriteria" : [ "Given un gestionnaire connecté, When il ajoute une salle avec un nom, une capacité et des équipements, Then la salle apparaît dans le planning et est réservable.", "Given un gestionnaire connecté, When il modifie le nom, la capacité ou les équipements d'une salle, Then les nouvelles valeurs sont affichées dans le planning.", "Given un salarié non gestionnaire, When il tente d'accéder à l'administration des salles, Then l'accès est refusé." ],
+      "aiReady" : true,
+      "aiReadyReason" : "Les champs de salle et le rôle gestionnaire sont définis, ce qui suffit à implémenter la gestion de la liste.",
+      "aiReadySource" : "MODEL",
+      "asA" : "gestionnaire de l'accueil",
+      "dependencies" : [ ],
+      "description" : "Le gestionnaire ajoute et modifie les salles (nom, capacité, équipements). Seul le rôle gestionnaire accède à cette administration.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 3,
+      "iWant" : "gérer la liste des salles avec leur nom, leur capacité et leurs équipements",
+      "labels" : [ "backend", "frontend", "api", "database", "security" ],
+      "priority" : "High",
+      "soThat" : "les salariés réservent des salles à jour",
+      "tasks" : [ {
+        "description" : "Créer la structure de données des salles avec les trois informations demandées.",
+        "estimatedHours" : 3,
+        "labels" : [ "database", "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Stocker les salles avec nom, capacité et équipements",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Créer les points d'accès d'ajout et de modification des salles, restreints au rôle gestionnaire.",
+        "estimatedHours" : 5,
+        "labels" : [ "backend", "api", "security" ],
+        "parentTrackerKey" : null,
+        "title" : "Exposer l'administration des salles réservée au gestionnaire",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Afficher la liste des salles et les formulaires d'ajout et de modification pour le gestionnaire.",
+        "estimatedHours" : 5,
+        "labels" : [ "frontend" ],
+        "parentTrackerKey" : null,
+        "title" : "Construire l'écran de gestion des salles",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Vérifier l'ajout, la modification et le refus d'accès pour un non-gestionnaire.",
+        "estimatedHours" : 3,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester la gestion des salles et le contrôle d'accès",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Gérer la liste des salles",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "acceptanceCriteria" : [ "Given un gestionnaire connecté, When il ouvre le tableau de bord, Then il voit l'occupation des salles de la liste.", "Given un salarié non gestionnaire, When il tente d'ouvrir le tableau de bord, Then l'accès est refusé." ],
+      "aiReady" : false,
+      "aiReadyReason" : "Quels indicateurs d'occupation et quelle période le tableau de bord doit-il afficher pour être considéré comme intuitif ?",
+      "aiReadySource" : "MODEL",
+      "asA" : "gestionnaire de l'accueil",
+      "dependencies" : [ "Gérer la liste des salles" ],
+      "description" : "Le gestionnaire dispose d'un tableau de bord sur l'occupation des salles. La spécification ne définit ni les indicateurs affichés ni la période couverte, et le terme « intuitif » n'est pas vérifiable en l'état.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 5,
+      "iWant" : "consulter un tableau de bord sur l'occupation des salles",
+      "labels" : [ "frontend", "api", "backend" ],
+      "priority" : "Medium",
+      "soThat" : "je suive l'utilisation des salles",
+      "tasks" : [ {
+        "description" : "Produire les données d'occupation des salles. Dépend de la décision manquante sur les indicateurs et la période.",
+        "estimatedHours" : 4,
+        "labels" : [ "backend", "api" ],
+        "parentTrackerKey" : null,
+        "title" : "Calculer les indicateurs d'occupation par salle",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Construire l'écran du tableau de bord. Dépend de la décision manquante sur les indicateurs et la période.",
+        "estimatedHours" : 5,
+        "labels" : [ "frontend" ],
+        "parentTrackerKey" : null,
+        "title" : "Afficher le tableau de bord pour le gestionnaire",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Vérifier l'affichage pour le gestionnaire et le refus pour un non-gestionnaire.",
+        "estimatedHours" : 2,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester l'accès et l'affichage du tableau de bord",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Consulter le tableau de bord d'occupation des salles",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "trackerKey" : null,
+    "trackerUrl" : null
+  }, {
+    "description" : "Faire apparaître les réservations dans l'agenda Outlook des salariés. La méthode de connexion et le contenu attendu des événements ne sont pas décrits.",
+    "labels" : [ "integration", "api" ],
+    "name" : "Intégration agenda Outlook",
+    "priority" : "Medium",
+    "stories" : [ {
+      "acceptanceCriteria" : [ "Given une réservation créée, When elle est enregistrée, Then elle apparaît dans l'agenda Outlook du salarié qui l'a réservée." ],
+      "aiReady" : false,
+      "aiReadyReason" : "Quelle méthode de connexion à Outlook (compte, droits, sens de synchronisation) et quel contenu l'événement doit-il porter ?",
+      "aiReadySource" : "MODEL",
+      "asA" : "salarié ayant réservé une salle",
+      "dependencies" : [ "Réserver une salle libre" ],
+      "description" : "Chaque réservation créée doit apparaître dans l'agenda Outlook du salarié concerné. La spécification ne précise ni la méthode de connexion à Outlook, ni les droits nécessaires, ni le contenu de l'événement.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 8,
+      "iWant" : "retrouver mes réservations dans mon agenda Outlook",
+      "labels" : [ "integration", "api" ],
+      "priority" : "Medium",
+      "soThat" : "je gère mon planning au même endroit",
+      "tasks" : [ {
+        "description" : "Choisir le mode d'accès à l'agenda Outlook. Dépend de la décision manquante sur la méthode de connexion et les droits.",
+        "estimatedHours" : 4,
+        "labels" : [ "integration" ],
+        "parentTrackerKey" : null,
+        "title" : "Définir l'intégration avec l'agenda Outlook",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Émettre un événement dans l'agenda du salarié à la création de la réservation. Dépend de la décision manquante sur le contenu de l'événement.",
+        "estimatedHours" : 6,
+        "labels" : [ "integration", "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Créer l'événement Outlook à la réservation",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Vérifier qu'une réservation créée apparaît dans l'agenda Outlook du bon salarié.",
+        "estimatedHours" : 3,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester la présence des réservations dans Outlook",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Ajouter les réservations à l'agenda Outlook",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "trackerKey" : null,
+    "trackerUrl" : null
+  } ]
+}

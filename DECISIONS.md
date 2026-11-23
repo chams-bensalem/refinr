@@ -533,3 +533,46 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
   traitement des réponses ; il suivra le futur contrat epics → features → stories (F1) sans travail propre aux jobs.
 - **Reporté** : `Idempotency-Key` sur `POST /api/v1/jobs/analyze-and-create`, prérequis de U1 et P6 ; pas de job pour
   `reassess-story`.
+
+## Niveau Feature (v1.5, F1)
+
+- **Hiérarchie Epic → Feature → Story → Sous-tâche** dans le domaine (`Feature`, `Epic.features`) ; `Epic.getStories()`
+  reste la liste à plat (verdict par lots, réévaluation et harnais E0 inchangés).
+- **Feature implicite = seule Feature de son epic** (règle déterministe, plutôt qu'un indicateur du modèle) : pas de
+  niveau distinct quand le gestionnaire le permet (OpenProject : pas de lot de travaux ; Jira trois niveaux : ticket au
+  nom de l'epic, Jira exigeant un parent un niveau au-dessus).
+- **Port générique** : `featureLevel(project)` (`NONE`, `OPTIONAL`, `REQUIRED`, `UNKNOWN`), `createFeature`,
+  `createStory(…, parentKey, …)` ; rien de propre à Jira dans le port.
+- **Jira : configuration explicite** (`jira.hierarchy`, `jira.types.*`), **validée** à la première création dans un
+  projet (`GET /rest/api/3/project/{key}` : types présents, `hierarchyLevel` 1 pour la Feature, 2 pour l'Epic) plutôt
+  que détectée : le renommage de l'Epic et les niveaux ajoutés au-dessus ne se déduisent pas de façon fiable.
+- **OpenProject : détection** par les types activés dans le projet (lecture déjà faite pour Epic et User story).
+  Instance locale du 2026-11-23 : type `Feature` présent (id 4) mais activé dans aucun projet du bot.
+- **Sans niveau Feature** : `refinr.features.without-level=label` (défaut, label `feature-<nom normalisé>`, accents
+  retirés) ou `refuse` (`422`, choisi plutôt que `400` ; le plugin ≤ 0.2.0 l'affiche mal, à corriger en P6).
+- **Contrat REST** : `epics[].stories` à plat gardé (déprécié, jusqu'à la 2.0 au moins) ; en entrée, `stories`
+  l'emporte s'il diffère des features (une modification du client n'est jamais perdue).
+- **Prompt `generation-v2`** : Epic = produit ou grand domaine, Feature = module ou capacité, Story = action ; bloc
+  READINESS inchangé, donc la mesure E0 du verdict reste valable. Mesure légère avant / après : voir
+  `eval/generation/results/2026-11-23-*-f1-*`.
+- **Limite de complexité des schémas chez Anthropic** (sorties structurées, page *Structured outputs*, section
+  *Schema complexity limits*) : le schéma est compilé en grammaire ; au plus 24 paramètres facultatifs et 16 unions
+  par requête, plus des limites internes sur la taille de la grammaire et 180 s de compilation. Le schéma du backlog à
+  quatre niveaux (15 propriétés facultatives sur epic, feature, story et sous-tâche) dépassait la limite interne.
+  Sonde du 2026-11-23 (`scripts/eval-verdict.sh probe-schema anthropic`, Haiku 5.5) :
+  `status=400 duration_ms=85435 error.message=Schema is too complex.` ; schéma corrigé : `status=200
+  duration_ms=6222` (compilation de la grammaire comprise, mise en cache 24 h par Anthropic).
+- **Choix : « tout required » côté Anthropic seulement** (`AnthropicLlmClient.supportedSchema`) : toutes les propriétés
+  sont déclarées obligatoires dans le schéma envoyé ; chacune peut rester vide (chaîne vide, liste vide, 0 : les bornes
+  `minLength`, `minItems` et `minimum` ne sont pas envoyées), seules les priorités (énumération) n'ont pas de valeur
+  vide et le prompt les demande pour chaque élément. Le schéma de validation locale et les autres fournisseurs ne
+  changent pas. Écartés : aplatir le schéma (stories portant leur feature), qui change le format produit ; renoncer
+  aux sorties structurées strictes, qui perd la garantie de format.
+- **Mesure légère : seuils 4 et 5 mal calibrés pour une petite spec.** Sur order-export (3 stories en moyenne), une
+  story qui change déplace la part ai-ready de 25 à 33 points : sur 2 exécutions, l'écart « après » (25 % et 33 %
+  contre 67 %) sortait des ±20 points, alors que la mesure « avant » varie elle-même de 25 % à 67 %. Décision du
+  mainteneur : critères 4 (stories ±25 %) et 5 (part ai-ready ±20 points) jugés sur la moyenne de 5 exécutions de
+  chaque côté au lieu de 2, **sans changer les seuils** : 3,20 → 3,60 stories, 46,7 % → 43,3 % ai-ready, tenus.
+  **M1 devra utiliser des specs plus grandes, ou des seuils en nombre de stories.** Résultats :
+  `eval/generation/results/2026-11-23-f1-summary.md`.
+

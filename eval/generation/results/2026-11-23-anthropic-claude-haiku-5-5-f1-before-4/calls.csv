@@ -1,0 +1,2 @@
+run,batch,started_at,duration_ms,outcome,http_status,input_tokens,output_tokens,cost_usd,spent_phase_usd,calls_today,suspended
+1,1,2026-11-23T00:06:32.302761Z,21801,ok,,2908,3759,0.002170,0.0463,18,

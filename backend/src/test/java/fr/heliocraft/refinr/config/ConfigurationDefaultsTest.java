@@ -108,6 +108,31 @@ class ConfigurationDefaultsTest {
     }
 
     @Test
+    @DisplayName("Feature level settings have the same defaults in the code, the example config, .env.example and both READMEs")
+    void featureLevelDefaultsAreAligned() throws IOException {
+        fr.heliocraft.refinr.adapters.out.jira.JiraIssueTracker.IssueTypes types =
+                fr.heliocraft.refinr.adapters.out.jira.JiraIssueTracker.IssueTypes.DEFAULT;
+        assertEquals(types.epic(), exampleDefault("jira.types.epic"));
+        assertEquals(types.feature(), exampleDefault("jira.types.feature"));
+        assertEquals(types.story(), exampleDefault("jira.types.story"));
+        assertEquals(types.subtask(), exampleDefault("jira.types.subtask"));
+        assertEquals(fr.heliocraft.refinr.adapters.out.jira.JiraIssueTracker.Hierarchy.TWO_LEVELS,
+                fr.heliocraft.refinr.adapters.out.jira.JiraIssueTracker.Hierarchy.of(exampleDefault("jira.hierarchy")));
+        assertEquals("two-levels", exampleDefault("jira.hierarchy"));
+        assertEquals("two-levels", envExample("JIRA_HIERARCHY"));
+        assertEquals("two-levels", readmeTableDefault("jira.hierarchy"));
+        assertEquals("Feature", exampleDefault("openproject.types.feature"));
+        assertEquals("Feature", readmeTableDefault("openproject.types.feature"));
+        assertEquals(fr.heliocraft.refinr.application.service.FeatureLevels.PROPERTY, "refinr.features.without-level");
+        assertEquals("label", exampleDefault("refinr.features.without-level"));
+        assertEquals("label", envExample("FEATURES_WITHOUT_LEVEL"));
+        assertEquals("label", readmeTableDefault("refinr.features.without-level"));
+        IllegalStateException refused = assertThrows(IllegalStateException.class,
+                () -> new UseCaseConfig("", 1000, "auto", "drop"));
+        assertTrue(refused.getMessage().contains("refinr.features.without-level"), refused.getMessage());
+    }
+
+    @Test
     @DisplayName("Job settings (refinr.jobs.*) have the same defaults in the code, the example config, .env.example and both READMEs")
     void jobDefaultsAreAligned() throws IOException {
         String[][] jobs = {

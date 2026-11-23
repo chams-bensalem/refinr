@@ -1,0 +1,340 @@
+{
+  "epics" : [ {
+    "description" : "Customers can export their paid orders as a CSV file from their account page. The file contains one row per order with order number, date and total amount including VAT, excludes cancelled orders, and is named orders-YYYY-MM-DD.csv. The delimiter and encoding of the file are not decided yet.",
+    "features" : [ {
+      "description" : "Capability for a customer to download a CSV file of their paid orders from the account page, with the defined columns, cancelled orders excluded and the defined file name.",
+      "labels" : [ "frontend", "backend", "test" ],
+      "name" : "Order export",
+      "priority" : "Medium",
+      "stories" : [ {
+        "acceptanceCriteria" : [ "Given a customer on the account page, When they trigger the order export, Then a CSV file is downloaded.", "Given a customer with paid orders, When the export is generated, Then the file contains only that customer's paid orders." ],
+        "aiReady" : false,
+        "aiReadyReason" : "The delimiter (comma or semicolon) and the encoding of the CSV file are undecided, so the file content cannot be fully implemented; what delimiter and encoding should the exported CSV file use?",
+        "aiReadySource" : "MODEL",
+        "asA" : "customer",
+        "dependencies" : [ ],
+        "description" : "On the customer account page, the customer can trigger an export that produces a CSV file of their paid orders and downloads it. The file format (delimiter and encoding) is an open question and is not defined by the specification.",
+        "epicTrackerKey" : null,
+        "estimatedStoryPoints" : 3,
+        "iWant" : "to export my paid orders as a CSV file from my account page",
+        "labels" : [ "frontend", "backend" ],
+        "priority" : "High",
+        "soThat" : "I can keep a copy of my order history",
+        "tasks" : [ {
+          "description" : "Add an export control on the customer account page that triggers the order export request.",
+          "estimatedHours" : 3,
+          "labels" : [ "frontend" ],
+          "parentTrackerKey" : null,
+          "title" : "Add export action on account page",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Create the backend operation that gathers the customer's paid orders and returns them as a CSV file download.",
+          "estimatedHours" : 5,
+          "labels" : [ "backend" ],
+          "parentTrackerKey" : null,
+          "title" : "Implement order export endpoint for paid orders",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Configure the CSV delimiter and encoding; this sub-task depends on the open decision on comma or semicolon and on the encoding.",
+          "estimatedHours" : 2,
+          "labels" : [ "backend" ],
+          "parentTrackerKey" : null,
+          "title" : "Apply delimiter and encoding once decided",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Test that the export control produces a downloaded CSV containing only the customer's paid orders.",
+          "estimatedHours" : 2,
+          "labels" : [ "test" ],
+          "parentTrackerKey" : null,
+          "title" : "Verify download on account page",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        } ],
+        "title" : "Download paid orders as CSV from account page",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "acceptanceCriteria" : [ "Given a customer with two paid orders, When the export is generated, Then the file contains exactly two order rows.", "Given an exported order row, When it is read, Then it contains the order number, the order date and the total amount including VAT.", "Given the export is generated, When the file is opened, Then each order appears only once." ],
+        "aiReady" : false,
+        "aiReadyReason" : "The delimiter and encoding of the CSV file are undecided, which changes how the rows are written; which delimiter (comma or semicolon) and encoding should be used?",
+        "aiReadySource" : "MODEL",
+        "asA" : "customer",
+        "dependencies" : [ "Download paid orders as CSV from account page" ],
+        "description" : "The CSV file contains one row per order, with the order number, the order date and the total amount including VAT. The delimiter and encoding are open questions.",
+        "epicTrackerKey" : null,
+        "estimatedStoryPoints" : 3,
+        "iWant" : "each exported order to appear as one row with its order number, date and total amount including VAT",
+        "labels" : [ "backend", "test" ],
+        "priority" : "High",
+        "soThat" : "I can review my order history in a spreadsheet",
+        "tasks" : [ {
+          "description" : "Map each paid order to a row with order number, order date and total amount including VAT.",
+          "estimatedHours" : 3,
+          "labels" : [ "backend" ],
+          "parentTrackerKey" : null,
+          "title" : "Map order fields to CSV columns",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Generate one CSV row per paid order; the delimiter depends on the open decision.",
+          "estimatedHours" : 2,
+          "labels" : [ "backend" ],
+          "parentTrackerKey" : null,
+          "title" : "Write one row per order",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Verify with orders in the test data that rows contain the three required fields and no duplicates.",
+          "estimatedHours" : 2,
+          "labels" : [ "test" ],
+          "parentTrackerKey" : null,
+          "title" : "Test row content",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        } ],
+        "title" : "Export one row per order with key fields",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "acceptanceCriteria" : [ "Given a customer with one paid order and one cancelled order, When the export is generated, Then the cancelled order does not appear in the file.", "Given a customer with one paid order and one cancelled order, When the export is generated, Then the paid order appears in the file." ],
+        "aiReady" : true,
+        "aiReadyReason" : "The rule is explicit: cancelled orders are excluded and paid orders remain, so a developer can implement the filter and verify it.",
+        "aiReadySource" : "MODEL",
+        "asA" : "customer",
+        "dependencies" : [ "Export one row per order with key fields" ],
+        "description" : "Orders that are cancelled are excluded from the exported CSV file. Paid orders that are not cancelled remain in the export.",
+        "epicTrackerKey" : null,
+        "estimatedStoryPoints" : 2,
+        "iWant" : "cancelled orders to be left out of my export",
+        "labels" : [ "backend", "test" ],
+        "priority" : "Medium",
+        "soThat" : "the file only lists the orders that count",
+        "tasks" : [ {
+          "description" : "Add a filter to the export query so that cancelled orders are not included.",
+          "estimatedHours" : 2,
+          "labels" : [ "backend" ],
+          "parentTrackerKey" : null,
+          "title" : "Filter out cancelled orders",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Verify that a cancelled order is absent from the file and a paid order is present.",
+          "estimatedHours" : 2,
+          "labels" : [ "test" ],
+          "parentTrackerKey" : null,
+          "title" : "Test cancelled order exclusion",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        } ],
+        "title" : "Exclude cancelled orders from export",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "acceptanceCriteria" : [ "Given an export is downloaded, When the file name is set, Then it follows the pattern orders-YYYY-MM-DD.csv.", "Given an export is downloaded, When the file name is read, Then it ends with the .csv extension." ],
+        "aiReady" : false,
+        "aiReadyReason" : "The specification does not say which date YYYY-MM-DD refers to (export date, order date or another date); which date should the file name use?",
+        "aiReadySource" : "MODEL",
+        "asA" : "customer",
+        "dependencies" : [ "Download paid orders as CSV from account page" ],
+        "description" : "The downloaded file is named orders-YYYY-MM-DD.csv. The specification does not state which date the YYYY-MM-DD part represents.",
+        "epicTrackerKey" : null,
+        "estimatedStoryPoints" : 1,
+        "iWant" : "the exported file to have a date-based name",
+        "labels" : [ "backend", "test" ],
+        "priority" : "Low",
+        "soThat" : "I can easily identify the export I downloaded",
+        "tasks" : [ {
+          "description" : "Generate the file name orders-YYYY-MM-DD.csv using the date chosen by the open decision.",
+          "estimatedHours" : 2,
+          "labels" : [ "backend" ],
+          "parentTrackerKey" : null,
+          "title" : "Build file name from date",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Verify the downloaded file name matches the pattern with the defined date.",
+          "estimatedHours" : 1,
+          "labels" : [ "test" ],
+          "parentTrackerKey" : null,
+          "title" : "Test file name",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        } ],
+        "title" : "Name export file orders-YYYY-MM-DD.csv",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "labels" : [ "frontend", "backend", "test" ],
+    "name" : "Order export",
+    "priority" : "Medium",
+    "stories" : [ {
+      "acceptanceCriteria" : [ "Given a customer on the account page, When they trigger the order export, Then a CSV file is downloaded.", "Given a customer with paid orders, When the export is generated, Then the file contains only that customer's paid orders." ],
+      "aiReady" : false,
+      "aiReadyReason" : "The delimiter (comma or semicolon) and the encoding of the CSV file are undecided, so the file content cannot be fully implemented; what delimiter and encoding should the exported CSV file use?",
+      "aiReadySource" : "MODEL",
+      "asA" : "customer",
+      "dependencies" : [ ],
+      "description" : "On the customer account page, the customer can trigger an export that produces a CSV file of their paid orders and downloads it. The file format (delimiter and encoding) is an open question and is not defined by the specification.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 3,
+      "iWant" : "to export my paid orders as a CSV file from my account page",
+      "labels" : [ "frontend", "backend" ],
+      "priority" : "High",
+      "soThat" : "I can keep a copy of my order history",
+      "tasks" : [ {
+        "description" : "Add an export control on the customer account page that triggers the order export request.",
+        "estimatedHours" : 3,
+        "labels" : [ "frontend" ],
+        "parentTrackerKey" : null,
+        "title" : "Add export action on account page",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Create the backend operation that gathers the customer's paid orders and returns them as a CSV file download.",
+        "estimatedHours" : 5,
+        "labels" : [ "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Implement order export endpoint for paid orders",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Configure the CSV delimiter and encoding; this sub-task depends on the open decision on comma or semicolon and on the encoding.",
+        "estimatedHours" : 2,
+        "labels" : [ "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Apply delimiter and encoding once decided",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Test that the export control produces a downloaded CSV containing only the customer's paid orders.",
+        "estimatedHours" : 2,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Verify download on account page",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Download paid orders as CSV from account page",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "acceptanceCriteria" : [ "Given a customer with two paid orders, When the export is generated, Then the file contains exactly two order rows.", "Given an exported order row, When it is read, Then it contains the order number, the order date and the total amount including VAT.", "Given the export is generated, When the file is opened, Then each order appears only once." ],
+      "aiReady" : false,
+      "aiReadyReason" : "The delimiter and encoding of the CSV file are undecided, which changes how the rows are written; which delimiter (comma or semicolon) and encoding should be used?",
+      "aiReadySource" : "MODEL",
+      "asA" : "customer",
+      "dependencies" : [ "Download paid orders as CSV from account page" ],
+      "description" : "The CSV file contains one row per order, with the order number, the order date and the total amount including VAT. The delimiter and encoding are open questions.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 3,
+      "iWant" : "each exported order to appear as one row with its order number, date and total amount including VAT",
+      "labels" : [ "backend", "test" ],
+      "priority" : "High",
+      "soThat" : "I can review my order history in a spreadsheet",
+      "tasks" : [ {
+        "description" : "Map each paid order to a row with order number, order date and total amount including VAT.",
+        "estimatedHours" : 3,
+        "labels" : [ "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Map order fields to CSV columns",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Generate one CSV row per paid order; the delimiter depends on the open decision.",
+        "estimatedHours" : 2,
+        "labels" : [ "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Write one row per order",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Verify with orders in the test data that rows contain the three required fields and no duplicates.",
+        "estimatedHours" : 2,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Test row content",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Export one row per order with key fields",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "acceptanceCriteria" : [ "Given a customer with one paid order and one cancelled order, When the export is generated, Then the cancelled order does not appear in the file.", "Given a customer with one paid order and one cancelled order, When the export is generated, Then the paid order appears in the file." ],
+      "aiReady" : true,
+      "aiReadyReason" : "The rule is explicit: cancelled orders are excluded and paid orders remain, so a developer can implement the filter and verify it.",
+      "aiReadySource" : "MODEL",
+      "asA" : "customer",
+      "dependencies" : [ "Export one row per order with key fields" ],
+      "description" : "Orders that are cancelled are excluded from the exported CSV file. Paid orders that are not cancelled remain in the export.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 2,
+      "iWant" : "cancelled orders to be left out of my export",
+      "labels" : [ "backend", "test" ],
+      "priority" : "Medium",
+      "soThat" : "the file only lists the orders that count",
+      "tasks" : [ {
+        "description" : "Add a filter to the export query so that cancelled orders are not included.",
+        "estimatedHours" : 2,
+        "labels" : [ "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Filter out cancelled orders",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Verify that a cancelled order is absent from the file and a paid order is present.",
+        "estimatedHours" : 2,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Test cancelled order exclusion",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Exclude cancelled orders from export",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "acceptanceCriteria" : [ "Given an export is downloaded, When the file name is set, Then it follows the pattern orders-YYYY-MM-DD.csv.", "Given an export is downloaded, When the file name is read, Then it ends with the .csv extension." ],
+      "aiReady" : false,
+      "aiReadyReason" : "The specification does not say which date YYYY-MM-DD refers to (export date, order date or another date); which date should the file name use?",
+      "aiReadySource" : "MODEL",
+      "asA" : "customer",
+      "dependencies" : [ "Download paid orders as CSV from account page" ],
+      "description" : "The downloaded file is named orders-YYYY-MM-DD.csv. The specification does not state which date the YYYY-MM-DD part represents.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 1,
+      "iWant" : "the exported file to have a date-based name",
+      "labels" : [ "backend", "test" ],
+      "priority" : "Low",
+      "soThat" : "I can easily identify the export I downloaded",
+      "tasks" : [ {
+        "description" : "Generate the file name orders-YYYY-MM-DD.csv using the date chosen by the open decision.",
+        "estimatedHours" : 2,
+        "labels" : [ "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Build file name from date",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Verify the downloaded file name matches the pattern with the defined date.",
+        "estimatedHours" : 1,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Test file name",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Name export file orders-YYYY-MM-DD.csv",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "trackerKey" : null,
+    "trackerUrl" : null
+  } ]
+}

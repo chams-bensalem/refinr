@@ -1,0 +1,4 @@
+run,batch,started_at,duration_ms,outcome,http_status,input_tokens,output_tokens,cost_usd,spent_phase_usd,calls_today,suspended
+1,1,2026-11-22T23:06:30.195324Z,15152,ok,,2908,3222,0.001902,0.0126,4,
+1,2,2026-11-22T23:06:45.390355Z,8279,ok,,3091,1666,0.001142,0.0138,5,
+1,3,2026-11-22T23:06:53.684229Z,46773,ok,,3694,11925,0.006332,0.0201,6,

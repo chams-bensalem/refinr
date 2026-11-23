@@ -1,0 +1,69 @@
+{
+  "epics" : [ {
+    "description" : "Allow a support agent to export the data of a customer account so that customer requests can be answered. The specification leaves the format, encoding, delimiter, access rights, content, size limits and delivery method undecided, so the epic cannot start development until the Product Owner decides these points.",
+    "labels" : [ "backend", "frontend", "security" ],
+    "name" : "Customer account data export",
+    "priority" : "High",
+    "stories" : [ {
+      "acceptanceCriteria" : [ "Given a support agent has selected a customer account, When the agent requests an export of that account's data, Then an export of that customer account's data is produced.", "Given an export has been produced for a customer account, When the export is opened, Then it contains only the data of the selected customer account." ],
+      "aiReady" : false,
+      "aiReadyReason" : "Which roles may export customer account data, which fields it must contain, and in which format and delivery method it must be provided?",
+      "aiReadySource" : "MODEL",
+      "asA" : "support agent",
+      "dependencies" : [ ],
+      "description" : "A support agent can trigger an export of the data of a given customer account. The export must contain the data of that customer account only. Open points not decided by the specification: export format (CSV, JSON or a ZIP archive with several files), encoding and delimiter, roles allowed to export (support level 1, level 2, admins only), fields included (orders, invoices, personal data, support history; GDPR review pending), size limits for very large accounts, and delivery method (browser download or email).",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 5,
+      "iWant" : "to export the data of a customer account",
+      "labels" : [ "backend", "frontend", "security" ],
+      "priority" : "High",
+      "soThat" : "I can answer customer requests",
+      "tasks" : [ {
+        "description" : "Obtain decisions on format, encoding, delimiter, roles, fields, size limits and delivery method; the implementation of the export depends on this decision and cannot start before it is made.",
+        "estimatedHours" : 2,
+        "labels" : [ "documentation" ],
+        "parentTrackerKey" : null,
+        "title" : "Define the export contract with the Product Owner",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Retrieve the data of the selected customer account and generate the export in the format decided by the Product Owner; the result is an export containing only that account's data. Blocked until the format and fields are decided.",
+        "estimatedHours" : 8,
+        "labels" : [ "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Implement the account data retrieval and export generation",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Provide the agent interface to request the export of a selected customer account and receive the result; the delivery mode depends on the undecided delivery method.",
+        "estimatedHours" : 4,
+        "labels" : [ "frontend" ],
+        "parentTrackerKey" : null,
+        "title" : "Add the export trigger for support agents",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Restrict the export to the roles decided by the Product Owner; the expected result is that users without an allowed role cannot trigger an export. Blocked until roles are decided.",
+        "estimatedHours" : 3,
+        "labels" : [ "security" ],
+        "parentTrackerKey" : null,
+        "title" : "Enforce access rights on the export",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Verify that an export is produced for the selected customer account and that it contains only that account's data.",
+        "estimatedHours" : 3,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Test the export against the acceptance criteria",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Export customer account data",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "trackerKey" : null,
+    "trackerUrl" : null
+  } ]
+}
