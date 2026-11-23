@@ -1,0 +1,126 @@
+{
+  "stories" : [ {
+    "title" : "Consulter le planning journalier des salles",
+    "acceptanceCriteria" : [ "Given un salarié connecté, When il choisit une journée, Then le planning affiche les 12 salles de réunion pour cette journée.", "Given le planning d'une journée affiché, When le salarié le consulte, Then chaque salle est découpée en tranches de 30 minutes indiquant si elles sont libres ou réservées.", "Given une journée sans aucune réservation, When le salarié consulte le planning, Then toutes les tranches apparaissent libres." ],
+    "testCases" : [ {
+      "title" : "Affichage des 12 salles pour une journée choisie",
+      "criterion" : "AC1",
+      "kind" : "nominal",
+      "given" : "Un salarié est connecté",
+      "when" : "Il choisit une journée dans le planning",
+      "then" : "Le planning affiche les 12 salles de réunion pour cette journée"
+    }, {
+      "title" : "Découpage des salles en tranches de 30 minutes avec état libre ou réservé",
+      "criterion" : "AC2",
+      "kind" : "nominal",
+      "given" : "Le planning d'une journée est affiché",
+      "when" : "Le salarié consulte le planning",
+      "then" : "Chaque salle est découpée en tranches de 30 minutes, et chaque tranche indique si elle est libre ou réservée"
+    }, {
+      "title" : "Journée sans réservation : toutes les tranches libres",
+      "criterion" : "AC3",
+      "kind" : "edge",
+      "given" : "Une journée sans aucune réservation",
+      "when" : "Le salarié consulte le planning de cette journée",
+      "then" : "Toutes les tranches de toutes les salles apparaissent libres"
+    } ]
+  }, {
+    "title" : "Réserver une salle libre",
+    "acceptanceCriteria" : [ "Given une salle libre sur une plage de 2 heures située dans les 30 prochains jours, When le salarié confirme la réservation, Then la réservation est enregistrée et la salle apparaît occupée sur cette plage.", "Given une demande de réservation d'une durée inférieure à 30 minutes ou supérieure à 4 heures, When le salarié tente de la confirmer, Then la réservation est refusée.", "Given une demande pour une date situHée à plus de 30 jours, When le salarié tente de la confirmer, Then la réservation est refusée.", "Given une salle déjà réservée sur une plage qui chevauche la demande, When le salarié tente de réserver cette salle, Then la réservation est refusée." ],
+    "testCases" : [ {
+      "title" : "Réservation d'une salle libre sur 2 heures dans les 30 jours",
+      "criterion" : "AC1",
+      "kind" : "nominal",
+      "given" : "Une salle est libre sur une plage de 2 heures située dans les 30 prochains jours",
+      "when" : "Le salarié confirme la réservation",
+      "then" : "La réservation est enregistrée et la salle apparaît occupée sur cette plage"
+    }, {
+      "title" : "Refus d'une durée inférieure à 30 minutes",
+      "criterion" : "AC2",
+      "kind" : "error",
+      "given" : "Une demande de réservation d'une durée de moins de 30 minutes",
+      "when" : "Le salarié tente de confirmer la réservation",
+      "then" : "La réservation est refusée"
+    }, {
+      "title" : "Refus d'une durée supérieure à 4 heures",
+      "criterion" : "AC2",
+      "kind" : "error",
+      "given" : "Une demande de réservation d'une durée de plus de 4 heures",
+      "when" : "Le salarié tente de confirmer la réservation",
+      "then" : "La réservation est refusée"
+    }, {
+      "title" : "Bornes de durée acceptées : 30 minutes et 4 heures",
+      "criterion" : "AC2",
+      "kind" : "edge",
+      "given" : "Une salle libre et une demande d'une durée de exactement 30 minutes, puis une demande d'une durée de exactement 4 heures",
+      "when" : "Le salarié confirme chacune des deux demandes",
+      "then" : "Les deux réservations sont acceptées, les bornes étant comprises dans l'intervalle"
+    }, {
+      "title" : "Refus d'une réservation à plus de 30 jours",
+      "criterion" : "AC3",
+      "kind" : "error",
+      "given" : "Une demande pour une date située à plus de 30 jours",
+      "when" : "Le salarié tente de confirmer la réservation",
+      "then" : "La réservation est refusée"
+    }, {
+      "title" : "Refus d'une réservation qui chevauche une réservation existante",
+      "criterion" : "AC4",
+      "kind" : "error",
+      "given" : "Une salle déjà réservée sur une plage qui chevauche la demande",
+      "when" : "Le salarié tente de réserver cette salle sur la plage demandée",
+      "then" : "La réservation est refusée"
+    } ]
+  }, {
+    "title" : "Annuler sa propre réservation",
+    "acceptanceCriteria" : [ "Given une réservation dont le salarié est l'auteur et dont le début n'est pas atteint, When il l'annule, Then la salle redevient libre sur cette plage.", "Given une réservation dont le début est atteint ou passé, When le salarié tente de l'annuler, Then l'annulation est refusée.", "Given une réservation créée par un autre salarié, When le salarié tente de l'annuler, Then l'annulation est refusée." ],
+    "testCases" : [ {
+      "title" : "Annulation par l'auteur avant le début de la réservation",
+      "criterion" : "AC1",
+      "kind" : "nominal",
+      "given" : "Une réservation dont le salarié est l'auteur et dont le début n'est pas atteint",
+      "when" : "Le salarié annule la réservation",
+      "then" : "La salle redevient libre sur cette plage"
+    }, {
+      "title" : "Refus d'annulation une fois le début atteint",
+      "criterion" : "AC2",
+      "kind" : "error",
+      "given" : "Une réservation dont le début est atteint ou passé",
+      "when" : "Le salarié tente de l'annuler",
+      "then" : "L'annulation est refusée"
+    }, {
+      "title" : "Refus d'annulation d'une réservation d'un autre salarié",
+      "criterion" : "AC3",
+      "kind" : "error",
+      "given" : "Une réservation créée par un autre salarié",
+      "when" : "Le salarié tente de l'annuler",
+      "then" : "L'annulation est refusée"
+    } ]
+  }, {
+    "title" : "Gérer la liste des salles",
+    "acceptanceCriteria" : [ "Given le gestionnaire connecté, When il ajoute une salle avec un nom, une capacité et des équipements, Then la salle apparaît dans la liste des salles proposées à la réservation.", "Given une salle existante, When le gestionnaire modifie son nom, sa capacité ou ses équipements, Then les modifications sont visibles dans le planning.", "Given un salarié non gestionnaire, When il tente d'accéder à la gestion des salles, Then l'accès est refusé." ],
+    "testCases" : [ {
+      "title" : "Ajout d'une salle visible dans la liste des salles réservables",
+      "criterion" : "AC1",
+      "kind" : "nominal",
+      "given" : "Le gestionnaire est connecté",
+      "when" : "Il ajoute une salle avec un nom, une capacité et des équipements",
+      "then" : "La salle apparaît dans la liste des salles proposées à la réservation"
+    }, {
+      "title" : "Modification du nom, de la capacité ou des équipements visible dans le planning",
+      "criterion" : "AC2",
+      "kind" : "nominal",
+      "given" : "Une salle existante et le gestionnaire connecté",
+      "when" : "Le gestionnaire modifie son nom, sa capacité ou ses équipements",
+      "then" : "Les modifications sont visibles dans le planning"
+    }, {
+      "title" : "Refus d'accès à la gestion des salles pour un non-gestionnaire",
+      "criterion" : "AC3",
+      "kind" : "error",
+      "given" : "Un salarié non gestionnaire est connecté",
+      "when" : "Il tente d'accéder à la gestion des salles",
+      "then" : "L'accès est refusé"
+    } ]
+  } ],
+  "language" : "fr",
+  "source" : "eval/generation/results/2026-11-23-anthropic-claude-haiku-5-5-c1-fix-reservation-3/reservation-salles.json"
+}
