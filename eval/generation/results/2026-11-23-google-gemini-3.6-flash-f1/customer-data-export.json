@@ -1,0 +1,104 @@
+{
+  "epics" : [ {
+    "description" : "Capability for support agents to export customer account data to fulfill customer requests.",
+    "features" : [ {
+      "description" : "Export module allowing support agents to trigger customer data exports.",
+      "labels" : [ "backend", "frontend", "security" ],
+      "name" : "Customer Data Export",
+      "priority" : "Medium",
+      "stories" : [ {
+        "acceptanceCriteria" : [ ],
+        "aiReady" : false,
+        "aiReadyReason" : "What are the required export format, included fields, delivery mechanism, and user access rights for customer account data exports?",
+        "aiReadySource" : "MODEL",
+        "asA" : "support agent",
+        "dependencies" : [ ],
+        "description" : "Support agents need to export the data of a customer account to answer customer requests. Key specifications such as data format, encoding, delimiter, target roles/permissions, included fields, and delivery/size limit mechanisms are currently undecided.",
+        "epicTrackerKey" : null,
+        "estimatedStoryPoints" : 5,
+        "iWant" : "to export the data of a customer account",
+        "labels" : [ "backend", "frontend", "security" ],
+        "priority" : "Medium",
+        "soThat" : "I can answer customer requests",
+        "tasks" : [ {
+          "description" : "Implementation of data gathering and export file generation, pending business decisions on file format, content fields, and size limits.",
+          "estimatedHours" : 4,
+          "labels" : [ "backend" ],
+          "parentTrackerKey" : null,
+          "title" : "Design export data service backend architecture",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Frontend component allowing agents to request account export, pending decisions on user roles and delivery method.",
+          "estimatedHours" : 4,
+          "labels" : [ "frontend" ],
+          "parentTrackerKey" : null,
+          "title" : "Implement UI export trigger for support agents",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Test end-to-end export workflow against acceptance criteria once requirements are defined by stakeholders.",
+          "estimatedHours" : 4,
+          "labels" : [ "test" ],
+          "parentTrackerKey" : null,
+          "title" : "Verify customer data export criteria",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        } ],
+        "title" : "Export Customer Account Data",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "labels" : [ "backend", "frontend", "security" ],
+    "name" : "Customer Data Export",
+    "priority" : "Medium",
+    "stories" : [ {
+      "acceptanceCriteria" : [ ],
+      "aiReady" : false,
+      "aiReadyReason" : "What are the required export format, included fields, delivery mechanism, and user access rights for customer account data exports?",
+      "aiReadySource" : "MODEL",
+      "asA" : "support agent",
+      "dependencies" : [ ],
+      "description" : "Support agents need to export the data of a customer account to answer customer requests. Key specifications such as data format, encoding, delimiter, target roles/permissions, included fields, and delivery/size limit mechanisms are currently undecided.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 5,
+      "iWant" : "to export the data of a customer account",
+      "labels" : [ "backend", "frontend", "security" ],
+      "priority" : "Medium",
+      "soThat" : "I can answer customer requests",
+      "tasks" : [ {
+        "description" : "Implementation of data gathering and export file generation, pending business decisions on file format, content fields, and size limits.",
+        "estimatedHours" : 4,
+        "labels" : [ "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Design export data service backend architecture",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Frontend component allowing agents to request account export, pending decisions on user roles and delivery method.",
+        "estimatedHours" : 4,
+        "labels" : [ "frontend" ],
+        "parentTrackerKey" : null,
+        "title" : "Implement UI export trigger for support agents",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Test end-to-end export workflow against acceptance criteria once requirements are defined by stakeholders.",
+        "estimatedHours" : 4,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Verify customer data export criteria",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Export Customer Account Data",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "trackerKey" : null,
+    "trackerUrl" : null
+  } ]
+}
