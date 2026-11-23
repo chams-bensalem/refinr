@@ -138,6 +138,10 @@ public final class StoryMarkdown {
         return out.toString();
     }
 
+    // Lineaire (pas de quantificateur paresseux suivi d'espaces) : la capture est rognee ensuite
+    private static final java.util.regex.Pattern CRITERION_LINE =
+            java.util.regex.Pattern.compile("(?m)^[ \\t]*+(?:[-*+][ \\t]++)?(?:\\*\\*)?AC(\\d{1,3}):(?:\\*\\*)?[ \\t]*+(.+)$");
+
     /**
      * Criteres d'une description ecrite par Refinr ({@code AC1:} …), dans l'ordre ; liste vide sinon. Tolere le texte
      * reecrit par un editeur : puce {@code -}, {@code *} ou {@code +} suivie d'espaces, gras, espaces en fin de ligne,
@@ -148,9 +152,7 @@ public final class StoryMarkdown {
         if (description == null) {
             return criteria;
         }
-        java.util.regex.Matcher m = java.util.regex.Pattern
-                .compile("(?m)^[ \\t]*(?:[-*+][ \\t]+)?(?:\\*\\*)?AC(\\d+):(?:\\*\\*)?[ \\t]*(.+?)[ \\t]*$")
-                .matcher(description);
+        java.util.regex.Matcher m = CRITERION_LINE.matcher(description);
         while (m.find()) {
             if (Integer.parseInt(m.group(1)) == criteria.size() + 1) {
                 criteria.add(decodeEntities(m.group(2)).strip());
