@@ -636,3 +636,31 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
   peut pousser à des fusions artificielles (avec `generation-v2`, l'intégration Outlook était fusionnée dans une autre
   Feature).
 
+## Cas de test (v1.5, C2)
+
+- **Dans la description de la story**, section `### Test cases` avant la ligne de verdict, un cas par ligne lié à son
+  critère ; générés dans la chaîne sans nouvelle option, pour les seules stories prêtes (un cas de test d'une story
+  bloquée transformerait une décision manquante en test). **Prompt 5 séparé** (`test-cases-v1`) : relançable seul,
+  mesuré seul, `tasks-v1` reste valable. Le verdict (prompt 2) ne lit jamais cette section ; la réévaluation ne
+  concerne que des stories `validation-necessaire`, qui n'en ont pas.
+- **Même place sur les deux chemins** : à la création comme quand la story devient prête (avant la ligne de verdict si
+  elle existe, sinon à la fin) ; idempotence par le titre de section (constante `StoryMarkdown.TEST_CASES_TITLES`,
+  prête pour un titre traduit en L2). La réévaluation ajoute toujours sa ligne de verdict à la fin (Jira) ou en
+  commentaire (OpenProject) ; remplacer l'ancienne ligne relève de B3.
+- **Couverture contrôlée dans le code** (mesure C2 : un critère sans cas sur 132) : 1 à 3 cas par critère, critère
+  existant ; sinon **une seule réparation, pour cette story seulement**, avec les critères en cause (« AC2 has no test
+  case »). **Réparation sans succès** : aucune section partielle ; la story n'a pas de `testCases`, reçoit
+  `testCasesError` qui nomme les critères, un avertissement la nomme (aperçu et création) ; sous-tâches et verdict
+  intacts ; reprise par `story-tasks` (cas de test seulement si les sous-tâches existent). Pas de changement de prompt
+  ni de critère.
+- **Jira sans verrou optimiste (limite connue, acceptée)** : description relue juste avant le `PUT` (fenêtre minimale),
+  mais une modification humaine faite entre la lecture et l'écriture peut être écrasée. OpenProject : `lockVersion`
+  et une nouvelle tentative sur conflit 409.
+- **Bornes** : description limitée à 32 767 caractères (Jira) : au-delà, la section n'est pas écrite et l'erreur est
+  explicite, jamais de troncature. `create-jira` valide les `testCases` du client (critère existant, `kind`, champs
+  remplis, 200 caractères pour le titre, 1 000 par étape) : `400` sinon, sans recopier le contenu. Schéma
+  `story-test-cases` : `maxItems` 30 (3 cas × 10 critères), contrôlé localement.
+- **Raison de `validate-story`** avec ses accents et en anglais selon la langue ; une `language` invalide donne `400`
+  (changement de comportement accepté par le mainteneur, signalé dans le CHANGELOG et la PR).
+- Lots de 10 stories, logique commune au prompt 4 (`LlmStoryBatches`). Mesure : `eval/generation/results/2026-11-23-c2-summary.md`.
+

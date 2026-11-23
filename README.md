@@ -806,6 +806,20 @@ the tracker, or delete the existing ones and call `story-tasks` again. Two simul
 second gets `409`, as does a call made while `analyze-and-create` is still creating that story's sub-tasks (lock in
 the Refinr process: one instance, like the jobs).
 
+**Test cases** (pipeline, ready stories only): after their sub-tasks, prompt 5 (`test-cases-v1`) writes 1 to 3 test
+cases per acceptance criterion, in a `### Test cases` section of the story description, before the verdict line
+(`- **TC1 (AC2, error):** title — Given …, When …, Then …`; `testCases` on each story of the response). Refinr checks
+the coverage: every criterion has 1 to 3 cases and every case names an existing criterion; otherwise one repair for
+that story only. If the repair fails, **no partial section** is written: the story has no `testCases`, gets
+`testCasesError` (for example `test cases not written: AC2 has no test case`) and a warning names it; its sub-tasks
+and verdict are untouched. When a story becomes ready later (`story-tasks`, `createTasks`), its test cases are added
+at the same place. `story-tasks` on a story that already has its sub-tasks but no test cases section generates the
+test cases only (`tasksSkipped` and `testCases`): it is also how to recover after a `testCasesError`. A section is
+never added twice (found by its title). The description is limited to 32,767 characters (Jira's limit): beyond, the
+section is not written and the response says so, never truncated. `create-jira` validates the test cases edited by a
+client (`400` otherwise). **Known limit (Jira)**: Jira has no optimistic locking; the description is read again just
+before it is rewritten, but a human edit made in the meantime can be overwritten.
+
 ### Feed your coding agent
 
 Query Jira with `labels = "ai-ready"`; in OpenProject, filter the work packages on *Agent readiness* = `ai-ready` (and
@@ -862,7 +876,7 @@ English prompt and are supported without being measured. Refinr's own lines in t
 | `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optional, same format)* · `&language=de` *(optional)* | Creates a generated structure; the server recomputes the verdict (client `aiReady` / `aiReadyReason` ignored) |
 | `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` · `"createTasks": true` *(optional: sub-tasks created if the story becomes `ai-ready`)* | Reassesses a `validation-necessaire` story (`409` if it is not one) |
 | `POST` | `/validate-story` | `{ "issueKey": "PROJ-42" }` · `"createTasks": true` *(optional, with `language`)* | Marks a `validation-necessaire` story `ai-ready` on a human decision, no LLM call (`409` if it is not one); verdict line added to the issue |
-| `POST` | `/story-tasks` | `{ "issueKey": "PROJ-42", "language": "en" }` *(language optional)* | Pipeline: generates and creates the sub-tasks of an `ai-ready` story that has none, in its project (`409` if it is not `ai-ready` or if another call is creating them); a story with sub-tasks is left untouched (`tasksSkipped`) |
+| `POST` | `/story-tasks` | `{ "issueKey": "PROJ-42", "language": "en" }` *(language optional)* | Pipeline: generates and creates the sub-tasks of an `ai-ready` story that has none, in its project (`409` if it is not `ai-ready` or if another call is creating them); a story with sub-tasks is left untouched (`tasksSkipped`); then its test cases, if it has no test cases section (`testCases`, `testCasesSkipped` or `testCasesError`) |
 | `POST` | `/jobs/analyze-preview` | same body as `/analyze-preview` | Runs the preview as a job: `202`, `Location: /api/v1/jobs/{id}` |
 | `POST` | `/jobs/analyze-and-create` | same body as `/analyze-and-create` | Runs the analysis and creation as a job: `202`, `Location: /api/v1/jobs/{id}` |
 | `GET` | `/jobs/{id}` | — | Job status: `queued`, `running`, `succeeded` or `failed`, current `step`, dates, `outcome` once finished |

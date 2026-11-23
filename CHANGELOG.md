@@ -6,6 +6,15 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 ## [Unreleased]
 
 ### Added
+- **Cas de test (C2)**, dans la chaîne (`"pipeline": true`) et pour les seules stories prêtes : prompt 5
+  (`test-cases-v1`), section `### Test cases` dans la description de la story, avant la ligne de verdict ; `testCases`
+  sur chaque story (aperçu, création, entrée de `create-jira`), nouvelle étape de job `generating-test-cases`.
+  Couverture contrôlée (1 à 3 cas par critère, critère existant) avec une seule réparation par story ; sinon aucune
+  section partielle, `testCasesError` sur la story et avertissement. Story devenue prête (`story-tasks`, `createTasks`) :
+  section ajoutée au même endroit (`testCases`, `testCasesSkipped`, `testCasesError`) ; `story-tasks` sur une story qui
+  a ses sous-tâches mais pas de cas de test ne génère que ceux-ci. `create-jira` valide les `testCases` du client
+  (`400` explicite) ; description bornée à 32 767 caractères, jamais tronquée. **Ajouts rétrocompatibles du contrat
+  REST.**
 - **Chaîne « il fait tout » (C1)**, activée par `"pipeline": true` sur `analyze-preview` et `analyze-and-create`
   (synchrones et jobs) : génération sans sous-tâches (prompt `generation-v3`), verdict par lots (prompt 2, toujours
   exécuté), **questions au PO** (`questions` : une entrée par question bloquante distincte, tirée de `aiReadyReason`,
@@ -61,6 +70,10 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   règle pour `docker stop -t` et `terminationGracePeriodSeconds` de Kubernetes).
 
 ### Changed
+- **`validate-story`** : la raison écrite dans le ticket et renvoyée (`aiReadyReason`) a ses accents en français
+  (*validée par un humain, sans appel au modèle*) et une version anglaise (*validated by a human, without a model
+  call*), selon la langue (paramètre `language`, propriété, détection sur la story). **Changement de comportement** :
+  `validate-story` refuse maintenant une `language` invalide par un `400`, comme `reassess-story` (elle était ignorée).
 - **Message `400` « Invalid projectKey »** : la valeur reçue n'est plus recopiée dans le message (même règle que pour
   `language`) ; message fixe *Invalid projectKey: expected a project key or identifier of the active tracker*, sur
   `analyze-preview`, `analyze-and-create`, `create-jira` et les jobs. Un client qui comparait le message entier doit
