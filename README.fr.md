@@ -790,6 +790,39 @@ curl -s -X POST http://localhost:8080/api/v1/validate-story -H "Content-Type: ap
 # { "success": true, "issueKey": "PROJ-42", "aiReady": true, "aiReadyReason": "validee par un humain, sans appel au modele", "aiReadySource": "human" }
 ```
 
+### Chaîne : questions au PO, sous-tâches des seules stories prêtes
+
+Ajoutez `"pipeline": true` à `analyze-preview` ou `analyze-and-create` (synchrone ou job). Refinr enchaîne alors des
+étapes courtes : génération **sans sous-tâches** (prompt `generation-v3`), verdict par lots (prompt 2, toujours
+exécuté), **questions au PO**, puis sous-tâches des **seules stories prêtes** (prompt 4) ; `analyze-and-create` crée
+ensuite les tickets. Une story bloquée est créée sans sous-tâches : elles viendront quand elle deviendra prête. Sans
+l'option, rien ne change (par défaut, toujours `generation-v2`, avec des sous-tâches pour chaque story).
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/analyze-preview -H "Content-Type: application/json" \
+  -d '{"documentId": "123456789", "pipeline": true}' | jq '.questions'
+# [ { "question": "Quel séparateur CSV est attendu ?", "stories": [ { "title": "Exporter les commandes", "key": null } ] } ]
+```
+
+`questions` donne une entrée par question bloquante distincte (tirée de `aiReadyReason`, doublons exacts regroupés,
+sans appel à l'IA), avec les stories qu'elle bloque (`key` rempli après la création). Le PO répond story par story,
+avec `reassess-story` (la réponse est la `precision`) ou `validate-story`. Ajoutez `"createTasks": true` et, si la
+story devient `ai-ready`, Refinr génère et crée ses sous-tâches dans le même appel (`tasks: { created, failed }`) :
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/reassess-story -H "Content-Type: application/json" \
+  -d '{"issueKey": "PROJ-42", "precision": "Séparateur point-virgule, UTF-8.", "createTasks": true}'
+```
+
+`POST /api/v1/story-tasks` `{"issueKey": "PROJ-42"}` fait de même pour une story `ai-ready` (par exemple validée
+directement dans le gestionnaire). **Les sous-tâches ne sont jamais créées deux fois** : une story qui a déjà des
+sous-tâches n'est pas touchée, et la réponse en donne le nombre (`"tasksSkipped": "the story already has 2
+sub-tasks"`). Si une création précédente s'est arrêtée en cours (des sous-tâches créées, d'autres dans `failed`),
+Refinr ne la complète pas : ajoutez les sous-tâches manquantes dans le gestionnaire, ou supprimez celles qui existent
+et rappelez `story-tasks`. Deux appels simultanés pour la même story : le second reçoit `409`, comme un appel fait pendant
+qu'`analyze-and-create` crée encore les sous-tâches de cette story (verrou dans le processus Refinr : une seule
+instance, comme les jobs).
+
 ### Alimenter votre agent de code
 
 Interrogez Jira avec `labels = "ai-ready"` ; dans OpenProject, filtrez les lots de travaux sur *Agent readiness* =
@@ -846,11 +879,12 @@ tickets et le label `validation-necessaire` ne changent pas.
 
 | Méthode | Endpoint | Corps / paramètres | Description |
 |---|---|---|---|
-| `POST` | `/analyze-and-create` | `{ "documentId": "…", "projectKey": "PROJ" }` ou `{ "content": "…", "title": "…", "projectKey": "PROJ" }` *(documentId : ID de page ou référence XWiki dans la source active ; content : le document lui-même, Markdown ou texte brut, title optionnel ; projectKey optionnel : projet du gestionnaire de tickets actif — clé Jira `^[A-Z][A-Z0-9]{1,9}$`, ou identifiant OpenProject `^[a-z0-9_-]{1,100}$` / id numérique)* | Lit (ou prend le texte), analyse et crée toute la hiérarchie dans le gestionnaire actif |
-| `POST` | `/analyze-preview` | `{ "documentId": "…" }` ou `{ "content": "…", "title": "…" }` · `"projectKey": "PROJ"` *(optionnel, même format qu'`/analyze-and-create` : projet dont le niveau Feature donne les `warnings` ; sinon le projet par défaut)* | Analyse sans créer de tickets ; `documentUrl` (lien vers la page) ajouté s'il est connu, jamais pour un texte |
+| `POST` | `/analyze-and-create` | `{ "documentId": "…", "projectKey": "PROJ" }` ou `{ "content": "…", "title": "…", "projectKey": "PROJ" }` *(documentId : ID de page ou référence XWiki dans la source active ; content : le document lui-même, Markdown ou texte brut, title optionnel ; projectKey optionnel : projet du gestionnaire de tickets actif — clé Jira `^[A-Z][A-Z0-9]{1,9}$`, ou identifiant OpenProject `^[a-z0-9_-]{1,100}$` / id numérique)* · `"pipeline": true` *(optionnel : la chaîne ; sous-tâches des seules stories prêtes, ajoute `questions`)* | Lit (ou prend le texte), analyse et crée toute la hiérarchie dans le gestionnaire actif |
+| `POST` | `/analyze-preview` | `{ "documentId": "…" }` ou `{ "content": "…", "title": "…" }` · `"projectKey": "PROJ"` *(optionnel, même format qu'`/analyze-and-create` : projet dont le niveau Feature donne les `warnings` ; sinon le projet par défaut)* · `"pipeline": true` *(optionnel : la chaîne, voir plus haut ; ajoute `questions`)* | Analyse sans créer de tickets ; `documentUrl` (lien vers la page) ajouté s'il est connu, jamais pour un texte |
 | `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optionnel, même format)* · `&language=de` *(optionnel)* | Crée une structure déjà générée ; le serveur recalcule le verdict (`aiReady` / `aiReadyReason` du client ignorés) |
-| `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Réévalue une story `validation-necessaire` (`409` si elle ne l'est pas) |
-| `POST` | `/validate-story` | `{ "issueKey": "PROJ-42" }` | Marque `ai-ready` une story `validation-necessaire` sur décision humaine, sans appel à l'IA (`409` si elle ne l'est pas) ; ligne de verdict ajoutée au ticket |
+| `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` · `"createTasks": true` *(optionnel : sous-tâches créées si la story devient `ai-ready`)* | Réévalue une story `validation-necessaire` (`409` si elle ne l'est pas) |
+| `POST` | `/validate-story` | `{ "issueKey": "PROJ-42" }` · `"createTasks": true` *(optionnel, avec `language`)* | Marque `ai-ready` une story `validation-necessaire` sur décision humaine, sans appel à l'IA (`409` si elle ne l'est pas) ; ligne de verdict ajoutée au ticket |
+| `POST` | `/story-tasks` | `{ "issueKey": "PROJ-42", "language": "fr" }` *(language optionnel)* | Chaîne : génère et crée les sous-tâches d'une story `ai-ready` qui n'en a aucune, dans son projet (`409` si elle n'est pas `ai-ready` ou si un autre appel les crée déjà) ; une story qui a des sous-tâches n'est pas touchée (`tasksSkipped`) |
 | `POST` | `/jobs/analyze-preview` | même corps que `/analyze-preview` | Exécute l'aperçu en job : `202`, `Location: /api/v1/jobs/{id}` |
 | `POST` | `/jobs/analyze-and-create` | même corps que `/analyze-and-create` | Exécute l'analyse et la création en job : `202`, `Location: /api/v1/jobs/{id}` |
 | `GET` | `/jobs/{id}` | — | État du job : `queued`, `running`, `succeeded` ou `failed`, étape en cours (`step`), dates, `outcome` une fois terminé |

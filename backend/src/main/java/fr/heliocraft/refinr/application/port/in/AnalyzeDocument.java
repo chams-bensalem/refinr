@@ -46,4 +46,25 @@ public interface AnalyzeDocument {
                                                        AnalysisProgress progress) {
         return analyzeTextAndCreate(title, content, project, language);
     }
+
+    /**
+     * {@code pipeline} : chaine C1 (generation sans sous-taches, verdict, sous-taches des stories pretes, creation) ;
+     * false : comportement par defaut, inchange.
+     */
+    default BacklogCreationResult analyzeAndCreate(String documentId, String project, Language language, boolean pipeline,
+                                                   AnalysisProgress progress) {
+        if (pipeline) {
+            throw new UnsupportedOperationException("pipeline not supported");
+        }
+        return analyzeAndCreate(documentId, project, language, progress);
+    }
+
+    /** Comme {@link #analyzeAndCreate(String, String, Language, boolean, AnalysisProgress)}, pour un texte fourni. */
+    default BacklogCreationResult analyzeTextAndCreate(String title, String content, String project, Language language,
+                                                       boolean pipeline, AnalysisProgress progress) {
+        if (pipeline) {
+            throw new UnsupportedOperationException("pipeline not supported");
+        }
+        return analyzeTextAndCreate(title, content, project, language, progress);
+    }
 }

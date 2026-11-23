@@ -84,6 +84,9 @@ class RestJsonContractTest {
     @MockitoBean
     private DescribeSource describeSource;
 
+    @MockitoBean
+    fr.heliocraft.refinr.application.port.in.GenerateStoryTasks generateStoryTasks;
+
     @Test
     @DisplayName("analyze-preview serializes every Epic/Story/Task field exactly as the snapshot")
     void previewResponseMatchesSnapshot() throws Exception {

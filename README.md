@@ -774,6 +774,38 @@ curl -s -X POST http://localhost:8080/api/v1/validate-story -H "Content-Type: ap
 # { "success": true, "issueKey": "PROJ-42", "aiReady": true, "aiReadyReason": "validee par un humain, sans appel au modele", "aiReadySource": "human" }
 ```
 
+### Pipeline: questions for the PO, sub-tasks only for ready stories
+
+Add `"pipeline": true` to `analyze-preview` or `analyze-and-create` (synchronous or job). Refinr then runs the chain in
+short steps: generation **without sub-tasks** (prompt `generation-v3`), the batch verdict (prompt 2, always run), the
+**questions for the PO**, and the sub-tasks of the **ready stories only** (prompt 4); `analyze-and-create` then creates
+the issues. A blocked story is created without sub-tasks: they come once it becomes ready. Without the option, nothing
+changes (the default is still `generation-v2`, with sub-tasks for every story).
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/analyze-preview -H "Content-Type: application/json" \
+  -d '{"documentId": "123456789", "pipeline": true}' | jq '.questions'
+# [ { "question": "Which CSV separator is expected?", "stories": [ { "title": "Export the orders", "key": null } ] } ]
+```
+
+`questions` lists one entry per distinct blocking question (taken from `aiReadyReason`, exact duplicates grouped, no
+LLM call), with the stories it blocks (`key` filled in after creation). The PO answers story by story, with
+`reassess-story` (the answer is the `precision`) or `validate-story`. Add `"createTasks": true` and, if the story
+becomes `ai-ready`, Refinr generates and creates its sub-tasks in the same call (`tasks: { created, failed }`):
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/reassess-story -H "Content-Type: application/json" \
+  -d '{"issueKey": "PROJ-42", "precision": "Semicolon separator, UTF-8.", "createTasks": true}'
+```
+
+`POST /api/v1/story-tasks` `{"issueKey": "PROJ-42"}` does the same for an `ai-ready` story (for example validated in
+the tracker itself). **Sub-tasks are never created twice**: a story that already has sub-tasks is left untouched and
+the response says how many it has (`"tasksSkipped": "the story already has 2 sub-tasks"`). If a previous creation
+failed halfway (some sub-tasks created, others in `failed`), Refinr will not complete it: add the missing sub-tasks in
+the tracker, or delete the existing ones and call `story-tasks` again. Two simultaneous calls for the same story: the
+second gets `409`, as does a call made while `analyze-and-create` is still creating that story's sub-tasks (lock in
+the Refinr process: one instance, like the jobs).
+
 ### Feed your coding agent
 
 Query Jira with `labels = "ai-ready"`; in OpenProject, filter the work packages on *Agent readiness* = `ai-ready` (and
@@ -825,11 +857,12 @@ English prompt and are supported without being measured. Refinr's own lines in t
 
 | Method | Endpoint | Body / parameters | Description |
 |---|---|---|---|
-| `POST` | `/analyze-and-create` | `{ "documentId": "…", "projectKey": "PROJ" }` or `{ "content": "…", "title": "…", "projectKey": "PROJ" }` *(documentId: page ID or XWiki reference of the active source; content: the document itself, Markdown or plain text, title optional; projectKey optional: project of the active tracker — Jira key `^[A-Z][A-Z0-9]{1,9}$`, or OpenProject identifier `^[a-z0-9_-]{1,100}$` / numeric id)* | Reads (or takes the text), analyzes and creates the whole hierarchy in the active tracker |
-| `POST` | `/analyze-preview` | `{ "documentId": "…" }` or `{ "content": "…", "title": "…" }` · `"projectKey": "PROJ"` *(optional, same format as `/analyze-and-create`: the project whose Feature level gives the `warnings`; default project otherwise)* | Analyzes without creating issues; `documentUrl` (link to the page) added when known, never for a text |
+| `POST` | `/analyze-and-create` | `{ "documentId": "…", "projectKey": "PROJ" }` or `{ "content": "…", "title": "…", "projectKey": "PROJ" }` *(documentId: page ID or XWiki reference of the active source; content: the document itself, Markdown or plain text, title optional; projectKey optional: project of the active tracker — Jira key `^[A-Z][A-Z0-9]{1,9}$`, or OpenProject identifier `^[a-z0-9_-]{1,100}$` / numeric id)* · `"pipeline": true` *(optional: the pipeline; sub-tasks only for ready stories, adds `questions`)* | Reads (or takes the text), analyzes and creates the whole hierarchy in the active tracker |
+| `POST` | `/analyze-preview` | `{ "documentId": "…" }` or `{ "content": "…", "title": "…" }` · `"projectKey": "PROJ"` *(optional, same format as `/analyze-and-create`: the project whose Feature level gives the `warnings`; default project otherwise)* · `"pipeline": true` *(optional: the pipeline, see above; adds `questions`)* | Analyzes without creating issues; `documentUrl` (link to the page) added when known, never for a text |
 | `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optional, same format)* · `&language=de` *(optional)* | Creates a generated structure; the server recomputes the verdict (client `aiReady` / `aiReadyReason` ignored) |
-| `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` | Reassesses a `validation-necessaire` story (`409` if it is not one) |
-| `POST` | `/validate-story` | `{ "issueKey": "PROJ-42" }` | Marks a `validation-necessaire` story `ai-ready` on a human decision, no LLM call (`409` if it is not one); verdict line added to the issue |
+| `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` · `"createTasks": true` *(optional: sub-tasks created if the story becomes `ai-ready`)* | Reassesses a `validation-necessaire` story (`409` if it is not one) |
+| `POST` | `/validate-story` | `{ "issueKey": "PROJ-42" }` · `"createTasks": true` *(optional, with `language`)* | Marks a `validation-necessaire` story `ai-ready` on a human decision, no LLM call (`409` if it is not one); verdict line added to the issue |
+| `POST` | `/story-tasks` | `{ "issueKey": "PROJ-42", "language": "en" }` *(language optional)* | Pipeline: generates and creates the sub-tasks of an `ai-ready` story that has none, in its project (`409` if it is not `ai-ready` or if another call is creating them); a story with sub-tasks is left untouched (`tasksSkipped`) |
 | `POST` | `/jobs/analyze-preview` | same body as `/analyze-preview` | Runs the preview as a job: `202`, `Location: /api/v1/jobs/{id}` |
 | `POST` | `/jobs/analyze-and-create` | same body as `/analyze-and-create` | Runs the analysis and creation as a job: `202`, `Location: /api/v1/jobs/{id}` |
 | `GET` | `/jobs/{id}` | — | Job status: `queued`, `running`, `succeeded` or `failed`, current `step`, dates, `outcome` once finished |

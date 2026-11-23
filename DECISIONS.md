@@ -587,3 +587,26 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
   limite consignée (README EN/FR, résultats). Schéma : 5 réponses valides sur 5, sans 400 ni 429. Petites specs :
   1 epic, 1 Feature, 1 seule story (Haiku : 3,6 en moyenne sur order-export), constat reporté à M1.
 
+## Chaîne « il fait tout » (v1.5, C1)
+
+- **Option `"pipeline": true`** sur les endpoints existants plutôt qu'un nouvel endpoint : la chaîne a vocation à
+  devenir le comportement par défaut (v2.0) ; on ne fige pas deux modes. Sans l'option, comportement inchangé.
+- **Sous-tâches générées à part (prompt 4, `tasks-v1`)**, pour les seules stories prêtes : une story bloquée n'a pas de
+  sous-tâches qui supposent une décision manquante. Prompt 1 de la chaîne (`generation-v3`) : un **bloc à part**,
+  copie du prompt 1 sans les sous-tâches, plutôt qu'un texte commun à trous : `generation-v2` reste identique octet
+  pour octet (mesures E0 et F1 valables), et le bloc v2 disparaîtra en v2.0.
+- **Verdict du prompt 2 toujours exécuté dans la chaîne** (celui que mesure E0), qu'un fournisseur de verdict distinct
+  soit configuré ou non : une étape courte, relançable seule.
+- **Questions au PO sans appel à l'IA** : `aiReadyReason` est déjà la question bloquante (bloc READINESS) ; dédoublonnage
+  exact seulement (espaces, casse, ponctuation finale), jamais de fusion de deux questions différentes. Réponses par
+  `reassess-story` / `validate-story`, story par story ; pas d'endpoint de réponse groupée.
+- **Idempotence par le gestionnaire** : `findStory` lit aussi le projet et les sous-tâches de la story (Jira :
+  champs `project`, `subtasks` ; OpenProject : `_links.project`, `_links.children`), dans la même requête qu'avant ;
+  une story qui a des sous-tâches n'est jamais touchée (leur nombre est rendu, une création précédente a pu être
+  incomplète). Verrou par story dans le processus, sur la clé canonique rendue par le gestionnaire (`proj-7` →
+  `PROJ-7`, `039` → `39`), story relue sous le verrou, et **partagé avec la création du backlog** (tenu de la création
+  de la story à celle de ses sous-tâches) : une seule instance, comme les jobs (revue C1).
+- **Stockage en mémoire (J1) + gestionnaire** : la chaîne n'attend jamais le PO dans un job (questions dans la
+  réponse, état dans les tickets) ; pas de stockage persistant ni de dépendance. **Pas d'`Idempotency-Key`** en C1
+  (`story-tasks` est idempotent par construction) : phase courte juste avant U1.
+- Sous-tâches par lots de 10 stories (comme le verdict), par le fournisseur d'analyse ; pas de nouvelle propriété.

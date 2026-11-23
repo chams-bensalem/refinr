@@ -6,6 +6,20 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 ## [Unreleased]
 
 ### Added
+- **Chaîne « il fait tout » (C1)**, activée par `"pipeline": true` sur `analyze-preview` et `analyze-and-create`
+  (synchrones et jobs) : génération sans sous-tâches (prompt `generation-v3`), verdict par lots (prompt 2, toujours
+  exécuté), **questions au PO** (`questions` : une entrée par question bloquante distincte, tirée de `aiReadyReason`,
+  avec les stories concernées et leur clé après création ; sans appel à l'IA), sous-tâches des **seules stories
+  prêtes** (prompt 4, `tasks-v1`), puis création. Nouvelle étape de job `generating-tasks`. Story prête sans
+  sous-tâches renvoyée par le modèle : avertissement dans `warnings`.
+- **`POST /api/v1/story-tasks`** `{ "issueKey", "language"? }` : génère et crée les sous-tâches d'une story `ai-ready`
+  qui n'en a aucune, dans le projet de la story ; `409` si elle n'est pas prête ou si un autre appel les crée déjà.
+  Option **`"createTasks": true`** de `reassess-story` et `validate-story` : sous-tâches créées si la story devient
+  prête (`tasks`, ou `tasksError` sans annuler le verdict). Jamais deux fois : une story qui a déjà des sous-tâches
+  n'est pas touchée (`tasksSkipped` : *the story already has N sub-tasks*).
+- **Ajouts rétrocompatibles du contrat REST** : `pipeline`, `questions`, `createTasks`, `tasks` / `tasksSkipped` /
+  `tasksError`, `story-tasks`, étape `generating-tasks`. Sans ces options, les réponses sont inchangées (UI web et plugin
+  Obsidian 0.2.0 compris).
 - **Niveau Feature** : hiérarchie Epic → Feature → Story → Sous-tâche. La génération produit des Features (Epic = le
   produit ou un grand domaine, Feature = un module ou une capacité, Story = une action) ; un besoin court reçoit une
   seule Feature, **implicite** (pas un niveau distinct quand le gestionnaire le permet). OpenProject : type `Feature`

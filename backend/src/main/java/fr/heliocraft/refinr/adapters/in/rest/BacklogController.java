@@ -3,6 +3,13 @@
 
 package fr.heliocraft.refinr.adapters.in.rest;
 
+import java.util.LinkedHashMap;
+import fr.heliocraft.refinr.application.port.in.StoryTasksInProgressException;
+import fr.heliocraft.refinr.application.port.in.StoryNotReadyException;
+import fr.heliocraft.refinr.application.port.in.StoryTasksResult;
+import fr.heliocraft.refinr.application.port.in.GenerateStoryTasks;
+import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
+import fr.heliocraft.refinr.application.port.in.AnalysisProgress;
 import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.adapters.in.rest.dto.EpicDto;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
@@ -61,6 +68,8 @@ public class BacklogController {
     private final SearchDocuments searchDocuments;
     private final DescribeTracker describeTracker;
     private final DescribeSource describeSource;
+    // Chaine C1 : sous-taches d'une story devenue prete
+    private final GenerateStoryTasks storyTasks;
 
     public BacklogController(
             AnalyzeDocument analyzeDocument,
@@ -70,7 +79,9 @@ public class BacklogController {
             ValidateStory validateStory,
             SearchDocuments searchDocuments,
             DescribeTracker describeTracker,
-            DescribeSource describeSource) {
+            DescribeSource describeSource,
+            GenerateStoryTasks storyTasks) {
+        this.storyTasks = storyTasks;
         this.analyzeDocument = analyzeDocument;
         this.previewBacklog = previewBacklog;
         this.createEditedBacklog = createEditedBacklog;
@@ -96,17 +107,32 @@ public class BacklogController {
             return invalidLanguage();
         }
 
+        boolean pipeline;
+        try {
+            pipeline = AnalysisRequests.flag(request, AnalysisRequests.PIPELINE);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ErrorResponses.error(e.getMessage()));
+        }
+
         try {
             if (AnalysisRequests.isTextInput(request)) {
                 // Pas de documentUrl : le texte n'a pas d'adresse dans la source active
                 AnalysisRequests.logTextInput(log, "Analyze", request);
-                return BacklogResponses.creation(analyzeDocument.analyzeTextAndCreate(
-                        request.get(AnalysisRequests.TITLE), request.get(AnalysisRequests.CONTENT), projectKey, language));
+                String title = request.get(AnalysisRequests.TITLE);
+                String content = request.get(AnalysisRequests.CONTENT);
+                // Sans la chaine : exactement l'appel d'avant
+                BacklogCreationResult result = pipeline
+                        ? analyzeDocument.analyzeTextAndCreate(title, content, projectKey, language, true, AnalysisProgress.NONE)
+                        : analyzeDocument.analyzeTextAndCreate(title, content, projectKey, language);
+                return creationResponse(result, pipeline);
             }
             String documentId = AnalysisRequests.documentId(request);
             log.info("Received request to analyze {} document: {}", describeSource.displayName(), documentId);
-            return BacklogResponses.withDocumentUrl(BacklogResponses.creation(
-                    analyzeDocument.analyzeAndCreate(documentId, projectKey, language)), describeSource.documentUrl(documentId));
+            BacklogCreationResult result = pipeline
+                    ? analyzeDocument.analyzeAndCreate(documentId, projectKey, language, true, AnalysisProgress.NONE)
+                    : analyzeDocument.analyzeAndCreate(documentId, projectKey, language);
+            return BacklogResponses.withDocumentUrl(creationResponse(result, pipeline),
+                    describeSource.documentUrl(documentId));
 
         } catch (InvalidRequestException e) {
             return invalidRequest(e);
@@ -126,6 +152,17 @@ public class BacklogController {
             log.error("Error processing request", e);
             return BacklogResponses.internalError(BacklogResponses.CREATION_FAILED);
         }
+    }
+
+    private ResponseEntity<Map<String, Object>> previewResponse(List<Epic> epics, String projectKey, boolean pipeline) {
+        ResponseEntity<Map<String, Object>> response =
+                BacklogResponses.preview(epics, describeTracker.featureWarnings(epics, projectKey));
+        return pipeline ? BacklogResponses.withPipeline(response, epics) : response;
+    }
+
+    private static ResponseEntity<Map<String, Object>> creationResponse(BacklogCreationResult result, boolean pipeline) {
+        ResponseEntity<Map<String, Object>> response = BacklogResponses.creation(result);
+        return pipeline ? BacklogResponses.withPipeline(response, result.epics()) : response;
     }
 
     /** 502 : le modele n'a pas produit de resultat exploitable (sortie invalide apres relances, ou tronquee). */
@@ -197,19 +234,30 @@ public class BacklogController {
         } catch (IllegalArgumentException e) {
             return invalidLanguage();
         }
+        boolean pipeline;
+        try {
+            pipeline = AnalysisRequests.flag(request, AnalysisRequests.PIPELINE);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ErrorResponses.error(e.getMessage()));
+        }
         try {
             if (AnalysisRequests.isTextInput(request)) {
                 // Pas de documentUrl : le texte n'a pas d'adresse dans la source active
                 AnalysisRequests.logTextInput(log, "Preview", request);
-                List<Epic> epics = previewBacklog.previewText(request.get(AnalysisRequests.TITLE),
-                        request.get(AnalysisRequests.CONTENT), language);
-                return BacklogResponses.preview(epics, describeTracker.featureWarnings(epics, projectKey));
+                String title = request.get(AnalysisRequests.TITLE);
+                String content = request.get(AnalysisRequests.CONTENT);
+                // Sans la chaine : exactement l'appel d'avant
+                List<Epic> epics = pipeline
+                        ? previewBacklog.previewText(title, content, language, true, AnalysisProgress.NONE)
+                        : previewBacklog.previewText(title, content, language);
+                return previewResponse(epics, projectKey, pipeline);
             }
             String documentId = AnalysisRequests.documentId(request);
             log.info("Preview request for {} document: {}", describeSource.displayName(), documentId);
-            List<Epic> epics = previewBacklog.preview(documentId, language);
-            return BacklogResponses.withDocumentUrl(
-                    BacklogResponses.preview(epics, describeTracker.featureWarnings(epics, projectKey)),
+            List<Epic> epics = pipeline
+                    ? previewBacklog.preview(documentId, language, true, AnalysisProgress.NONE)
+                    : previewBacklog.preview(documentId, language);
+            return BacklogResponses.withDocumentUrl(previewResponse(epics, projectKey, pipeline),
                     describeSource.documentUrl(documentId));
 
         } catch (InvalidRequestException e) {
@@ -284,16 +332,27 @@ public class BacklogController {
             return invalidLanguage();
         }
 
+        boolean createTasks;
+        try {
+            createTasks = AnalysisRequests.flag(request, AnalysisRequests.CREATE_TASKS);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ErrorResponses.error(e.getMessage()));
+        }
+
         log.info("Reassessment request for {}", issueKey);
         try {
             Readiness verdict = reassessStory.reassess(issueKey, precision, language);
-            return ResponseEntity.ok(Map.of(
+            Map<String, Object> body = new LinkedHashMap<>(Map.of(
                     "success", true,
                     "issueKey", issueKey,
                     "aiReady", verdict.aiReady(),
                     "aiReadyReason", verdict.aiReadyReason() != null ? verdict.aiReadyReason() : "",
                     "aiReadySource", verdict.source().id()
             ));
+            if (createTasks) {
+                putTasks(body, storyTasks.afterVerdict(issueKey, precision, verdict, language));
+            }
+            return ResponseEntity.ok(body);
         } catch (StoryNotAwaitingValidationException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponses.error(e.getMessage()));
         } catch (ModelOutputException e) {
@@ -316,21 +375,104 @@ public class BacklogController {
         if (issueKey == null || issueKey.isBlank()) {
             return ResponseEntity.badRequest().body(ErrorResponses.error("issueKey is required"));
         }
+        boolean createTasks;
+        Language language;
+        try {
+            createTasks = AnalysisRequests.flag(request, AnalysisRequests.CREATE_TASKS);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ErrorResponses.error(e.getMessage()));
+        }
+        try {
+            // Langue lue seulement pour les sous-taches : sans createTasks, validate-story reste inchange
+            language = createTasks ? language(request.get(LANGUAGE)) : null;
+        } catch (IllegalArgumentException e) {
+            return invalidLanguage();
+        }
         log.info("Human validation request for {}", issueKey);
         try {
             Readiness verdict = validateStory.validate(issueKey);
-            return ResponseEntity.ok(Map.of(
+            Map<String, Object> body = new LinkedHashMap<>(Map.of(
                     "success", true,
                     "issueKey", issueKey,
                     "aiReady", verdict.aiReady(),
                     "aiReadyReason", verdict.aiReadyReason(),
                     "aiReadySource", verdict.source().id()
             ));
+            if (createTasks) {
+                putTasks(body, storyTasks.afterVerdict(issueKey, null, verdict, language));
+            }
+            return ResponseEntity.ok(body);
         } catch (StoryNotAwaitingValidationException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponses.error(e.getMessage()));
         } catch (Exception e) {
             log.error("Error validating story {}", issueKey, e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to validate the story"));
+        }
+    }
+
+    /**
+     * Chaine C1 : sous-taches d'une story {@code ai-ready} qui n'en a aucune, generees puis creees dans son projet.
+     * Story qui a deja des sous-taches : rien n'est fait, {@code tasksSkipped} en donne le nombre (une creation
+     * precedente a pu etre incomplete). 409 si la story n'est pas prete ou si une autre demande cree deja ses taches.
+     */
+    @PostMapping("/story-tasks")
+    public ResponseEntity<Map<String, Object>> storyTasks(@RequestBody Map<String, String> request) {
+        String issueKey = request.get("issueKey");
+        if (issueKey == null || issueKey.isBlank()) {
+            return ResponseEntity.badRequest().body(ErrorResponses.error("issueKey is required"));
+        }
+        Language language;
+        try {
+            language = language(request.get(LANGUAGE));
+        } catch (IllegalArgumentException e) {
+            return invalidLanguage();
+        }
+        log.info("Sub-task request for {}", issueKey);
+        try {
+            StoryTasksResult result = storyTasks.generate(issueKey, null, language);
+            Map<String, Object> body = new LinkedHashMap<>();
+            HttpStatus status = HttpStatus.OK;
+            if (result.existingSubtasks() != null) {
+                body.put("success", true);
+                body.put("message", "Nothing created");
+            } else if (result.failed().isEmpty()) {
+                body.put("success", true);
+                body.put("message", "Successfully created " + result.created().size() + " sub-tasks");
+            } else if (!result.created().isEmpty()) {
+                status = HttpStatus.MULTI_STATUS;
+                body.put("success", false);
+                body.put("message", "Partially created: " + result.created().size() + " sub-tasks created, "
+                        + result.failed().size() + " not created");
+            } else {
+                status = HttpStatus.BAD_GATEWAY;
+                body.putAll(ErrorResponses.error("No sub-task could be created"));
+            }
+            body.put("issueKey", issueKey);
+            putTasks(body, result);
+            return ResponseEntity.status(status).body(body);
+        } catch (StoryNotReadyException | StoryTasksInProgressException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponses.error(e.getMessage()));
+        } catch (ModelOutputException e) {
+            return modelOutputFailure(e);
+        } catch (ModelUnavailableException e) {
+            return modelUnavailable(e);
+        } catch (Exception e) {
+            log.error("Error creating the sub-tasks of {}", issueKey, e);
+            return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to create the sub-tasks"));
+        }
+    }
+
+    /** Champs des sous-taches : {@code tasks} (created / failed), {@code tasksSkipped} ou {@code tasksError}. */
+    private static void putTasks(Map<String, Object> body, StoryTasksResult result) {
+        if (result.notReady()) {
+            return;
+        }
+        if (result.error() != null) {
+            body.put("tasksError", result.error());
+        } else if (result.existingSubtasks() != null) {
+            body.put("tasksSkipped", result.skippedMessage());
+        } else {
+            body.put("tasks", Map.of("created", result.created(), "failed", result.failed()));
         }
     }
 

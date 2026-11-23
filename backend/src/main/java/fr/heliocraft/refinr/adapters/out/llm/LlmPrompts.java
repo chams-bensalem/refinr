@@ -21,8 +21,8 @@ import java.util.regex.Pattern;
 /**
  * Prompts envoyes aux modeles (le format de sortie est en plus impose par le schema JSON), charges de deux ressources
  * seulement : {@code llm/prompts/prompts.fr.md} pour le francais, {@code llm/prompts/prompts.en.md} pour l'anglais et
- * toute autre langue. Chaque fichier contient cinq blocs de code, dans l'ordre : message systeme, bloc READINESS,
- * generation, verdict par lots, reevaluation. Les marqueurs {@code {{…}}} du texte sont remplaces par les valeurs ;
+ * toute autre langue. Chaque fichier contient sept blocs de code, dans l'ordre : message systeme, bloc READINESS,
+ * generation, verdict par lots, reevaluation, generation sans sous-taches (chaine C1), sous-taches des stories pretes. Les marqueurs {@code {{…}}} du texte sont remplaces par les valeurs ;
  * {@code {{LANGUAGE}}} recoit le nom de la langue de sortie, jamais une valeur recue d'un utilisateur.
  */
 final class LlmPrompts {
@@ -31,7 +31,8 @@ final class LlmPrompts {
     static final String EN_RESOURCE = "llm/prompts/prompts.en.md";
 
     /** Textes d'une langue, marqueurs non remplaces. */
-    record Texts(String system, String readiness, String analysis, String verdicts, String reassessment) {}
+    record Texts(String system, String readiness, String analysis, String verdicts, String reassessment,
+                 String stories, String tasks) {}
 
     private static final Pattern BLOCK = Pattern.compile("```\\n(.*?)\\n```", Pattern.DOTALL);
     private static final Pattern MARKER = Pattern.compile("\\{\\{([A-Z_]+)\\}\\}");
@@ -44,6 +45,10 @@ final class LlmPrompts {
     static final String VERDICT_PROMPT_VERSION = "verdict-v3.2";
     /** Version du prompt de generation (prompt 1), relevee dans les mesures ; le verdict garde sa propre version. */
     static final String GENERATION_PROMPT_VERSION = "generation-v2";
+    /** Version du prompt de generation de la chaine C1 (sans sous-taches). */
+    static final String STORIES_PROMPT_VERSION = "generation-v3";
+    /** Version du prompt des sous-taches des stories pretes (prompt 4). */
+    static final String TASKS_PROMPT_VERSION = "tasks-v1";
 
     private LlmPrompts() {}
 
@@ -96,6 +101,40 @@ final class LlmPrompts {
                 "LANGUAGE", languageName(language)));
     }
 
+    /** Prompt 1 de la chaine C1 : generation sans sous-taches. */
+    static String stories(String documentContent, Language language) {
+        Texts t = texts(language);
+        return fill(t.stories(), Map.of("READINESS", t.readiness(), "DOCUMENT", documentContent,
+                "LANGUAGE", languageName(language)));
+    }
+
+    /**
+     * Prompt 4 : sous-taches de plusieurs stories pretes en un appel, chacune identifiee par {@code ids.get(i)}, avec
+     * la precision du PO quand il y en a une ({@code precisions.get(i)}, null sinon). Stories encodees en JSON, comme
+     * pour le verdict ; cles francaises dans le prompt francais, anglaises dans le prompt anglais.
+     */
+    static String tasks(List<Story> stories, List<String> precisions, List<String> ids, Language language) {
+        boolean french = language.isFrench();
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (int i = 0; i < stories.size(); i++) {
+            Story story = stories.get(i);
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", ids.get(i));
+            item.put(french ? "titre" : "title", story.getTitle() != null ? story.getTitle() : "");
+            item.put("description", story.getDescription() != null ? story.getDescription() : "");
+            item.put(french ? "criteresAcceptation" : "acceptanceCriteria",
+                    story.getAcceptanceCriteria() != null ? story.getAcceptanceCriteria() : List.of());
+            String precision = precisions.get(i);
+            if (precision != null && !precision.isBlank()) {
+                item.put(french ? "precisionDuPO" : "poClarification", precision);
+            }
+            items.add(item);
+        }
+        Texts t = texts(language);
+        return fill(t.tasks(), Map.of("STORIES_JSON", JSON.writerWithDefaultPrettyPrinter().writeValueAsString(items),
+                "LANGUAGE", languageName(language)));
+    }
+
     /** Prompt 3 : reevaluation d'une story jugee non prete, avec la precision de l'utilisateur. */
     static String reassessment(String summary, String description, String precision, Language language) {
         Texts t = texts(language);
@@ -122,17 +161,18 @@ final class LlmPrompts {
         return out.toString();
     }
 
-    /** Cinq blocs de code, dans l'ordre ; tout autre contenu du fichier est ignore. */
+    /** Sept blocs de code, dans l'ordre ; tout autre contenu du fichier est ignore. */
     static Texts parse(String markdown, String name) {
         List<String> blocks = new ArrayList<>();
         Matcher m = BLOCK.matcher(markdown);
         while (m.find()) {
             blocks.add(m.group(1));
         }
-        if (blocks.size() != 5) {
-            throw new IllegalStateException(name + ": expected 5 prompt blocks, found " + blocks.size());
+        if (blocks.size() != 7) {
+            throw new IllegalStateException(name + ": expected 7 prompt blocks, found " + blocks.size());
         }
-        return new Texts(blocks.get(0), blocks.get(1), blocks.get(2), blocks.get(3), blocks.get(4));
+        return new Texts(blocks.get(0), blocks.get(1), blocks.get(2), blocks.get(3), blocks.get(4), blocks.get(5),
+                blocks.get(6));
     }
 
     private static Texts load(String resource) {

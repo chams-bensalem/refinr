@@ -324,9 +324,29 @@ class JiraIssueTrackerTest {
         assertEquals("Export PDF", story.summary());
         assertEquals("Exporter en PDF", story.description());
         assertEquals(List.of("backend", "validation-necessaire"), story.labels());
+        assertNull(story.project());
+        assertEquals(List.of(), story.subtaskKeys());
         RecordedRequest request = mockWebServer.takeRequest();
         assertEquals("GET", request.getMethod());
         assertTrue(request.getPath().startsWith("/rest/api/3/issue/TEST-7"));
+        assertTrue(request.getPath().contains("project,subtasks"), request.getPath());
+    }
+
+    @Test
+    @DisplayName("Should read the project and the sub-tasks of a story (pipeline: tasks created in its project, never twice)")
+    void shouldReadProjectAndSubtasks() {
+        mockWebServer.enqueue(new MockResponse()
+            .setResponseCode(200)
+            .addHeader("Content-Type", "application/json")
+            .setBody("{\"key\":\"OTHER-7\",\"fields\":{\"summary\":\"Export PDF\",\"labels\":[\"ai-ready\"],"
+                + "\"project\":{\"key\":\"OTHER\",\"name\":\"Other\"},"
+                + "\"subtasks\":[{\"key\":\"OTHER-8\",\"fields\":{}},{\"key\":\"OTHER-9\"}]}}"));
+
+        TrackedStory story = jiraService.findStory("other-7");
+
+        assertEquals("OTHER-7", story.key(), "canonical key returned by Jira (one lock per story)");
+        assertEquals("OTHER", story.project());
+        assertEquals(List.of("OTHER-8", "OTHER-9"), story.subtaskKeys());
     }
 
     @Test

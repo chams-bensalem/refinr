@@ -27,6 +27,31 @@ final class AnalysisRequests {
     static final String INVALID_LANGUAGE = LANGUAGE + " " + Language.INVALID;
     // Valeur recue jamais recopiee (meme regle que language) : elle peut contenir n'importe quoi
     static final String INVALID_PROJECT_KEY = "Invalid projectKey: expected a project key or identifier of the active tracker";
+    /** Chaine C1 (analyze-preview, analyze-and-create, synchrones et jobs). */
+    static final String PIPELINE = "pipeline";
+    /** reassess-story, validate-story : sous-taches creees si la story devient prete. */
+    static final String CREATE_TASKS = "createTasks";
+
+    /** 400 qui nomme l'option booleenne, sans recopier la valeur recue. */
+    static String invalidBoolean(String name) {
+        return name + " must be true or false";
+    }
+
+    /**
+     * Option booleenne d'un corps JSON lu en {@code Map<String, String>} : absente ou vide -> false ; {@code true} /
+     * {@code false} (booleen JSON ou texte, casse ignoree) ; IllegalArgumentException sinon.
+     */
+    static boolean flag(Map<String, String> request, String name) {
+        String raw = request.get(name);
+        if (raw == null || raw.isBlank()) {
+            return false;
+        }
+        return switch (raw.strip().toLowerCase(java.util.Locale.ROOT)) {
+            case "true" -> true;
+            case "false" -> false;
+            default -> throw new IllegalArgumentException(invalidBoolean(name));
+        };
+    }
 
     private AnalysisRequests() {}
 

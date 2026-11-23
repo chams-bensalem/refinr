@@ -76,19 +76,46 @@ class LlmPromptsTest {
         assertEquals(fr.lines().filter(l -> l.startsWith("## ")).count(), en.lines().filter(l -> l.startsWith("## ")).count(),
                 "same number of sections");
         List<String> frBlocks = blocks(fr), enBlocks = blocks(en);
-        assertEquals(5, frBlocks.size());
-        assertEquals(5, enBlocks.size());
+        assertEquals(7, frBlocks.size());
+        assertEquals(7, enBlocks.size());
         long frRules = 0, enRules = 0;
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 7; i++) {
             assertEquals(markers(frBlocks.get(i)), markers(enBlocks.get(i)), "same markers, same order, block " + i);
             assertEquals(rules(frBlocks.get(i)), rules(enBlocks.get(i)), "same number of rules, block " + i);
             assertEquals(jsonLines(frBlocks.get(i)), jsonLines(enBlocks.get(i)), "identical JSON, block " + i);
             frRules += rules(frBlocks.get(i));
             enRules += rules(enBlocks.get(i));
         }
-        // 33 regles : 29 + 4 regles de taille du niveau Feature (generation-v2)
-        assertEquals(33, frRules);
-        assertEquals(33, enRules);
+        // 59 regles : 33 (generation-v2 et READINESS : 29 + 4 regles de taille du niveau Feature) + 20 (generation-v3 :
+        // le prompt 1 sans ses 4 regles de sous-taches) + 6 (tasks-v1)
+        assertEquals(59, frRules);
+        assertEquals(59, enRules);
+    }
+
+    @Test
+    @DisplayName("Pipeline prompt 1 (generation-v3): prompt 1 without sub-tasks; prompt 1 (generation-v2) keeps them")
+    void pipelineGenerationHasNoTasks() {
+        for (Language language : List.of(Language.FR, Language.EN)) {
+            String stories = LlmPrompts.stories("SPEC", language);
+            String analysis = LlmPrompts.analysis("SPEC", language);
+            assertFalse(stories.contains("\"tasks\""), "no tasks in the JSON example");
+            assertTrue(analysis.contains("\"tasks\""), "generation-v2 unchanged");
+            assertTrue(stories.contains("SPEC") && stories.contains("aiReadyReason"), "READINESS and document kept");
+            assertFalse(stories.contains("estimatedHours"));
+        }
+    }
+
+    @Test
+    @DisplayName("Parity of prompt 4: story JSON differs only by key names; the PO clarification key only when given")
+    void tasksJsonDiffersOnlyByKeyNames() {
+        String fr = storiesJson(LlmPrompts.tasks(List.of(story()), java.util.Arrays.asList("10 jours"), List.of("s1"),
+                Language.FR), "STORIES (JSON) :\n");
+        String en = storiesJson(LlmPrompts.tasks(List.of(story()), java.util.Arrays.asList("10 jours"), List.of("s1"),
+                Language.EN), "STORIES (JSON):\n");
+        assertEquals(en, fr.replace("\"titre\"", "\"title\"").replace("\"criteresAcceptation\"", "\"acceptanceCriteria\"")
+                .replace("\"precisionDuPO\"", "\"poClarification\""));
+        assertFalse(LlmPrompts.tasks(List.of(story()), java.util.Collections.singletonList(null), List.of("s1"), Language.EN)
+                .contains("poClarification"));
     }
 
     @Test

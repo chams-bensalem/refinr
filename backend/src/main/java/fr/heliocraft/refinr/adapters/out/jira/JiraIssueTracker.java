@@ -441,7 +441,7 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
         log.info("Reading Jira issue {} for reassessment", issueKey);
         try {
             Map<String, Object> response = webClient.get()
-                    .uri("/rest/api/3/issue/{issueKey}?fields=summary,description,labels", issueKey)
+                    .uri("/rest/api/3/issue/{issueKey}?fields=summary,description,labels,project,subtasks", issueKey)
                     .retrieve()
                     .bodyToMono(Map.class)
                     .block();
@@ -457,9 +457,17 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
             Map<String, Object> descriptionAdf = fields.get("description") instanceof Map<?, ?> adf
                     ? (Map<String, Object>) adf
                     : null;
-            return new TrackedStory(issueKey, summary != null ? summary.toString() : "",
+            // Projet et sous-taches : les sous-taches d'une story devenue prete vont dans son projet, jamais deux fois
+            String project = fields.get("project") instanceof Map<?, ?> p && p.get("key") instanceof String k ? k : null;
+            List<String> subtasks = fields.get("subtasks") instanceof List<?> raw
+                    ? raw.stream().filter(Map.class::isInstance).map(Map.class::cast)
+                            .map(m -> m.get("key")).filter(String.class::isInstance).map(String.class::cast).toList()
+                    : List.of();
+            // Cle canonique rendue par Jira (proj-7 -> PROJ-7) : un seul verrou par story
+            String key = response.get("key") instanceof String k && !k.isBlank() ? k : issueKey;
+            return new TrackedStory(key, summary != null ? summary.toString() : "",
                     adfToText(fields.get("description")).strip(), labels,
-                    descriptionAdf != null ? new JiraAdfContent(descriptionAdf) : null);
+                    descriptionAdf != null ? new JiraAdfContent(descriptionAdf) : null, project, subtasks);
         } catch (WebClientResponseException e) {
             // Sans cause : l'exception WebClient porte l'URL et le corps de la reponse
             throw new RuntimeException("Failed to read issue " + issueKey + ": HTTP " + e.getStatusCode().value());

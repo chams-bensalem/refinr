@@ -70,15 +70,25 @@ public class JobController {
         } catch (IllegalArgumentException e) {
             return BacklogResponses.invalidRequest(AnalysisRequests.INVALID_LANGUAGE);
         }
+        boolean pipeline;
+        try {
+            pipeline = AnalysisRequests.flag(request, AnalysisRequests.PIPELINE);
+        } catch (IllegalArgumentException e) {
+            return BacklogResponses.invalidRequest(e.getMessage());
+        }
         return submit(() -> {
             if (AnalysisRequests.isTextInput(request)) {
                 AnalysisRequests.logTextInput(log, "Preview job", request);
-                return jobs.submitPreviewText(request.get(AnalysisRequests.TITLE), request.get(AnalysisRequests.CONTENT),
-                        projectKey, language.orElse(null));
+                String title = request.get(AnalysisRequests.TITLE);
+                String content = request.get(AnalysisRequests.CONTENT);
+                // Sans la chaine : exactement l'appel d'avant
+                return pipeline ? jobs.submitPreviewText(title, content, projectKey, language.orElse(null), true)
+                        : jobs.submitPreviewText(title, content, projectKey, language.orElse(null));
             }
             String documentId = AnalysisRequests.documentId(request);
             log.info("Preview job request for {} document: {}", describeSource.displayName(), documentId);
-            return jobs.submitPreview(documentId, projectKey, language.orElse(null));
+            return pipeline ? jobs.submitPreview(documentId, projectKey, language.orElse(null), true)
+                    : jobs.submitPreview(documentId, projectKey, language.orElse(null));
         });
     }
 
@@ -94,15 +104,24 @@ public class JobController {
         } catch (IllegalArgumentException e) {
             return BacklogResponses.invalidRequest(AnalysisRequests.INVALID_LANGUAGE);
         }
+        boolean pipeline;
+        try {
+            pipeline = AnalysisRequests.flag(request, AnalysisRequests.PIPELINE);
+        } catch (IllegalArgumentException e) {
+            return BacklogResponses.invalidRequest(e.getMessage());
+        }
         return submit(() -> {
             if (AnalysisRequests.isTextInput(request)) {
                 AnalysisRequests.logTextInput(log, "Analyze job", request);
-                return jobs.submitAnalyzeTextAndCreate(request.get(AnalysisRequests.TITLE),
-                        request.get(AnalysisRequests.CONTENT), projectKey, language.orElse(null));
+                String title = request.get(AnalysisRequests.TITLE);
+                String content = request.get(AnalysisRequests.CONTENT);
+                return pipeline ? jobs.submitAnalyzeTextAndCreate(title, content, projectKey, language.orElse(null), true)
+                        : jobs.submitAnalyzeTextAndCreate(title, content, projectKey, language.orElse(null));
             }
             String documentId = AnalysisRequests.documentId(request);
             log.info("Analyze job request for {} document: {}", describeSource.displayName(), documentId);
-            return jobs.submitAnalyzeAndCreate(documentId, projectKey, language.orElse(null));
+            return pipeline ? jobs.submitAnalyzeAndCreate(documentId, projectKey, language.orElse(null), true)
+                    : jobs.submitAnalyzeAndCreate(documentId, projectKey, language.orElse(null));
         });
     }
 
@@ -211,6 +230,10 @@ public class JobController {
             ResponseEntity<Map<String, Object>> response = preview
                     ? BacklogResponses.preview(job.preview(), job.warnings())
                     : BacklogResponses.creation(job.creation());
+            if (job.pipeline()) {
+                // Chaine C1 : questions et avertissement des stories pretes sans sous-taches, comme le synchrone
+                response = BacklogResponses.withPipeline(response, preview ? job.preview() : job.creation().epics());
+            }
             // Comme l'endpoint synchrone : lien vers le document seulement s'il a ete lu dans la source active
             return job.documentId() == null ? response
                     : BacklogResponses.withDocumentUrl(response, describeSource.documentUrl(job.documentId()));

@@ -20,6 +20,7 @@ public class LlmBacklogGenerator implements BacklogGeneratorPort {
     private final LlmClient client;
     private final StructuredOutput output;
     private final JsonNode schema = LlmSchemas.load(LlmSchemas.BACKLOG);
+    private final JsonNode storiesSchema = LlmSchemas.load(LlmSchemas.BACKLOG_STORIES);
 
     public LlmBacklogGenerator(LlmClient client, StructuredOutput output) {
         this.client = client;
@@ -32,6 +33,19 @@ public class LlmBacklogGenerator implements BacklogGeneratorPort {
         LlmRequest request = LlmRequest.of(LlmPrompts.system(language), LlmPrompts.analysis(documentContent, language),
                 LlmSchemas.BACKLOG, LlmSchemas.forProvider(schema));
         List<Epic> epics = output.call(client, request, schema,
+                json -> GeneratedBacklogMapper.toDomain(output.mapper().treeToValue(json, GeneratedBacklog.class).getEpics()));
+        log.info("Analysis complete. Generated {} epics", epics.size());
+        return epics;
+    }
+
+    /** Chaine C1 : prompt generation-v3, schema sans sous-taches. */
+    @Override
+    public List<Epic> generateStories(String documentContent, Language language) {
+        log.info("Analyzing document without sub-tasks (pipeline) with {}, output language {}", client.settings().describe(),
+                language.code());
+        LlmRequest request = LlmRequest.of(LlmPrompts.system(language), LlmPrompts.stories(documentContent, language),
+                LlmSchemas.BACKLOG_STORIES, LlmSchemas.forProvider(storiesSchema));
+        List<Epic> epics = output.call(client, request, storiesSchema,
                 json -> GeneratedBacklogMapper.toDomain(output.mapper().treeToValue(json, GeneratedBacklog.class).getEpics()));
         log.info("Analysis complete. Generated {} epics", epics.size());
         return epics;

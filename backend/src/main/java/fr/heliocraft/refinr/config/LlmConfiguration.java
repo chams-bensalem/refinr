@@ -12,12 +12,14 @@ import fr.heliocraft.refinr.adapters.out.llm.LlmClients;
 import fr.heliocraft.refinr.adapters.out.llm.LlmHealthCheck;
 import fr.heliocraft.refinr.adapters.out.llm.LlmProvider;
 import fr.heliocraft.refinr.adapters.out.llm.LlmReadinessAssessor;
+import fr.heliocraft.refinr.adapters.out.llm.LlmTaskGenerator;
 import fr.heliocraft.refinr.adapters.out.llm.LlmSettings;
 import fr.heliocraft.refinr.adapters.out.llm.MaxTokensParam;
 import fr.heliocraft.refinr.adapters.out.llm.RetryPolicy;
 import fr.heliocraft.refinr.adapters.out.llm.StructuredOutput;
 import fr.heliocraft.refinr.application.port.out.BacklogGeneratorPort;
 import fr.heliocraft.refinr.application.port.out.ReadinessAssessorPort;
+import fr.heliocraft.refinr.application.port.out.TaskGeneratorPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -66,6 +68,9 @@ public class LlmConfiguration {
     private final LlmClient analysisClient;
     private final LlmClient verdictClient;
 
+    /** Stories par appel du prompt 4 (sous-taches), comme le lot de verdict par defaut. */
+    static final int TASK_BATCH_SIZE = 10;
+
     public LlmConfiguration(LlmProperties properties, ConfigurableEnvironment environment) {
         LegacyLlmProperties.rejectIn(environment);
         this.properties = properties;
@@ -89,7 +94,13 @@ public class LlmConfiguration {
         return new LlmBacklogGenerator(analysisClient, structuredOutput);
     }
 
-    /**
+    /** Chaine C1 : sous-taches des stories pretes par le fournisseur d'analyse, par lots de 10 stories. */
+    @Bean
+    public TaskGeneratorPort taskGenerator(StructuredOutput structuredOutput) {
+        return new LlmTaskGenerator(analysisClient, structuredOutput, TASK_BATCH_SIZE);
+    }
+
+        /**
      * Verdict par lots de {@code refinr.llm.verdict.batch-size} stories, derriere un cache des verdicts reussis
      * ({@code refinr.llm.verdict.cache.*}) : a la creation, seules les stories modifiees depuis l'apercu sont rejugees.
      */

@@ -31,8 +31,22 @@ public final class SchemaProbe {
 
     /** Requete envoyee : celle d'une generation, avec le schema du backlog. */
     public static LlmRequest request() {
-        return LlmRequest.of("Reponds uniquement par le JSON demande.", PROMPT, LlmSchemas.BACKLOG,
-                LlmSchemas.forProvider(LlmSchemas.load(LlmSchemas.BACKLOG)));
+        return request(LlmSchemas.BACKLOG);
+    }
+
+    /** Schemas sondables : backlog (generation-v2), backlog-stories et story-tasks (chaine C1). */
+    public static final java.util.List<String> SCHEMAS = java.util.List.of(LlmSchemas.BACKLOG, LlmSchemas.BACKLOG_STORIES,
+            LlmSchemas.STORY_TASKS);
+
+    /** Requete avec le schema {@code name} (un des {@link #SCHEMAS}). */
+    public static LlmRequest request(String name) {
+        if (!SCHEMAS.contains(name)) {
+            throw new IllegalArgumentException("--schema must be one of " + SCHEMAS);
+        }
+        String prompt = name.equals(LlmSchemas.STORY_TASKS)
+                ? "Ecris les sous-taches de la story s1 : exporter les commandes du jour en CSV." : PROMPT;
+        return LlmRequest.of("Reponds uniquement par le JSON demande.", prompt, name,
+                LlmSchemas.forProvider(LlmSchemas.load(name)));
     }
 
     public static Result probe(LlmSettings settings, LlmRequest request, Duration timeout) {

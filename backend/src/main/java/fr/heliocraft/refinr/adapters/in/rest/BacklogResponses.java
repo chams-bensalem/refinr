@@ -42,6 +42,51 @@ final class BacklogResponses {
         return ResponseEntity.ok(body);
     }
 
+    /**
+     * Chaine C1 : ajoute {@code questions} (toujours present, liste vide comprise) et l'avertissement des stories pretes
+     * restees sans sous-taches. Reponse inchangee pour un statut d'erreur sans backlog.
+     */
+    static ResponseEntity<Map<String, Object>> withPipeline(ResponseEntity<Map<String, Object>> response,
+                                                            List<Epic> epics) {
+        if (response.getBody() == null || epics == null) {
+            return response;
+        }
+        Map<String, Object> body = new LinkedHashMap<>(response.getBody());
+        List<Map<String, Object>> questions = new java.util.ArrayList<>();
+        for (fr.heliocraft.refinr.domain.model.PoQuestion question : fr.heliocraft.refinr.domain.service.PoQuestions.from(epics)) {
+            List<Map<String, Object>> stories = new java.util.ArrayList<>();
+            for (fr.heliocraft.refinr.domain.model.Story story : question.stories()) {
+                Map<String, Object> ref = new LinkedHashMap<>();
+                ref.put("title", story.getTitle());
+                ref.put("key", story.getTrackerKey());
+                stories.add(ref);
+            }
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("question", question.question());
+            item.put("stories", stories);
+            questions.add(item);
+        }
+        body.put("questions", questions);
+        long readyWithoutTasks = epics.stream().filter(java.util.Objects::nonNull).flatMap(e -> e.getStories().stream())
+                .filter(s -> s != null && Boolean.TRUE.equals(s.getAiReady())
+                        && (s.getTasks() == null || s.getTasks().isEmpty()))
+                .count();
+        if (readyWithoutTasks > 0) {
+            List<String> warnings = new java.util.ArrayList<>();
+            if (body.get("warnings") instanceof List<?> existing) {
+                existing.forEach(w -> warnings.add(String.valueOf(w)));
+            }
+            warnings.add(readyWithoutTasksWarning(readyWithoutTasks));
+            body.put("warnings", warnings);
+        }
+        return ResponseEntity.status(response.getStatusCode()).headers(response.getHeaders()).body(body);
+    }
+
+    static String readyWithoutTasksWarning(long count) {
+        return count + " ready stor" + (count == 1 ? "y has" : "ies have")
+                + " no sub-tasks (the model gave none): create them with POST /api/v1/story-tasks once the story exists";
+    }
+
     /** Ajout retrocompatible (1.5) : present seulement quand la liste n'est pas vide. */
     private static void putWarnings(Map<String, Object> body, List<String> warnings) {
         if (warnings != null && !warnings.isEmpty()) {

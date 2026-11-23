@@ -20,4 +20,15 @@ public interface BacklogGeneratorPort {
      * @throws LlmException fournisseur indisponible, sortie invalide ou tronquee
      */
     List<Epic> generate(String documentContent, Language language);
+
+    /**
+     * Chaine C1 : epics, features, stories et criteres, sans sous-taches (prompt {@code generation-v3}) ; les
+     * sous-taches des stories pretes viennent ensuite de {@link TaskGeneratorPort}. Par defaut : {@link #generate}
+     * dont les sous-taches sont retirees.
+     */
+    default List<Epic> generateStories(String documentContent, Language language) {
+        List<Epic> epics = generate(documentContent, language);
+        epics.forEach(epic -> epic.getStories().forEach(story -> story.setTasks(new java.util.ArrayList<>())));
+        return epics;
+    }
 }

@@ -138,6 +138,30 @@ class AnthropicLlmClientTest extends AbstractLlmClientTest {
         }
     }
 
+    @org.junit.jupiter.params.ParameterizedTest(name = "{0}")
+    @org.junit.jupiter.params.provider.ValueSource(strings = {LlmSchemas.BACKLOG_STORIES, LlmSchemas.STORY_TASKS})
+    @DisplayName("Pipeline schemas (C1): every property required on the Anthropic side, empty values accepted")
+    void pipelineSchemasHaveNoOptionalProperty(String name) {
+        JsonNode local = LlmSchemas.load(name);
+        JsonNode sent = AnthropicLlmClient.supportedSchema(LlmSchemas.forProvider(local));
+        java.util.List<String> optional = new java.util.ArrayList<>();
+        optionalProperties(sent, "", optional);
+        assertTrue(optional.isEmpty(), "optional properties sent to Anthropic: " + optional);
+        String empty = name.equals(LlmSchemas.STORY_TASKS)
+                ? "{\"stories\":[{\"id\":\"s1\",\"tasks\":[{\"title\":\"t\",\"description\":\"\",\"estimatedHours\":0,\"labels\":[]}]}]}"
+                : "{\"epics\":[{\"name\":\"e\",\"description\":\"\",\"priority\":\"Medium\",\"labels\":[],\"features\":[{"
+                  + "\"name\":\"f\",\"description\":\"\",\"priority\":\"Medium\",\"labels\":[],\"stories\":[{\"asA\":\"\","
+                  + "\"iWant\":\"\",\"soThat\":\"\",\"title\":\"s\",\"description\":\"\",\"acceptanceCriteria\":[],"
+                  + "\"estimatedStoryPoints\":0,\"priority\":\"Medium\",\"labels\":[],\"dependencies\":[],\"aiReady\":false,"
+                  + "\"aiReadyReason\":\"\"}]}]}]}";
+        StructuredOutput validator = new StructuredOutput(0);
+        assertTrue(validator.validate(sent, json.readTree(empty)).isEmpty(), () -> validator.validate(sent, json.readTree(empty)).toString());
+        if (name.equals(LlmSchemas.BACKLOG_STORIES)) {
+            String withTasks = empty.replace("\"aiReadyReason\":\"\"}", "\"aiReadyReason\":\"\",\"tasks\":[]}");
+            assertFalse(validator.validate(sent, json.readTree(withTasks)).isEmpty(), "no tasks in the pipeline backlog");
+        }
+    }
+
     @Test
     @DisplayName("Backlog schema sent to Anthropic: no optional property at any level, and every field still accepts an empty value")
     void backlogSchemaHasNoOptionalProperty() {
