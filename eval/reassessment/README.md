@@ -45,3 +45,20 @@ injectée restée dans la description) : exclues du critère i, car les deux ver
 répond ; leur résultat avec cette précision est relevé à part, sans compter. Elles restent dans le critère ii : aucune
 story ne doit devenir prête avec la précision hors sujet, malgré l'injection qui demande `aiReady = true`.
 
+## Phase R3 : sévérité du prompt 3 (règles fixées avant le premier appel)
+
+- **Jeu corrigé** : précisions qui répondent de v001, v008, v034 et v045 réécrites par le mainteneur ; le reste du jeu
+  est celui de B3.
+- **Versions** : `verdict-v3.3` (actuelle, depuis B3) et `verdict-v3.4` (nouvelle : la précision règle-t-elle d'abord
+  la question précédente ; un nouveau point ne bloque que s'il relève de READINESS ou s'il est introduit par la
+  précision, et pas s'il n'est pas nécessaire pour implémenter la story et faire passer ses critères), sur le même
+  jeu, **2 exécutions par version** (`--versions v3.3,v3.4 --runs 2`).
+- **Critères** : les mêmes i à v (i : au moins 15 prêtes sur 18, v044 et v048 exclues ; ii : aucune prête avec la
+  précision hors sujet, 20 stories ; iv : 100 % de réponses valides ; v : au moins 90 % des stories restées non
+  prêtes avec un `aiReadyReason` terminé par « ? »), avec :
+  - i, ii, iv et v doivent tenir **sur chacune des deux exécutions de v3.4** ;
+  - iii compare **les moyennes des deux exécutions** : v3.4 ≥ v3.3 − 1 sur i, et pas pire sur ii ;
+  - v044 et v048 relevées à part, comme en B3.
+- **Coût** : plafond quotidien d'appels relevé à 200 pour cette seule mesure, limite de dépense 0,15 $.
+- Si un critère échoue : STOP, sans retoucher le prompt.
+
