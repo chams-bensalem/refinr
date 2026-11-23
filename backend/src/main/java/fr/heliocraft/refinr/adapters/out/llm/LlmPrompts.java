@@ -143,7 +143,19 @@ final class LlmPrompts {
      * chaque cas designe le sien ; stories encodees en JSON comme pour le verdict.
      */
     static String testCases(List<Story> stories, List<String> ids, Language language) {
+        return testCases(stories, java.util.Collections.nCopies(stories.size(), null), ids, language);
+    }
+
+    /** Marqueur de ligne du prompt 5 : ligne gardee seulement si une story porte une precision du PO. */
+    static final String IF_PRECISION = "{{IF_PRECISION}}";
+
+    /**
+     * Prompt 5 avec la precision du PO de chaque story (null sinon), donnee comme une donnee de la story. Sans aucune
+     * precision, la ligne {@link #IF_PRECISION} est retiree : texte identique a celui de la chaine mesuree.
+     */
+    static String testCases(List<Story> stories, List<String> precisions, List<String> ids, Language language) {
         boolean french = language.isFrench();
+        boolean anyPrecision = precisions.stream().anyMatch(p -> p != null && !p.isBlank());
         List<Map<String, Object>> items = new ArrayList<>();
         for (int i = 0; i < stories.size(); i++) {
             Story story = stories.get(i);
@@ -157,10 +169,16 @@ final class LlmPrompts {
             item.put(french ? "titre" : "title", story.getTitle() != null ? story.getTitle() : "");
             item.put("description", story.getDescription() != null ? story.getDescription() : "");
             item.put(french ? "criteresAcceptation" : "acceptanceCriteria", criteria);
+            String precision = precisions.get(i);
+            if (precision != null && !precision.isBlank()) {
+                item.put(french ? "precisionDuPO" : "poClarification", precision);
+            }
             items.add(item);
         }
         Texts t = texts(language);
-        return fill(t.testCases(), Map.of("STORIES_JSON", JSON.writerWithDefaultPrettyPrinter().writeValueAsString(items),
+        String template = anyPrecision ? t.testCases().replace(IF_PRECISION, "")
+                : t.testCases().replaceAll("(?m)^" + java.util.regex.Pattern.quote(IF_PRECISION) + ".*\\R", "");
+        return fill(template, Map.of("STORIES_JSON", JSON.writerWithDefaultPrettyPrinter().writeValueAsString(items),
                 "LANGUAGE", languageName(language)));
     }
 

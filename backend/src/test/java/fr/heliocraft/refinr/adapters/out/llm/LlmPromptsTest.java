@@ -61,11 +61,13 @@ class LlmPromptsTest {
     }
 
     private static long rules(String block) {
-        return block.lines().filter(l -> l.startsWith("- ")).count();
+        // Une ligne conditionnelle (prompt 5 : {{IF_PRECISION}}- …) est une regle
+        return block.lines().map(l -> l.replace(LlmPrompts.IF_PRECISION, "")).filter(l -> l.startsWith("- ")).count();
     }
 
     private static List<String> jsonLines(String block) {
-        return block.lines().filter(l -> l.startsWith("{")).toList();
+        // JSON : lignes qui commencent par une accolade, pas par un marqueur ({{STORIES_JSON}}, {{IF_PRECISION}}…)
+        return block.lines().filter(l -> l.startsWith("{") && !l.startsWith("{{")).toList();
     }
 
     // ---------- parite des deux fichiers ----------
@@ -88,9 +90,10 @@ class LlmPromptsTest {
             enRules += rules(enBlocks.get(i));
         }
         // 59 regles : 33 (generation-v2 et READINESS : 29 + 4 regles de taille du niveau Feature) + 20 (generation-v3 :
-        // le prompt 1 sans ses 4 regles de sous-taches) + 6 (tasks-v1) + 6 (test-cases-v1)
-        assertEquals(65, frRules);
-        assertEquals(65, enRules);
+        // le prompt 1 sans ses 4 regles de sous-taches) + 6 (tasks-v1) + 7 (test-cases-v1, dont la regle conditionnelle
+        // de la precision du PO)
+        assertEquals(66, frRules);
+        assertEquals(66, enRules);
     }
 
     @Test
@@ -103,6 +106,21 @@ class LlmPromptsTest {
             assertTrue(analysis.contains("\"tasks\""), "generation-v2 unchanged");
             assertTrue(stories.contains("SPEC") && stories.contains("aiReadyReason"), "READINESS and document kept");
             assertFalse(stories.contains("estimatedHours"));
+        }
+    }
+
+    @Test
+    @DisplayName("Prompt 5 with a PO clarification (createTasks): the precision rule is kept, the clarification is story data")
+    void testCasesWithClarification() {
+        for (Language language : List.of(Language.FR, Language.EN)) {
+            String with = LlmPrompts.testCases(List.of(story()), java.util.Arrays.asList("e-mail uniquement"), List.of("s1"), language);
+            String without = LlmPrompts.testCases(List.of(story()), List.of("s1"), language);
+            String key = language.isFrench() ? "precisionDuPO" : "poClarification";
+            assertTrue(with.contains("\"" + key + "\" : \"e-mail uniquement\""), with);
+            assertTrue(with.contains("- " + (language.isFrench() ? "La précision du PO" : "The PO's clarification")), with);
+            assertFalse(with.contains(LlmPrompts.IF_PRECISION));
+            assertFalse(without.contains(key) || without.contains(LlmPrompts.IF_PRECISION), without);
+            assertFalse(without.contains(language.isFrench() ? "La précision du PO" : "The PO's clarification"));
         }
     }
 
@@ -168,7 +186,9 @@ class LlmPromptsTest {
         String tasks = LlmPrompts.tasks(List.of(story()), java.util.Collections.singletonList(null), List.of("s1"), language);
         assertEquals(b.get(6).replace("{{STORIES_JSON}}", storiesJson(tasks, header)).replace("{{LANGUAGE}}", name), tasks);
         String testCases = LlmPrompts.testCases(List.of(story()), List.of("s1"), language);
-        assertEquals(b.get(7).replace("{{STORIES_JSON}}", storiesJson(testCases, header)).replace("{{LANGUAGE}}", name),
+        // Sans precision (la chaine) : la ligne conditionnelle est retiree, texte mesure en C2
+        String withoutPrecision = b.get(7).replaceAll("(?m)^" + java.util.regex.Pattern.quote(LlmPrompts.IF_PRECISION) + ".*\\R", "");
+        assertEquals(withoutPrecision.replace("{{STORIES_JSON}}", storiesJson(testCases, header)).replace("{{LANGUAGE}}", name),
                 testCases);
     }
 

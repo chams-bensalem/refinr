@@ -665,6 +665,13 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
   (à décider plus tard). Cas de test du client sur `create-jira` : **couverture contrôlée** pour une story qui en a
   (1 à 3 par critère, sinon `400` qui nomme la story par sa position et les critères) ; story sans cas : pas de
   section. Description réécrite par l'éditeur OpenProject : vérifiée pendant l'essai réel.
+- **Essai réel de C2** : description réécrite par l'éditeur OpenProject (puces `*   `, lignes indentées vides, entités
+  `&#x27;`, espaces en fin de ligne, texte après les labels) : lecture des critères et de la ligne de verdict tolérante,
+  entités décodées avant l'envoi au modèle (prompts 4 et 5) ; la section est insérée avant la ligne de verdict, le
+  reste (note du PO comprise) intact. Jira (ADF modifié dans l'interface) : même lecture, testée. **Prompt 5 et
+  précision du PO** : sur le chemin `createTasks`, le prompt 5 reçoit la même précision que le prompt 4, comme une
+  donnée de la story ; une ligne conditionnelle du prompt (« la précision fait partie de la story : elle peut apporter
+  des règles et des valeurs ») n'est gardée que dans ce cas, le texte de la chaîne mesurée en C2 reste identique.
 - **Raison de `validate-story`** avec ses accents et en anglais selon la langue ; une `language` invalide donne `400`
   (changement de comportement accepté par le mainteneur, signalé dans le CHANGELOG et la PR).
 - Lots de 10 stories, logique commune au prompt 4 (`LlmStoryBatches`). Mesure : `eval/generation/results/2026-11-23-c2-summary.md`.

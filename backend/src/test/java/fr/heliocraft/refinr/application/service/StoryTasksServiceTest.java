@@ -88,7 +88,7 @@ class StoryTasksServiceTest {
     @DisplayName("C2: after its sub-tasks, the story's test cases are written into its description (criteria read back from it)")
     void testCasesWritten() {
         when(tracker.findStory("PROJ-7")).thenReturn(written(List.of("PROJ-8"), ""));
-        when(testCaseGenerator.generateTestCases(anyList(), any())).thenReturn(List.of(List.of(tc("AC1"))));
+        when(testCaseGenerator.generateTestCases(anyList(), anyList(), any())).thenReturn(List.of(List.of(tc("AC1"))));
         when(tracker.insertTestCases(eq("PROJ-7"), any())).thenReturn(true);
 
         StoryTasksResult result = withTestCases.generate("PROJ-7", null, Language.EN);
@@ -98,7 +98,7 @@ class StoryTasksServiceTest {
         verifyNoInteractions(generator);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<Story>> input = ArgumentCaptor.forClass(List.class);
-        verify(testCaseGenerator).generateTestCases(input.capture(), eq(Language.EN));
+        verify(testCaseGenerator).generateTestCases(input.capture(), anyList(), eq(Language.EN));
         assertEquals(List.of("Given paid orders, When I export, Then a CSV is downloaded"),
                 input.getValue().getFirst().getAcceptanceCriteria());
         ArgumentCaptor<String> section = ArgumentCaptor.forClass(String.class);
@@ -112,7 +112,7 @@ class StoryTasksServiceTest {
         when(tracker.findStory("PROJ-7")).thenReturn(written(List.of(), ""));
         when(generator.generateTasks(anyList(), anyList(), any())).thenReturn(List.of(List.of(task("API"))));
         when(tracker.createSubtask(any(), eq("PROJ-7"), any())).thenReturn("PROJ-8");
-        when(testCaseGenerator.generateTestCases(anyList(), any())).thenReturn(List.of(List.of(tc("AC1"))));
+        when(testCaseGenerator.generateTestCases(anyList(), anyList(), any())).thenReturn(List.of(List.of(tc("AC1"))));
         when(tracker.insertTestCases(eq("PROJ-7"), any())).thenThrow(new IllegalStateException("connection reset"));
 
         StoryTasksResult result = withTestCases.generate("PROJ-7", null, null);
@@ -122,10 +122,52 @@ class StoryTasksServiceTest {
     }
 
     @Test
+    @DisplayName("C2 real trial: editor-rewritten description -> decoded criteria and text sent to prompts 4 and 5, never &#x27;")
+    void editorRewrittenDescriptionIsDecoded() {
+        when(tracker.findStory("352")).thenReturn(new TrackedStory("352", "Consulter l&#x27;occupation",
+                fr.heliocraft.refinr.TrackerFixtures.OPENPROJECT_EDITED, List.of(ReadinessPolicy.LABEL_AI_READY),
+                null, "3", List.of()));
+        when(generator.generateTasks(anyList(), anyList(), any())).thenReturn(List.of(List.of(task("API"))));
+        when(tracker.createSubtask(any(), eq("352"), any())).thenReturn("353");
+        when(testCaseGenerator.generateTestCases(anyList(), anyList(), any())).thenReturn(List.of(List.of(tc("AC1"), tc("AC2"))));
+        when(tracker.insertTestCases(eq("352"), any())).thenReturn(true);
+
+        StoryTasksResult result = withTestCases.generate("352", "Affichage par semaine", Language.FR);
+
+        assertEquals(2, result.testCases());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Story>> toPrompt5 = ArgumentCaptor.forClass(List.class);
+        verify(testCaseGenerator).generateTestCases(toPrompt5.capture(), eq(Arrays.asList("Affichage par semaine")), eq(Language.FR));
+        Story sent = toPrompt5.getValue().getFirst();
+        assertEquals("Consulter l'occupation", sent.getTitle());
+        assertTrue(sent.getAcceptanceCriteria().getFirst().contains("l'occupation des salles"));
+        assertFalse(sent.getDescription().contains("&#x27;") || sent.getAcceptanceCriteria().toString().contains("&#x27;"));
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Story>> toPrompt4 = ArgumentCaptor.forClass(List.class);
+        verify(generator).generateTasks(toPrompt4.capture(), anyList(), any());
+        assertFalse(toPrompt4.getValue().getFirst().getDescription().contains("&#x27;"));
+    }
+
+    @Test
+    @DisplayName("C2 real trial: on the createTasks path, prompt 5 receives the same PO clarification as prompt 4")
+    void clarificationReachesPrompt5() {
+        when(tracker.findStory("PROJ-7")).thenReturn(written(List.of(), ""));
+        when(generator.generateTasks(anyList(), anyList(), any())).thenReturn(List.of(List.of(task("API"))));
+        when(tracker.createSubtask(any(), eq("PROJ-7"), any())).thenReturn("PROJ-8");
+        when(testCaseGenerator.generateTestCases(anyList(), anyList(), any())).thenReturn(List.of(List.of(tc("AC1"))));
+        when(tracker.insertTestCases(eq("PROJ-7"), any())).thenReturn(true);
+
+        withTestCases.afterVerdict("PROJ-7", "e-mail uniquement", new Readiness(true, "ok"), null);
+
+        verify(generator).generateTasks(anyList(), eq(Arrays.asList("e-mail uniquement")), any());
+        verify(testCaseGenerator).generateTestCases(anyList(), eq(Arrays.asList("e-mail uniquement")), any());
+    }
+
+    @Test
     @DisplayName("C2: coverage not compliant after the repair -> testCasesError naming the criteria, nothing written")
     void nonCompliantCoverage() {
         when(tracker.findStory("PROJ-7")).thenReturn(written(List.of("PROJ-8"), ""));
-        when(testCaseGenerator.generateTestCases(anyList(), any())).thenReturn(List.of(List.of(tc("AC1"), tc("AC5"))));
+        when(testCaseGenerator.generateTestCases(anyList(), anyList(), any())).thenReturn(List.of(List.of(tc("AC1"), tc("AC5"))));
 
         StoryTasksResult result = withTestCases.generate("PROJ-7", null, null);
 
@@ -151,7 +193,7 @@ class StoryTasksServiceTest {
         when(tracker.findStory("PROJ-7")).thenReturn(written(List.of(), ""));
         when(generator.generateTasks(anyList(), anyList(), any())).thenReturn(List.of(List.of(task("API"))));
         when(tracker.createSubtask(any(), eq("PROJ-7"), any())).thenReturn("PROJ-8");
-        when(testCaseGenerator.generateTestCases(anyList(), any()))
+        when(testCaseGenerator.generateTestCases(anyList(), anyList(), any()))
                 .thenThrow(new LlmException(LlmException.Reason.UNAVAILABLE, "down"));
 
         StoryTasksResult failed = withTestCases.generate("PROJ-7", null, null);
@@ -160,7 +202,7 @@ class StoryTasksServiceTest {
 
         reset(testCaseGenerator);
         when(tracker.findStory("PROJ-7")).thenReturn(written(List.of("PROJ-8"), ""));
-        when(testCaseGenerator.generateTestCases(anyList(), any())).thenReturn(List.of(List.of(tc("AC1"))));
+        when(testCaseGenerator.generateTestCases(anyList(), anyList(), any())).thenReturn(List.of(List.of(tc("AC1"))));
         when(tracker.insertTestCases(eq("PROJ-7"), any())).thenThrow(new IssueTrackerException(IssueTrackerPort.TEST_CASES_TOO_LONG));
         assertEquals(IssueTrackerPort.TEST_CASES_TOO_LONG, withTestCases.generate("PROJ-7", null, null).testCasesError());
     }

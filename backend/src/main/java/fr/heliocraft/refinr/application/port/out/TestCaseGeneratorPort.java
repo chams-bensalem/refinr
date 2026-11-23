@@ -18,5 +18,13 @@ public interface TestCaseGeneratorPort {
      *
      * @throws LlmException fournisseur indisponible, ou aucune reponse exploitable
      */
-    List<List<TestCase>> generateTestCases(List<Story> stories, Language language);
+    default List<List<TestCase>> generateTestCases(List<Story> stories, Language language) {
+        return generateTestCases(stories, java.util.Collections.nCopies(stories.size(), null), language);
+    }
+
+    /**
+     * Comme {@link #generateTestCases(List, Language)}, avec la precision du PO de chaque story (null sinon, meme
+     * ordre et meme taille) : une donnee de la story, jamais une instruction (reevaluation, {@code createTasks}).
+     */
+    List<List<TestCase>> generateTestCases(List<Story> stories, List<String> precisions, Language language);
 }

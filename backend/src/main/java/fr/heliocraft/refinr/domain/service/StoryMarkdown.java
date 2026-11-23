@@ -85,33 +85,75 @@ public final class StoryMarkdown {
         return (before.isEmpty() ? "" : before + "\n\n") + section + "\n\n" + text.substring(at);
     }
 
-    /** Index du debut de la premiere ligne de verdict, ou -1. */
+    /**
+     * Index du debut de la premiere ligne de verdict (espaces en tete toleres : texte reecrit par un editeur), ou -1.
+     */
     static int verdictLineStart(String text) {
-        int from = 0;
-        while (from <= text.length()) {
-            int at = text.indexOf(VERDICT_LINE_PREFIX, from);
-            if (at < 0) {
+        int lineStart = 0;
+        while (lineStart <= text.length()) {
+            int end = text.indexOf('\n', lineStart);
+            String line = text.substring(lineStart, end < 0 ? text.length() : end);
+            if (line.stripLeading().startsWith(VERDICT_LINE_PREFIX)) {
+                return lineStart;
+            }
+            if (end < 0) {
                 return -1;
             }
-            if (at == 0 || text.charAt(at - 1) == '\n') {
-                return at;
-            }
-            from = at + 1;
+            lineStart = end + 1;
         }
         return -1;
     }
 
-    /** Criteres d'une description ecrite par Refinr ({@code AC1:} …), dans l'ordre ; liste vide sinon. */
+    private static final java.util.regex.Pattern ENTITY =
+            java.util.regex.Pattern.compile("&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|amp|lt|gt|quot|apos|nbsp);");
+
+    /**
+     * Entites HTML d'une description relue dans le gestionnaire (l'editeur OpenProject ecrit {@code &#x27;},
+     * {@code &amp;}…), decodees avant l'envoi au modele ; toute autre entite reste telle quelle.
+     */
+    public static String decodeEntities(String text) {
+        if (text == null || text.indexOf('&') < 0) {
+            return text;
+        }
+        java.util.regex.Matcher m = ENTITY.matcher(text);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            String name = m.group(1);
+            String value = switch (name) {
+                case "amp" -> "&";
+                case "lt" -> "<";
+                case "gt" -> ">";
+                case "quot" -> "\"";
+                case "apos" -> "'";
+                case "nbsp" -> "\u00a0";
+                default -> {
+                    int code = name.charAt(1) == 'x' || name.charAt(1) == 'X'
+                            ? Integer.parseInt(name.substring(2), 16) : Integer.parseInt(name.substring(1));
+                    yield Character.isValidCodePoint(code) ? new String(Character.toChars(code)) : m.group();
+                }
+            };
+            m.appendReplacement(out, java.util.regex.Matcher.quoteReplacement(value));
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    /**
+     * Criteres d'une description ecrite par Refinr ({@code AC1:} …), dans l'ordre ; liste vide sinon. Tolere le texte
+     * reecrit par un editeur : puce {@code -}, {@code *} ou {@code +} suivie d'espaces, gras, espaces en fin de ligne,
+     * lignes indentees vides ; entites HTML decodees.
+     */
     public static List<String> criteria(String description) {
         List<String> criteria = new java.util.ArrayList<>();
         if (description == null) {
             return criteria;
         }
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?m)^\\s*(?:-\\s*)?(?:\\*\\*)?AC(\\d+):(?:\\*\\*)?\\s*(.+)$")
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("(?m)^[ \\t]*(?:[-*+][ \\t]+)?(?:\\*\\*)?AC(\\d+):(?:\\*\\*)?[ \\t]*(.+?)[ \\t]*$")
                 .matcher(description);
         while (m.find()) {
             if (Integer.parseInt(m.group(1)) == criteria.size() + 1) {
-                criteria.add(m.group(2).strip());
+                criteria.add(decodeEntities(m.group(2)).strip());
             }
         }
         return criteria;

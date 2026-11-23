@@ -88,7 +88,7 @@ public class StoryTasksService implements GenerateStoryTasks {
             Language language = languagePolicy.resolve(requested, story.summary() + "\n" + story.description());
             StoryTasksResult result = story.subtaskKeys().isEmpty() ? createTasks(story, precision, language)
                     : skipTasks(story);
-            return testCases == null ? result : withTestCases(story, result, language);
+            return testCases == null ? result : withTestCases(story, precision, result, language);
         } finally {
             locks.unlock(key);
         }
@@ -102,8 +102,8 @@ public class StoryTasksService implements GenerateStoryTasks {
     private StoryTasksResult createTasks(TrackedStory story, String precision, Language language) {
         String storyKey = story.key();
         Story input = new Story();
-        input.setTitle(story.summary());
-        input.setDescription(story.description());
+        input.setTitle(StoryMarkdown.decodeEntities(story.summary()));
+        input.setDescription(StoryMarkdown.decodeEntities(story.description()));
         List<List<Task>> answer = LlmFailures.translate(() -> taskGenerator.generateTasks(List.of(input),
                 Collections.singletonList(precision), language));
         List<Task> tasks = answer.isEmpty() ? null : answer.getFirst();
@@ -138,7 +138,7 @@ public class StoryTasksService implements GenerateStoryTasks {
      * Chaine C2 : cas de test de la story, ecrits dans sa description (meme place qu'a la creation). Idempotent par le
      * titre de section ; une erreur ici est rendue dans le resultat, sans annuler les sous-taches deja creees.
      */
-    private StoryTasksResult withTestCases(TrackedStory story, StoryTasksResult result, Language language) {
+    private StoryTasksResult withTestCases(TrackedStory story, String precision, StoryTasksResult result, Language language) {
         if (StoryMarkdown.hasTestCases(story.description())) {
             return result.withTestCases(null, true, null);
         }
@@ -147,12 +147,15 @@ public class StoryTasksService implements GenerateStoryTasks {
             return result.withTestCases(null, false, NO_CRITERIA);
         }
         Story input = new Story();
-        input.setTitle(story.summary());
-        input.setDescription(story.description());
+        // Texte relu dans le gestionnaire : entites HTML de l'editeur decodees avant l'envoi au modele
+        input.setTitle(StoryMarkdown.decodeEntities(story.summary()));
+        input.setDescription(StoryMarkdown.decodeEntities(story.description()));
         input.setAcceptanceCriteria(criteria);
         List<TestCase> valid;
         try {
-            List<List<TestCase>> answer = LlmFailures.translate(() -> testCases.generateTestCases(List.of(input), language));
+            // Meme precision que le prompt 4 (createTasks) : une donnee de la story, jamais une instruction
+            List<List<TestCase>> answer = LlmFailures.translate(() -> testCases.generateTestCases(List.of(input),
+                    Collections.singletonList(precision), language));
             List<TestCase> found = answer.isEmpty() ? null : answer.getFirst();
             if (found == null || found.isEmpty()) {
                 return result.withTestCases(null, false, NO_VALID_TEST_CASE);
