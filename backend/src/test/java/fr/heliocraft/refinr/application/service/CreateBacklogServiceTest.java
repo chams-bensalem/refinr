@@ -382,4 +382,41 @@ class CreateBacklogServiceTest {
         assertTrue(tracker.storyLabels.get("S1").contains("feature-a"));
         assertEquals(List.of(FeatureLevels.LABELS_WARNING), result.warnings());
     }
+
+    @Test
+    @DisplayName("Policy refuse with an unknown level (tracker down at first): never a 422; the level is read again after the first epic")
+    void unknownLevelIsNeverRefused() {
+        RecordingTracker tracker = new RecordingTracker() {
+            private int reads;
+
+            @Override
+            public FeatureLevel featureLevel(String project) {
+                if (reads++ == 0) {
+                    throw new IllegalStateException("tracker down");
+                }
+                return FeatureLevel.OPTIONAL;
+            }
+        };
+
+        BacklogCreationResult result = new CreateBacklogService(tracker, FeatureLevels.Policy.REFUSE).create(List.of(
+                epicWith("E", feature("A", story("S1")), feature("B", story("S2")))), null);
+
+        assertEquals(List.of("epic E project=null", "feature A parent=PROJ-1 project=null",
+                "story S1 parent=PROJ-2 project=null", "feature B parent=PROJ-1 project=null",
+                "story S2 parent=PROJ-4 project=null"), tracker.calls);
+        assertTrue(result.warnings().isEmpty());
+    }
+
+    @Test
+    @DisplayName("Policy refuse with a level still unknown after the first epic: labels and the labels warning, never the refusal one")
+    void stillUnknownGivesLabels() {
+        RecordingTracker tracker = new RecordingTracker();
+        tracker.level = null;
+
+        BacklogCreationResult result = new CreateBacklogService(tracker, FeatureLevels.Policy.REFUSE).create(List.of(
+                epicWith("E", feature("A", story("S1")), feature("B", story("S2")))), null);
+
+        assertTrue(tracker.storyLabels.get("S1").contains("feature-a"));
+        assertEquals(List.of(FeatureLevels.LABELS_WARNING), result.warnings());
+    }
 }

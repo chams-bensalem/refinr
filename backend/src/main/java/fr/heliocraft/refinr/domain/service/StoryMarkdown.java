@@ -35,12 +35,20 @@ public final class StoryMarkdown {
         return "AI readiness (" + ReadinessPolicy.verdictLabel(readiness.aiReady()) + "): " + justification;
     }
 
+    private static void appendLine(StringBuilder sb, String label, String value) {
+        if (value != null && !value.isBlank()) {
+            sb.append(label).append(value).append("\n");
+        }
+    }
+
     private static String userStory(Story story) {
         StringBuilder sb = new StringBuilder();
 
-        sb.append("**As a** ").append(story.getAsA()).append("\n");
-        sb.append("**I want** ").append(story.getIWant()).append("\n");
-        sb.append("**So that** ").append(story.getSoThat()).append("\n\n");
+        // Ligne absente ou vide (le modele n'a pas de valeur) : pas ecrite
+        appendLine(sb, "**As a** ", story.getAsA());
+        appendLine(sb, "**I want** ", story.getIWant());
+        appendLine(sb, "**So that** ", story.getSoThat());
+        sb.append("\n");
 
         if (story.getDescription() != null && !story.getDescription().isEmpty()) {
             sb.append("### Description\n\n");

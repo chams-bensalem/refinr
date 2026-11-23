@@ -89,4 +89,22 @@ class GeneratedBacklogMapperTest {
         assertTrue(epic.hasImplicitFeature());
         assertEquals("Export orders", epic.getStories().getFirst().getTitle());
     }
+
+    @Test
+    @DisplayName("An estimate of 0 (all-required schema at Anthropic) means not estimated: never sent as 0 points or hours")
+    void zeroEstimateIsNotEstimated() {
+        GeneratedTask task = new GeneratedTask();
+        task.setTitle("T");
+        task.setEstimatedHours(0);
+        GeneratedStory story = generatedStory("S");
+        story.setEstimatedStoryPoints(0);
+        story.setTasks(List.of(task));
+
+        Story mapped = GeneratedBacklogMapper.toDomain(story);
+
+        assertNull(mapped.getEstimatedStoryPoints());
+        assertNull(mapped.getTasks().getFirst().getEstimatedHours());
+        story.setEstimatedStoryPoints(5);
+        assertEquals(5, GeneratedBacklogMapper.toDomain(story).getEstimatedStoryPoints());
+    }
 }

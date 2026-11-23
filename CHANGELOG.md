@@ -42,6 +42,10 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 - **Prompt de génération `generation-v2`** (fr et en) : niveau Feature, règles de taille revues ; le backlog généré
   change de forme. Le bloc READINESS et le prompt de verdict ne changent pas (`verdict-v3.2`, la mesure E0 reste
   valable).
+- Estimation générée à `0` (story points, heures) : traitée comme « non estimée », jamais envoyée comme 0 au
+  gestionnaire ; lignes vides du récit (*As a*, *I want*, *So that*) non écrites dans la description (elles affichaient
+  `null` quand la valeur manquait). Schéma envoyé à Anthropic : toutes les propriétés obligatoires (« Schema is too
+  complex » sinon), valeurs vides permises.
 
 ## [1.4.0] - 2026-11-22
 
