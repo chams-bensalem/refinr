@@ -1,0 +1,364 @@
+{
+  "epics" : [ {
+    "description" : "Outil de réservation en libre-service des 12 salles de réunion du siège, utilisé par environ 400 salariés, en remplacement de la réservation par e-mail auprès de l'accueil. Couvre la réservation, les notifications, l'administration des salles et l'intégration avec l'agenda Outlook.",
+    "features" : [ {
+      "description" : "Consultation du planning des salles par journée et réservation, annulation et libération automatique des salles.",
+      "labels" : [ "backend", "frontend", "api", "database" ],
+      "name" : "Réservation",
+      "priority" : "High",
+      "stories" : [ {
+        "acceptanceCriteria" : [ "Given un salarié connecté, When il ouvre le planning d'une journée, Then les 12 salles sont affichées avec leurs réservations par tranches de 30 minutes.", "Given une journée sans réservation, When le planning est affiché, Then toutes les tranches de toutes les salles apparaissent comme libres." ],
+        "aiReady" : true,
+        "aiReadyReason" : "Les 12 salles, les réservations affichées par tranches de 30 minutes et le cas d'une journée sans réservation sont définis et vérifiables ; le détail d'affichage relève de l'implémentation.",
+        "aiReadySource" : "MODEL",
+        "asA" : "salarié connecté",
+        "dependencies" : [ ],
+        "description" : "Affiche les 12 salles et leurs réservations pour une journée choisie, par tranches de 30 minutes. Le détail d'affichage (couleurs, navigation entre les jours) n'est pas précisé et relève de l'implémentation.",
+        "epicTrackerKey" : null,
+        "estimatedStoryPoints" : 3,
+        "iWant" : "consulter le planning des 12 salles sur une journée, par tranches de 30 minutes",
+        "labels" : [ "frontend", "api", "backend" ],
+        "priority" : "High",
+        "soThat" : "repérer les salles libres sans passer par l'accueil",
+        "tasks" : [ {
+          "description" : "Mettre en place le stockage des réservations avec leur salle, leur heure de début et leur heure de fin, et fournir la lecture des réservations d'une journée donnée pour les 12 salles. Résultat attendu : la liste des réservations d'un jour est récupérable pour l'ensemble des salles.",
+          "estimatedHours" : 4,
+          "labels" : [ "database", "backend" ],
+          "parentTrackerKey" : null,
+          "title" : "Modéliser et lire les réservations d'une journée",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Calculer, à partir des réservations, l'état de chaque tranche de 30 minutes des 12 salles pour une journée (occupée ou libre) et le restituer au client. Résultat attendu : pour une journée sans réservation, toutes les tranches de toutes les salles sont libres.",
+          "estimatedHours" : 3,
+          "labels" : [ "backend", "api" ],
+          "parentTrackerKey" : null,
+          "title" : "Exposer le planning journalier par tranches de 30 minutes",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Construire la vue qui affiche les 12 salles et leurs tranches de 30 minutes pour la journée choisie, accessible uniquement à un salarié connecté. Résultat attendu : le planning s'affiche avec les réservations existantes et les tranches libres.",
+          "estimatedHours" : 4,
+          "labels" : [ "frontend" ],
+          "parentTrackerKey" : null,
+          "title" : "Afficher le planning des salles pour un salarié connecté",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Écrire des tests qui vérifient que les 12 salles et leurs tranches de 30 minutes sont affichées avec les réservations, et que toutes les tranches sont libres pour une journée sans réservation. Résultat attendu : les deux critères d'acceptation sont couverts par des tests passants.",
+          "estimatedHours" : 2,
+          "labels" : [ "test" ],
+          "parentTrackerKey" : null,
+          "title" : "Tester l'affichage du planning",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        } ],
+        "title" : "Consulter le planning des salles d'une journée",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "acceptanceCriteria" : [ "Given une salle libre sur un créneau d'une heure dans les 30 jours, When le salarié confirme la réservation, Then la réservation est enregistrée et apparaît au planning de la salle.", "Given une durée de 15 minutes, When le salarié soumet la réservation, Then la réservation est refusée.", "Given une date située à plus de 30 jours, When le salarié soumet la réservation, Then la réservation est refusée.", "Given un créneau qui chevauche une réservation existante de la même salle, When le salarié soumet la réservation, Then la réservation est refusée et la réservation existante reste inchangée." ],
+        "aiReady" : true,
+        "aiReadyReason" : "Les règles de durée (30 min à 4 h), d'anticipation (30 jours) et d'absence de chevauchement sont définies et chaque critère est vérifiable ; les cas limites de bornes relèvent du développeur.",
+        "aiReadySource" : "MODEL",
+        "asA" : "salarié connecté",
+        "dependencies" : [ "Consulter le planning des salles d'une journée" ],
+        "description" : "Le salarié choisit une salle libre et un créneau. Règles : durée comprise entre 30 minutes et 4 heures, réservation au plus 30 jours à l'avance, aucun chevauchement avec une réservation existante de la même salle.",
+        "epicTrackerKey" : null,
+        "estimatedStoryPoints" : 5,
+        "iWant" : "réserver une salle libre pour une durée de 30 minutes à 4 heures, au plus 30 jours à l'avance",
+        "labels" : [ "backend", "frontend", "api", "database" ],
+        "priority" : "High",
+        "soThat" : "tenir une réunion sans passer par l'accueil",
+        "tasks" : [ {
+          "description" : "Implémenter côté serveur la vérification que la durée est comprise entre 30 minutes et 4 heures et que la date ne dépasse pas 30 jours à l'avance. Résultat attendu : une demande hors règles est refusée avec un motif explicite.",
+          "estimatedHours" : 3,
+          "labels" : [ "backend" ],
+          "parentTrackerKey" : null,
+          "title" : "Valider les règles de durée et d'anticipation de la réservation",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Vérifier, au moment de l'enregistrement, qu'aucune réservation existante de la même salle ne chevauche le créneau demandé, et garantir cette règle même lors de demandes simultanées. Résultat attendu : un chevauchement est refusé sans modifier la réservation existante.",
+          "estimatedHours" : 4,
+          "labels" : [ "backend", "database" ],
+          "parentTrackerKey" : null,
+          "title" : "Empêcher le chevauchement avec une réservation existante",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Permettre au salarié de choisir une salle libre et un créneau, de soumettre la réservation et d'afficher le résultat (confirmation ou refus). Résultat attendu : une réservation confirmée apparaît ensuite au planning de la salle.",
+          "estimatedHours" : 4,
+          "labels" : [ "frontend", "api" ],
+          "parentTrackerKey" : null,
+          "title" : "Ajouter le formulaire de réservation d'une salle libre",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Écrire des tests couvrant une réservation valide d'une heure dans les 30 jours, les refus pour une durée de 15 minutes, pour une date au-delà de 30 jours et pour un chevauchement, avec vérification que la réservation existante reste inchangée. Résultat attendu : les quatre critères d'acceptation sont couverts par des tests passants.",
+          "estimatedHours" : 3,
+          "labels" : [ "test" ],
+          "parentTrackerKey" : null,
+          "title" : "Tester les règles de réservation",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        } ],
+        "title" : "Réserver une salle libre",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "acceptanceCriteria" : [ "Given une réservation dont le début n'est pas encore passé et dont je suis l'auteur, When je l'annule, Then elle disparaît du planning et la salle redevient libre sur ce créneau.", "Given une réservation dont le début est passé, When je tente de l'annuler, Then l'annulation est refusée.", "Given une réservation d'un autre salarié, When je tente de l'annuler, Then l'annulation est refusée." ],
+        "aiReady" : true,
+        "aiReadyReason" : "La règle est claire : seul l'auteur peut annuler, et uniquement avant l'heure de début, avec des critères cohérents et vérifiables.",
+        "aiReadySource" : "MODEL",
+        "asA" : "salarié connecté",
+        "dependencies" : [ "Réserver une salle libre" ],
+        "description" : "Un salarié peut annuler uniquement ses propres réservations, et seulement avant leur heure de début.",
+        "epicTrackerKey" : null,
+        "estimatedStoryPoints" : 2,
+        "iWant" : "annuler ma propre réservation tant qu'elle n'a pas commencé",
+        "labels" : [ "backend", "frontend", "api" ],
+        "priority" : "Medium",
+        "soThat" : "libérer la salle pour les autres",
+        "tasks" : [ {
+          "description" : "Implémenter côté serveur la vérification que la réservation appartient au salarié demandeur et que son heure de début n'est pas encore passée, avant de la supprimer. Résultat attendu : l'annulation d'une réservation d'un autre salarié ou déjà commencée est refusée.",
+          "estimatedHours" : 3,
+          "labels" : [ "backend", "security" ],
+          "parentTrackerKey" : null,
+          "title" : "Contrôler l'auteur et l'heure de début avant annulation",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Retirer la réservation annulée du stockage afin que la salle redevienne libre sur ce créneau dans le planning. Résultat attendu : après annulation, la réservation n'apparaît plus et le créneau est libre.",
+          "estimatedHours" : 2,
+          "labels" : [ "database", "backend" ],
+          "parentTrackerKey" : null,
+          "title" : "Supprimer la réservation et libérer le créneau",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Écrire des tests couvrant l'annulation d'une réservation future dont le salarié est l'auteur, le refus pour une réservation dont le début est passé et le refus pour une réservation d'un autre salarié. Résultat attendu : les trois critères d'acceptation sont couverts par des tests passants.",
+          "estimatedHours" : 2,
+          "labels" : [ "test" ],
+          "parentTrackerKey" : null,
+          "title" : "Tester les règles d'annulation",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        } ],
+        "title" : "Annuler sa propre réservation avant son début",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "acceptanceCriteria" : [ "Given une réservation commencée depuis plus de 15 minutes sans check-in, When le délai expire, Then la réservation est libérée et la salle redevient libre sur ce créneau.", "Given une réservation confirmée par check-in dans les 15 minutes suivant son début, When le délai expire, Then la réservation n'est pas libérée." ],
+        "aiReady" : false,
+        "aiReadyReason" : "Le mode de check-in (action du salarié, moyen, lieu) n'est pas défini alors qu'il conditionne la libération automatique ; quelle action précise le salarié doit-il effectuer pour que la réservation soit considérée comme confirmée ?",
+        "aiReadySource" : "MODEL",
+        "asA" : "salarié connecté",
+        "dependencies" : [ "Réserver une salle libre" ],
+        "description" : "Une réservation non confirmée (check-in) dans les 15 minutes suivant son début est libérée automatiquement. Le mode de check-in (action du salarié, moyen, lieu) n'est pas décrit dans la spécification.",
+        "epicTrackerKey" : null,
+        "estimatedStoryPoints" : 5,
+        "iWant" : "que ma réservation soit libérée automatiquement si je ne la confirme pas par un check-in dans les 15 minutes suivant son début",
+        "labels" : [ "backend", "database", "test" ],
+        "priority" : "High",
+        "soThat" : "la salle ne reste pas bloquée inutilement",
+        "tasks" : [ ],
+        "title" : "Libérer automatiquement une réservation sans check-in",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "description" : "Information du salarié sur sa réservation et sur sa libération automatique. Le canal de notification reste à choisir.",
+      "labels" : [ "integration", "backend", "api" ],
+      "name" : "Notifications",
+      "priority" : "Medium",
+      "stories" : [ ],
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "description" : "Gestion de la liste des salles (nom, capacité, équipements) par le gestionnaire et tableau de bord d'occupation des salles.",
+      "labels" : [ "backend", "frontend", "api", "database", "security" ],
+      "name" : "Administration",
+      "priority" : "Medium",
+      "stories" : [ ],
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "description" : "Visibilité des réservations dans l'agenda Outlook des salariés.",
+      "labels" : [ "integration", "api", "security" ],
+      "name" : "Intégration",
+      "priority" : "Low",
+      "stories" : [ ],
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "labels" : [ "backend", "frontend", "api", "database", "integration" ],
+    "name" : "Réservation de salles de réunion",
+    "priority" : "High",
+    "stories" : [ {
+      "acceptanceCriteria" : [ "Given un salarié connecté, When il ouvre le planning d'une journée, Then les 12 salles sont affichées avec leurs réservations par tranches de 30 minutes.", "Given une journée sans réservation, When le planning est affiché, Then toutes les tranches de toutes les salles apparaissent comme libres." ],
+      "aiReady" : true,
+      "aiReadyReason" : "Les 12 salles, les réservations affichées par tranches de 30 minutes et le cas d'une journée sans réservation sont définis et vérifiables ; le détail d'affichage relève de l'implémentation.",
+      "aiReadySource" : "MODEL",
+      "asA" : "salarié connecté",
+      "dependencies" : [ ],
+      "description" : "Affiche les 12 salles et leurs réservations pour une journée choisie, par tranches de 30 minutes. Le détail d'affichage (couleurs, navigation entre les jours) n'est pas précisé et relève de l'implémentation.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 3,
+      "iWant" : "consulter le planning des 12 salles sur une journée, par tranches de 30 minutes",
+      "labels" : [ "frontend", "api", "backend" ],
+      "priority" : "High",
+      "soThat" : "repérer les salles libres sans passer par l'accueil",
+      "tasks" : [ {
+        "description" : "Mettre en place le stockage des réservations avec leur salle, leur heure de début et leur heure de fin, et fournir la lecture des réservations d'une journée donnée pour les 12 salles. Résultat attendu : la liste des réservations d'un jour est récupérable pour l'ensemble des salles.",
+        "estimatedHours" : 4,
+        "labels" : [ "database", "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Modéliser et lire les réservations d'une journée",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Calculer, à partir des réservations, l'état de chaque tranche de 30 minutes des 12 salles pour une journée (occupée ou libre) et le restituer au client. Résultat attendu : pour une journée sans réservation, toutes les tranches de toutes les salles sont libres.",
+        "estimatedHours" : 3,
+        "labels" : [ "backend", "api" ],
+        "parentTrackerKey" : null,
+        "title" : "Exposer le planning journalier par tranches de 30 minutes",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Construire la vue qui affiche les 12 salles et leurs tranches de 30 minutes pour la journée choisie, accessible uniquement à un salarié connecté. Résultat attendu : le planning s'affiche avec les réservations existantes et les tranches libres.",
+        "estimatedHours" : 4,
+        "labels" : [ "frontend" ],
+        "parentTrackerKey" : null,
+        "title" : "Afficher le planning des salles pour un salarié connecté",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Écrire des tests qui vérifient que les 12 salles et leurs tranches de 30 minutes sont affichées avec les réservations, et que toutes les tranches sont libres pour une journée sans réservation. Résultat attendu : les deux critères d'acceptation sont couverts par des tests passants.",
+        "estimatedHours" : 2,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester l'affichage du planning",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Consulter le planning des salles d'une journée",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "acceptanceCriteria" : [ "Given une salle libre sur un créneau d'une heure dans les 30 jours, When le salarié confirme la réservation, Then la réservation est enregistrée et apparaît au planning de la salle.", "Given une durée de 15 minutes, When le salarié soumet la réservation, Then la réservation est refusée.", "Given une date située à plus de 30 jours, When le salarié soumet la réservation, Then la réservation est refusée.", "Given un créneau qui chevauche une réservation existante de la même salle, When le salarié soumet la réservation, Then la réservation est refusée et la réservation existante reste inchangée." ],
+      "aiReady" : true,
+      "aiReadyReason" : "Les règles de durée (30 min à 4 h), d'anticipation (30 jours) et d'absence de chevauchement sont définies et chaque critère est vérifiable ; les cas limites de bornes relèvent du développeur.",
+      "aiReadySource" : "MODEL",
+      "asA" : "salarié connecté",
+      "dependencies" : [ "Consulter le planning des salles d'une journée" ],
+      "description" : "Le salarié choisit une salle libre et un créneau. Règles : durée comprise entre 30 minutes et 4 heures, réservation au plus 30 jours à l'avance, aucun chevauchement avec une réservation existante de la même salle.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 5,
+      "iWant" : "réserver une salle libre pour une durée de 30 minutes à 4 heures, au plus 30 jours à l'avance",
+      "labels" : [ "backend", "frontend", "api", "database" ],
+      "priority" : "High",
+      "soThat" : "tenir une réunion sans passer par l'accueil",
+      "tasks" : [ {
+        "description" : "Implémenter côté serveur la vérification que la durée est comprise entre 30 minutes et 4 heures et que la date ne dépasse pas 30 jours à l'avance. Résultat attendu : une demande hors règles est refusée avec un motif explicite.",
+        "estimatedHours" : 3,
+        "labels" : [ "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Valider les règles de durée et d'anticipation de la réservation",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Vérifier, au moment de l'enregistrement, qu'aucune réservation existante de la même salle ne chevauche le créneau demandé, et garantir cette règle même lors de demandes simultanées. Résultat attendu : un chevauchement est refusé sans modifier la réservation existante.",
+        "estimatedHours" : 4,
+        "labels" : [ "backend", "database" ],
+        "parentTrackerKey" : null,
+        "title" : "Empêcher le chevauchement avec une réservation existante",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Permettre au salarié de choisir une salle libre et un créneau, de soumettre la réservation et d'afficher le résultat (confirmation ou refus). Résultat attendu : une réservation confirmée apparaît ensuite au planning de la salle.",
+        "estimatedHours" : 4,
+        "labels" : [ "frontend", "api" ],
+        "parentTrackerKey" : null,
+        "title" : "Ajouter le formulaire de réservation d'une salle libre",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Écrire des tests couvrant une réservation valide d'une heure dans les 30 jours, les refus pour une durée de 15 minutes, pour une date au-delà de 30 jours et pour un chevauchement, avec vérification que la réservation existante reste inchangée. Résultat attendu : les quatre critères d'acceptation sont couverts par des tests passants.",
+        "estimatedHours" : 3,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester les règles de réservation",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Réserver une salle libre",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "acceptanceCriteria" : [ "Given une réservation dont le début n'est pas encore passé et dont je suis l'auteur, When je l'annule, Then elle disparaît du planning et la salle redevient libre sur ce créneau.", "Given une réservation dont le début est passé, When je tente de l'annuler, Then l'annulation est refusée.", "Given une réservation d'un autre salarié, When je tente de l'annuler, Then l'annulation est refusée." ],
+      "aiReady" : true,
+      "aiReadyReason" : "La règle est claire : seul l'auteur peut annuler, et uniquement avant l'heure de début, avec des critères cohérents et vérifiables.",
+      "aiReadySource" : "MODEL",
+      "asA" : "salarié connecté",
+      "dependencies" : [ "Réserver une salle libre" ],
+      "description" : "Un salarié peut annuler uniquement ses propres réservations, et seulement avant leur heure de début.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 2,
+      "iWant" : "annuler ma propre réservation tant qu'elle n'a pas commencé",
+      "labels" : [ "backend", "frontend", "api" ],
+      "priority" : "Medium",
+      "soThat" : "libérer la salle pour les autres",
+      "tasks" : [ {
+        "description" : "Implémenter côté serveur la vérification que la réservation appartient au salarié demandeur et que son heure de début n'est pas encore passée, avant de la supprimer. Résultat attendu : l'annulation d'une réservation d'un autre salarié ou déjà commencée est refusée.",
+        "estimatedHours" : 3,
+        "labels" : [ "backend", "security" ],
+        "parentTrackerKey" : null,
+        "title" : "Contrôler l'auteur et l'heure de début avant annulation",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Retirer la réservation annulée du stockage afin que la salle redevienne libre sur ce créneau dans le planning. Résultat attendu : après annulation, la réservation n'apparaît plus et le créneau est libre.",
+        "estimatedHours" : 2,
+        "labels" : [ "database", "backend" ],
+        "parentTrackerKey" : null,
+        "title" : "Supprimer la réservation et libérer le créneau",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Écrire des tests couvrant l'annulation d'une réservation future dont le salarié est l'auteur, le refus pour une réservation dont le début est passé et le refus pour une réservation d'un autre salarié. Résultat attendu : les trois critères d'acceptation sont couverts par des tests passants.",
+        "estimatedHours" : 2,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Tester les règles d'annulation",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Annuler sa propre réservation avant son début",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    }, {
+      "acceptanceCriteria" : [ "Given une réservation commencée depuis plus de 15 minutes sans check-in, When le délai expire, Then la réservation est libérée et la salle redevient libre sur ce créneau.", "Given une réservation confirmée par check-in dans les 15 minutes suivant son début, When le délai expire, Then la réservation n'est pas libérée." ],
+      "aiReady" : false,
+      "aiReadyReason" : "Le mode de check-in (action du salarié, moyen, lieu) n'est pas défini alors qu'il conditionne la libération automatique ; quelle action précise le salarié doit-il effectuer pour que la réservation soit considérée comme confirmée ?",
+      "aiReadySource" : "MODEL",
+      "asA" : "salarié connecté",
+      "dependencies" : [ "Réserver une salle libre" ],
+      "description" : "Une réservation non confirmée (check-in) dans les 15 minutes suivant son début est libérée automatiquement. Le mode de check-in (action du salarié, moyen, lieu) n'est pas décrit dans la spécification.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 5,
+      "iWant" : "que ma réservation soit libérée automatiquement si je ne la confirme pas par un check-in dans les 15 minutes suivant son début",
+      "labels" : [ "backend", "database", "test" ],
+      "priority" : "High",
+      "soThat" : "la salle ne reste pas bloquée inutilement",
+      "tasks" : [ ],
+      "title" : "Libérer automatiquement une réservation sans check-in",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "trackerKey" : null,
+    "trackerUrl" : null
+  } ]
+}
