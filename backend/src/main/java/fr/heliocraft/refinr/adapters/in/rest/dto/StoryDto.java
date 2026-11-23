@@ -33,6 +33,18 @@ public class StoryDto {
 
     // Chaine C2 (ajout retrocompatible) : cas de test des stories pretes
     private List<TestCaseDto> testCases = new ArrayList<>();
+
+    // Cas de test non ecrits (couverture non conforme) : la raison, absente sinon ; ignoree en entree (create-jira)
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private String testCasesError;
+
+    public String getTestCasesError() {
+        return testCasesError;
+    }
+
+    public void setTestCasesError(String testCasesError) {
+        this.testCasesError = testCasesError;
+    }
     private List<String> dependencies = new ArrayList<>();
     
     // Jira fields

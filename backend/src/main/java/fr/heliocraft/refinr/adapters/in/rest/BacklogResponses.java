@@ -71,12 +71,20 @@ final class BacklogResponses {
                 .filter(s -> s != null && Boolean.TRUE.equals(s.getAiReady())
                         && (s.getTasks() == null || s.getTasks().isEmpty()))
                 .count();
+        List<String> added = new java.util.ArrayList<>();
         if (readyWithoutTasks > 0) {
+            added.add(readyWithoutTasksWarning(readyWithoutTasks));
+        }
+        // Chaine C2 : story dont les cas de test n'ont pas ete ecrits (couverture), nommee avec ses criteres
+        epics.stream().filter(java.util.Objects::nonNull).flatMap(e -> e.getStories().stream())
+                .filter(s -> s != null && s.getTestCasesError() != null)
+                .forEach(s -> added.add("story \"" + s.getTitle() + "\": " + s.getTestCasesError()));
+        if (!added.isEmpty()) {
             List<String> warnings = new java.util.ArrayList<>();
             if (body.get("warnings") instanceof List<?> existing) {
                 existing.forEach(w -> warnings.add(String.valueOf(w)));
             }
-            warnings.add(readyWithoutTasksWarning(readyWithoutTasks));
+            warnings.addAll(added);
             body.put("warnings", warnings);
         }
         return ResponseEntity.status(response.getStatusCode()).headers(response.getHeaders()).body(body);

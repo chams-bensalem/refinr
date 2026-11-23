@@ -256,6 +256,7 @@ public final class RestBacklogMapper {
         dto.setTasks(map(story.getTasks(), RestBacklogMapper::toDto));
         dto.setTestCases(map(story.getTestCases(), t -> new fr.heliocraft.refinr.adapters.in.rest.dto.TestCaseDto(
                 t.title(), t.criterion(), t.kind(), t.given(), t.when(), t.then())));
+        dto.setTestCasesError(story.getTestCasesError());
         dto.setDependencies(story.getDependencies());
         dto.setAiReady(story.getAiReady());
         dto.setAiReadyReason(story.getAiReadyReason());

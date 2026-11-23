@@ -152,13 +152,20 @@ public class StoryTasksService implements GenerateStoryTasks {
         List<TestCase> valid;
         try {
             List<List<TestCase>> answer = LlmFailures.translate(() -> testCases.generateTestCases(List.of(input), language));
-            valid = TestCasePolicy.valid(answer.isEmpty() ? null : answer.getFirst(), criteria.size());
+            List<TestCase> found = answer.isEmpty() ? null : answer.getFirst();
+            if (found == null || found.isEmpty()) {
+                return result.withTestCases(null, false, NO_VALID_TEST_CASE);
+            }
+            // Couverture verifiee apres la reparation du generateur : jamais de section partielle
+            List<String> problems = TestCasePolicy.coverageProblems(found, criteria.size());
+            if (!problems.isEmpty()) {
+                log.warn("Test cases of {} not written: {} coverage problem(s)", story.key(), problems.size());
+                return result.withTestCases(null, false, TestCasePolicy.notWritten(problems));
+            }
+            valid = TestCasePolicy.valid(found, criteria.size());
         } catch (ModelOutputException | ModelUnavailableException e) {
             log.warn("Test cases of {} not generated: {}", story.key(), e.getClass().getSimpleName());
             return result.withTestCases(null, false, TEST_CASES_MODEL_FAILED);
-        }
-        if (valid.isEmpty()) {
-            return result.withTestCases(null, false, NO_VALID_TEST_CASE);
         }
         try {
             boolean written = issueTracker.insertTestCases(story.key(), StoryMarkdown.testCasesSection(valid));

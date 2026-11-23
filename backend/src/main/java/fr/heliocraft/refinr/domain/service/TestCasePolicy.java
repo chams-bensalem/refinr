@@ -71,6 +71,42 @@ public final class TestCasePolicy {
         return null;
     }
 
+    /**
+     * Problemes de couverture des cas de test d'une story de {@code criteria} criteres : chaque critere a 1 a 3 cas,
+     * chaque cas designe un critere existant et a ses champs valides. Liste vide si tout est conforme ; messages en
+     * anglais, envoyes au modele pour la reparation (par exemple « AC2 has no test case »), jamais de contenu.
+     */
+    public static List<String> coverageProblems(List<TestCase> testCases, int criteria) {
+        List<String> problems = new ArrayList<>();
+        int[] counts = new int[criteria + 1];
+        List<TestCase> cases = testCases != null ? testCases : List.of();
+        for (int i = 0; i < cases.size(); i++) {
+            TestCase testCase = cases.get(i);
+            String violation = violation(testCase, criteria);
+            if (violation != null) {
+                problems.add("test case " + (i + 1) + ": " + violation);
+                continue;
+            }
+            Matcher m = CRITERION.matcher(testCase.criterion().strip());
+            if (m.matches()) {
+                counts[Integer.parseInt(m.group(1))]++;
+            }
+        }
+        for (int c = 1; c <= criteria; c++) {
+            if (counts[c] == 0) {
+                problems.add("AC" + c + " has no test case");
+            } else if (counts[c] > MAX_PER_CRITERION) {
+                problems.add("AC" + c + " has " + counts[c] + " test cases (at most " + MAX_PER_CRITERION + ")");
+            }
+        }
+        return problems;
+    }
+
+    /** Raison ecrite quand les cas de test d'une story ne le sont pas (aucune section partielle). */
+    public static String notWritten(List<String> problems) {
+        return "test cases not written: " + String.join("; ", problems);
+    }
+
     /** Cas valides seulement (sortie du modele : un cas invalide est ecarte, jamais corrige). */
     public static List<TestCase> valid(List<TestCase> testCases, int criteria) {
         List<TestCase> kept = new ArrayList<>();
