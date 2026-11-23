@@ -346,6 +346,17 @@ class ConfigurationDefaultsTest {
     }
 
     @Test
+    @DisplayName("Project context (X1): maximum size and default page aligned between the code, the example config, .env.example and the READMEs")
+    void projectContextDefaultsAreAligned() throws IOException {
+        String expected = String.valueOf(fr.heliocraft.refinr.application.service.ProjectContextResolver.DEFAULT_MAX_CHARACTERS);
+        assertEquals(expected, exampleDefault("refinr.context.max-characters"));
+        assertEquals(expected, envExample("CONTEXT_MAX_CHARACTERS"));
+        assertEquals(expected, readmeTableDefault("refinr.context.max-characters"));
+        assertEquals("", exampleDefault("refinr.context.document-id"));
+        assertEquals("", envExample("CONTEXT_DOCUMENT_ID"));
+    }
+
+    @Test
     @DisplayName("The maximum request body size is aligned between the code, the example config, .env.example and nginx")
     void maxBodyBytesIsAligned() throws IOException {
         String expected = String.valueOf(HttpSecurityConfiguration.DEFAULT_MAX_BODY_BYTES);

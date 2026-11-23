@@ -606,6 +606,9 @@ erreur inconnue** (il peut dire que des tickets ont peut-être été créés ; a
 | `refinr.security.api-key` | *(vide)* | Clé d'API optionnelle : si renseignée, toute requête `/api/**` doit envoyer l'en-tête `X-API-Key` (sauf `/api/v1/health` et `/api/v1/health/live`), sinon `401` ; vide = désactivée (`REFINR_API_KEY`) |
 | `refinr.http.max-body-bytes` | `5242880` | Taille maximale du corps d'une requête, en octets (5 Mio, comme le `client_max_body_size 5m` du proxy du frontend), appliquée aussi aux corps `chunked` ; au-delà `413` (`HTTP_MAX_BODY_BYTES`) |
 | `refinr.document.max-content-chars` | `200000` | Taille maximale d'un document fourni en texte (`content`), en caractères Unicode, titre compris ; au-delà `413`, avant tout appel à l'IA (`DOCUMENT_MAX_CONTENT_CHARS`) |
+| `refinr.context.document-id` | *(vide)* | Contexte projet par défaut : page de la source active envoyée à l'IA avec chaque analyse, verdict, réévaluation, sous-tâches et cas de test, sauf si la requête ou le projet en donne un ; vide = aucun (`CONTEXT_DOCUMENT_ID`) |
+| `refinr.context.projects.<projectKey>` | *(aucune)* | Contexte projet d'un projet : page de la source active pour cette clé de projet (clé Jira, identifiant OpenProject ou id numérique, casse ignorée) ; prioritaire sur `refinr.context.document-id` |
+| `refinr.context.max-characters` | `20000` | Taille maximale d'un contexte projet, en caractères Unicode ; au-delà `413`, jamais tronqué (`CONTEXT_MAX_CHARACTERS`) |
 | `refinr.jobs.max-concurrent` | `2` | Jobs d'analyse (`/api/v1/jobs/...`) exécutés en même temps (`JOBS_MAX_CONCURRENT`) |
 | `refinr.jobs.max-queued` | `20` | Jobs en attente d'une place ; au-delà, la soumission reçoit `503` (`JOBS_MAX_QUEUED`) |
 | `refinr.jobs.max-duration` | `30m` | Durée maximale d'un job avant la création des tickets ; au-delà, le job échoue (`504` dans son résultat) ; une création commencée va toujours au bout (`JOBS_MAX_DURATION`) |
@@ -848,6 +851,31 @@ prompt 5 échoue pour tout le backlog (par exemple `503`), le reste continue : c
 `testCasesError` et un seul avertissement le signale. **Limite connue (Jira)** : Jira n'a pas de verrou optimiste ; la description est relue juste avant
 d'être réécrite, mais une modification humaine faite entre-temps peut être écrasée.
 
+### Contexte projet : glossaire, règles, choix déjà faits
+
+Donnez à l'IA ce que le document ne répète pas : un glossaire, la stack, les conventions, les règles du projet et les
+choix déjà faits. Envoyez-le en texte (`"context": "…"`) ou en page de la source active (`"contextDocumentId": "…"`,
+exclusif de `context`) sur `analyze-preview`, `analyze-and-create` (synchrones et jobs), `reassess-story`,
+`validate-story` (avec `createTasks`) et `story-tasks` ; `create-jira` prend `?contextDocumentId=…`. Sans champ,
+Refinr utilise `refinr.context.projects.<projectKey>` (projet de la requête, ou du ticket pour `reassess-story`,
+`validate-story` et `story-tasks`), puis `refinr.context.document-id`, puis aucun contexte.
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/analyze-preview -H "Content-Type: application/json" \
+  -d '{"documentId": "123456789", "pipeline": true, "context": "Exports CSV : UTF-8, point-virgule. Une commande payée est capturée et non remboursée en totalité."}'
+```
+
+Le contexte est envoyé aux cinq prompts comme une **donnée, jamais une instruction** ; une règle ou une définition
+qu'il donne compte comme donnée par la spécification, et une contradiction avec la spécification bloque la story
+(`aiReadyReason` la nomme). Il ne crée jamais à lui seul d'epic, de feature ni de story. Sans contexte, les prompts
+sont inchangés octet pour octet. 20 000 caractères au plus (`413` au-delà, jamais tronqué) ; jamais dans les logs
+(source et taille seulement) ; compris dans la clé du cache des verdicts. Mesuré dans `eval/context/` (aucun faux
+`ai-ready`, les questions réglées par le contexte ne sont plus posées).
+
+**Gardez un contexte ciblé** : règles, glossaire, choix déjà faits. Un contexte très long ou exhaustif peut faire
+poser plus de questions à la réévaluation (mesuré : lister tous les statuts d'un objet a conduit le modèle à
+s'interroger sur des statuts que la précision n'avait pas prévus).
+
 ### Alimenter votre agent de code
 
 Interrogez Jira avec `labels = "ai-ready"` ; dans OpenProject, filtrez les lots de travaux sur *Agent readiness* =
@@ -960,6 +988,14 @@ tickets et le label `validation-necessaire` ne changent pas.
   `content` → `400` ; texte plus long que `refinr.document.max-content-chars` (200 000 caractères Unicode par défaut,
   ligne `# titre` comprise) → `413` avec la limite dans le message. Le titre est placé en tête du texte envoyé à l'IA,
   sous forme d'une ligne `# titre`. Les logs indiquent la taille du texte, jamais son contenu.
+- **Contexte projet** (depuis la 1.5, ajouts) : `context` (texte) ou `contextDocumentId` (page de la source active)
+  dans le corps d'`analyze-preview`, `analyze-and-create` (synchrones et jobs), `reassess-story`, `validate-story` et
+  `story-tasks` ; `?contextDocumentId=` sur `create-jira`. Les deux → `400` *context and contextDocumentId cannot be
+  combined* ; identifiant de page mal formé → `400` *Invalid contextDocumentId* ; page vide → `400` ; au-delà de
+  `refinr.context.max-characters` (20 000) → `413` *The project context exceeds the maximum size of 20000
+  characters*, contrôlé avant tout appel à l'IA (et à la soumission d'un job) ; page introuvable → `404`, source
+  indisponible → `502`, comme pour un document. `validate-story` : un contexte sans `createTasks` → `400` (aucun appel
+  à l'IA à qui le donner). Réponses inchangées (les logs donnent la source et la taille du contexte, jamais son texte).
 - **Taille du corps** : un corps de requête au-delà de `refinr.http.max-body-bytes` (5 Mio, `Content-Length` ou
   `chunked`) → `413`.
 - **Jobs** (depuis la 1.5, ajouts ; les endpoints synchrones ne changent pas) : la soumission contrôle la requête comme
@@ -987,7 +1023,7 @@ tickets et le label `validation-necessaire` ne changent pas.
 | `200` | Tous les tickets ont été créés | `true` |
 | `207` | Création partielle : certains tickets créés, d'autres non | `false` |
 | `400` | `projectKey` invalide, ou document vide / sans texte à analyser | `false` |
-| `413` | Texte plus long que `refinr.document.max-content-chars`, ou corps au-delà de `refinr.http.max-body-bytes` (rien n'est créé, aucun appel à l'IA) | `false` |
+| `413` | Texte plus long que `refinr.document.max-content-chars`, contexte projet plus long que `refinr.context.max-characters`, ou corps au-delà de `refinr.http.max-body-bytes` (rien n'est créé, aucun appel à l'IA) | `false` |
 | `502` | Aucun ticket n'a pu être créé, sortie IA inexploitable (invalide après relances, ou tronquée), ou fournisseur IA indisponible | `false` |
 | `503` | Quota ou surcharge du fournisseur IA (`analyze-and-create` seulement ; rien n'est créé), avec `Retry-After` et `retryAfterSeconds` quand le fournisseur annonce un délai | `false` |
 | `422` | Features explicites, pas de niveau Feature dans le gestionnaire et `refinr.features.without-level=refuse` (rien n'est créé, aucun appel au gestionnaire) | `false` |

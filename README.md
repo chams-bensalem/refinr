@@ -593,6 +593,9 @@ answers `422` before any call to the tracker. **The Obsidian plugin ≤ 0.2.0 sh
 | `refinr.security.api-key` | *(empty)* | Optional API key: when set, every `/api/**` request must send `X-API-Key` (except `/api/v1/health` and `/api/v1/health/live`), otherwise `401`; empty = disabled (`REFINR_API_KEY`) |
 | `refinr.http.max-body-bytes` | `5242880` | Maximum request body size in bytes (5 MiB, same as the frontend proxy's `client_max_body_size 5m`), also enforced on chunked bodies; above it `413` (`HTTP_MAX_BODY_BYTES`) |
 | `refinr.document.max-content-chars` | `200000` | Maximum size of a document provided as text (`content`), in Unicode characters, title included; above it `413`, before any LLM call (`DOCUMENT_MAX_CONTENT_CHARS`) |
+| `refinr.context.document-id` | *(empty)* | Default project context: page of the active source sent to the LLM with every analysis, verdict, reassessment, sub-tasks and test cases, unless the request or the project gives one; empty = none (`CONTEXT_DOCUMENT_ID`) |
+| `refinr.context.projects.<projectKey>` | *(none)* | Project context of one project: page of the active source for that project key (Jira key, OpenProject identifier or numeric id, case ignored); takes precedence over `refinr.context.document-id` |
+| `refinr.context.max-characters` | `20000` | Maximum size of a project context, in Unicode characters; above it `413`, never truncated (`CONTEXT_MAX_CHARACTERS`) |
 | `refinr.jobs.max-concurrent` | `2` | Analysis jobs (`/api/v1/jobs/...`) run at the same time (`JOBS_MAX_CONCURRENT`) |
 | `refinr.jobs.max-queued` | `20` | Jobs waiting for a free slot; above it the submission gets `503` (`JOBS_MAX_QUEUED`) |
 | `refinr.jobs.max-duration` | `30m` | Maximum duration of a job before the issues are created; above it the job fails (`504` in its result); a creation that has started always goes to the end (`JOBS_MAX_DURATION`) |
@@ -829,6 +832,31 @@ a section. If prompt 5 fails for the whole backlog (for example `503`), the rest
 `testCasesError` and a single warning says so. **Known limit (Jira)**: Jira has no optimistic locking; the description is read again just
 before it is rewritten, but a human edit made in the meantime can be overwritten.
 
+### Project context: glossary, rules, choices already made
+
+Give the LLM what the document does not repeat: a glossary, the stack, conventions, project rules and choices already
+made. Send it as text (`"context": "…"`) or as a page of the active source (`"contextDocumentId": "…"`, exclusive of
+`context`) on `analyze-preview`, `analyze-and-create` (synchronous and jobs), `reassess-story`, `validate-story` (with
+`createTasks`) and `story-tasks`; `create-jira` takes `?contextDocumentId=…`. Without a field, Refinr uses
+`refinr.context.projects.<projectKey>` (project of the request, or of the issue for `reassess-story`,
+`validate-story` and `story-tasks`), then `refinr.context.document-id`, then no context.
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/analyze-preview -H "Content-Type: application/json" \
+  -d '{"documentId": "123456789", "pipeline": true, "context": "CSV exports: UTF-8, semicolon. A paid order is captured and not fully refunded."}'
+```
+
+The context goes to the five prompts as **data, never instructions**; a rule or definition it gives counts as given by
+the specification, and a contradiction with the specification blocks the story (`aiReadyReason` names it). It never
+creates an epic, a feature or a story by itself. Without a context, the prompts are unchanged byte for byte. At most
+20,000 characters (`413` above, never truncated); never written to the logs (source and size only); part of the
+verdict cache key. Measured in `eval/context/` (no false `ai-ready`, questions answered by the context no longer
+asked).
+
+**Keep the context focused**: rules, glossary, choices already made. A very long or exhaustive context can make the
+reassessment ask more questions (measured: listing every status of an object led the model to ask about statuses the
+clarification had not foreseen).
+
 ### Feed your coding agent
 
 Query Jira with `labels = "ai-ready"`; in OpenProject, filter the work packages on *Agent readiness* = `ai-ready` (and
@@ -930,6 +958,14 @@ English prompt and are supported without being measured. Refinr's own lines in t
   `content` → `400`; text longer than `refinr.document.max-content-chars` (200 000 Unicode characters by default,
   the `# title` line included) → `413` with the limit in the message. The title heads the text sent to the LLM as a
   `# title` line. Logs show the size of the text, never its content.
+- **Project context** (since 1.5, additions): `context` (text) or `contextDocumentId` (page of the active source) in
+  the body of `analyze-preview`, `analyze-and-create` (synchronous and jobs), `reassess-story`, `validate-story` and
+  `story-tasks`; `?contextDocumentId=` on `create-jira`. Both → `400` *context and contextDocumentId cannot be
+  combined*; malformed page id → `400` *Invalid contextDocumentId*; empty page → `400`; over
+  `refinr.context.max-characters` (20,000) → `413` *The project context exceeds the maximum size of 20000 characters*,
+  checked before any LLM call (and at job submission); missing page → `404`, source unavailable → `502`, as for a
+  document. `validate-story`: a context without `createTasks` → `400` (no LLM call to give it to). Responses are
+  unchanged (the logs give the source and the size of the context, never its text).
 - **Body size**: a request body over `refinr.http.max-body-bytes` (5 MiB, `Content-Length` or chunked) → `413`.
 - **Jobs** (since 1.5, additions; the synchronous endpoints are unchanged): a submission checks the request like the
   synchronous endpoint (same `400` and `413`, no job created), then answers `202` with the job address (`Location`,
@@ -955,7 +991,7 @@ English prompt and are supported without being measured. Refinr's own lines in t
 | `200` | All issues created | `true` |
 | `207` | Partial: some issues created, others not | `false` |
 | `400` | Invalid `projectKey`, or empty document / no text to analyze | `false` |
-| `413` | Text longer than `refinr.document.max-content-chars`, or body over `refinr.http.max-body-bytes` (nothing created, no LLM call) | `false` |
+| `413` | Text longer than `refinr.document.max-content-chars`, project context longer than `refinr.context.max-characters`, or body over `refinr.http.max-body-bytes` (nothing created, no LLM call) | `false` |
 | `502` | No issue could be created, unusable LLM output (invalid after repairs, or truncated), or LLM provider unavailable | `false` |
 | `503` | AI provider quota or overload (`analyze-and-create` only; nothing created), with `Retry-After` and `retryAfterSeconds` when the provider announces a delay | `false` |
 | `422` | Explicit features, no Feature level in the tracker and `refinr.features.without-level=refuse` (nothing created, no tracker call) | `false` |
