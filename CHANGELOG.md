@@ -13,7 +13,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   section partielle, `testCasesError` sur la story et avertissement. Story devenue prête (`story-tasks`, `createTasks`) :
   section ajoutée au même endroit (`testCases`, `testCasesSkipped`, `testCasesError`) ; `story-tasks` sur une story qui
   a ses sous-tâches mais pas de cas de test ne génère que ceux-ci. `create-jira` valide les `testCases` du client
-  (`400` explicite) ; description bornée à 32 767 caractères, jamais tronquée. **Ajouts rétrocompatibles du contrat
+  (`400` explicite qui nomme la story et les critères : critère existant, et 1 à 3 cas par critère pour une story qui a
+  des cas de test ; une story sans cas de test est créée sans section). Échec complet du prompt 5 (par exemple `503`) :
+  mode dégradé, `testCasesError` sur chaque story prête et un avertissement global, le reste du backlog continue ; description bornée à 32 767 caractères, jamais tronquée. **Ajouts rétrocompatibles du contrat
   REST.**
 - **Chaîne « il fait tout » (C1)**, activée par `"pipeline": true` sur `analyze-preview` et `analyze-and-create`
   (synchrones et jobs) : génération sans sous-tâches (prompt `generation-v3`), verdict par lots (prompt 2, toujours

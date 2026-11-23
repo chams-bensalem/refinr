@@ -102,6 +102,9 @@ public final class TestCasePolicy {
         return problems;
     }
 
+    /** Prompt 5 indisponible pour tout le lot (chaine en mode degrade) : raison posee sur chaque story prete. */
+    public static final String MODEL_UNAVAILABLE = "test cases not generated: the model could not answer";
+
     /** Raison ecrite quand les cas de test d'une story ne le sont pas (aucune section partielle). */
     public static String notWritten(List<String> problems) {
         return "test cases not written: " + String.join("; ", problems);

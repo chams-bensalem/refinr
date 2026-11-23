@@ -333,6 +333,53 @@ class PipelineContractTest {
     }
 
     @Test
+    @DisplayName("C2 degraded mode (503 on every prompt 5 batch): preview and creation continue, one global warning")
+    void totalTestCaseFailureIsDegraded() throws Exception {
+        when(testCaseGenerator.generateTestCases(anyList(), any()))
+                .thenThrow(new fr.heliocraft.refinr.application.port.out.LlmException(
+                        fr.heliocraft.refinr.application.port.out.LlmException.Reason.OVERLOADED, "HTTP 503"));
+        Epic epic = new Epic();
+        epic.setName("Orders");
+        Story ready = story("Export");
+        ready.setAcceptanceCriteria(new ArrayList<>(List.of("Given paid orders")));
+        epic.setStories(new ArrayList<>(List.of(ready, story("Separator"), story("Encoding"))));
+        when(generator.generateStories(any(), any())).thenAnswer(call -> new ArrayList<>(List.of(epic)));
+
+        MockHttpServletResponse preview = send("/api/v1/analyze-preview", "{\"content\":\"" + SPEC + "\",\"pipeline\":true}");
+        assertEquals(200, preview.getStatus(), preview.getContentAsString());
+        JsonNode body = read(preview);
+        assertEquals(fr.heliocraft.refinr.domain.service.TestCasePolicy.MODEL_UNAVAILABLE,
+                body.at("/epics/0/stories/0/testCasesError").asString());
+        assertEquals(List.of(BacklogResponses.testCasesUnavailableWarning(1)),
+                List.of(body.at("/warnings/0").asString()), "one global warning, no per-story one");
+        assertEquals(1, body.get("warnings").size());
+
+        MockHttpServletResponse created = send("/api/v1/analyze-and-create", "{\"content\":\"" + SPEC + "\",\"pipeline\":true}");
+        assertEquals(200, created.getStatus(), created.getContentAsString());
+        verify(tracker, times(2)).createSubtask(any(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("C2 create-jira: client test cases must cover each criterion 1 to 3 times (400 naming story and criteria); none: no section")
+    void createJiraChecksClientCoverage() throws Exception {
+        String twoCriteria = "[{\"name\":\"E\",\"stories\":[{\"title\":\"S\",\"acceptanceCriteria\":[\"Given a\",\"Given b\"],"
+                + "\"testCases\":[{\"title\":\"T\",\"criterion\":\"AC1\",\"kind\":\"nominal\",\"given\":\"g\",\"when\":\"w\",\"then\":\"t\"}]}]}]";
+        MockHttpServletResponse uncovered = send("/api/v1/create-jira", twoCriteria);
+        assertEquals(400, uncovered.getStatus());
+        assertEquals("testCases of story 1.1 do not cover its acceptance criteria: AC2 has no test case",
+                read(uncovered).get("error").asString());
+        verify(tracker, never()).createEpic(any(), any());
+
+        when(assessor.assess(anyList(), anyList())).thenReturn(List.of(new Readiness(true, "clear")));
+        MockHttpServletResponse none = send("/api/v1/create-jira",
+                "[{\"name\":\"E\",\"stories\":[{\"title\":\"S\",\"acceptanceCriteria\":[\"Given a\",\"Given b\"]}]}]");
+        assertEquals(200, none.getStatus(), none.getContentAsString());
+        org.mockito.ArgumentCaptor<Story> created = org.mockito.ArgumentCaptor.forClass(Story.class);
+        verify(tracker).createStory(created.capture(), anyString(), any());
+        assertTrue(created.getValue().getTestCases().isEmpty(), "created without a section");
+    }
+
+    @Test
     @DisplayName("story-tasks: 409 when the story is not ready, 400 without issueKey")
     void storyTasksRefusals() throws Exception {
         when(tracker.findStory("TEST-7")).thenReturn(new TrackedStory("TEST-7", "S", "d", List.of("validation-necessaire")));

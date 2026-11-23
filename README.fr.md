@@ -835,7 +835,10 @@ story qui a déjà ses sous-tâches mais pas de section de cas de test ne génè
 `testCases`) : c'est aussi la reprise après un `testCasesError`. Une section n'est jamais ajoutée deux fois (repérée
 par son titre). La description est limitée à 32 767 caractères (limite de Jira) : au-delà, la section n'est pas
 écrite et la réponse le dit, jamais de troncature. `create-jira` valide les cas de test modifiés par un client
-(`400` sinon). **Limite connue (Jira)** : Jira n'a pas de verrou optimiste ; la description est relue juste avant
+(`400` sinon) : chaque cas désigne un critère existant et, pour une story qui a des cas de test, chaque critère en a
+1 à 3 (le `400` nomme la story et les critères) ; une story envoyée sans cas de test est créée sans section. Si le
+prompt 5 échoue pour tout le backlog (par exemple `503`), le reste continue : chaque story prête reçoit
+`testCasesError` et un seul avertissement le signale. **Limite connue (Jira)** : Jira n'a pas de verrou optimiste ; la description est relue juste avant
 d'être réécrite, mais une modification humaine faite entre-temps peut être écrasée.
 
 ### Alimenter votre agent de code

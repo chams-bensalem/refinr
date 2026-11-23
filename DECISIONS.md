@@ -660,6 +660,11 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
   explicite, jamais de troncature. `create-jira` valide les `testCases` du client (critère existant, `kind`, champs
   remplis, 200 caractères pour le titre, 1 000 par étape) : `400` sinon, sans recopier le contenu. Schéma
   `story-test-cases` : `maxItems` 30 (3 cas × 10 critères), contrôlé localement.
+- **Revue C2, décisions du mainteneur** : échec complet du prompt 5 dans la chaîne **dégradé** (`testCasesError` sur
+  chaque story prête, un avertissement global, aperçu et création continuent) ; le prompt 4 garde son comportement
+  (à décider plus tard). Cas de test du client sur `create-jira` : **couverture contrôlée** pour une story qui en a
+  (1 à 3 par critère, sinon `400` qui nomme la story par sa position et les critères) ; story sans cas : pas de
+  section. Description réécrite par l'éditeur OpenProject : vérifiée pendant l'essai réel.
 - **Raison de `validate-story`** avec ses accents et en anglais selon la langue ; une `language` invalide donne `400`
   (changement de comportement accepté par le mainteneur, signalé dans le CHANGELOG et la PR).
 - Lots de 10 stories, logique commune au prompt 4 (`LlmStoryBatches`). Mesure : `eval/generation/results/2026-11-23-c2-summary.md`.

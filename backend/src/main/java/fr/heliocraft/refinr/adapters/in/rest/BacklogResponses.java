@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.adapters.in.rest;
 
+import fr.heliocraft.refinr.domain.service.TestCasePolicy;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.domain.model.Epic;
 import org.springframework.http.HttpHeaders;
@@ -75,9 +76,16 @@ final class BacklogResponses {
         if (readyWithoutTasks > 0) {
             added.add(readyWithoutTasksWarning(readyWithoutTasks));
         }
-        // Chaine C2 : story dont les cas de test n'ont pas ete ecrits (couverture), nommee avec ses criteres
+        // Chaine C2 : story dont les cas de test n'ont pas ete ecrits (couverture), nommee avec ses criteres ; prompt 5
+        // indisponible pour tout le lot : un seul avertissement global
+        long unavailable = epics.stream().filter(java.util.Objects::nonNull).flatMap(e -> e.getStories().stream())
+                .filter(s -> s != null && TestCasePolicy.MODEL_UNAVAILABLE.equals(s.getTestCasesError())).count();
+        if (unavailable > 0) {
+            added.add(testCasesUnavailableWarning(unavailable));
+        }
         epics.stream().filter(java.util.Objects::nonNull).flatMap(e -> e.getStories().stream())
-                .filter(s -> s != null && s.getTestCasesError() != null)
+                .filter(s -> s != null && s.getTestCasesError() != null
+                        && !TestCasePolicy.MODEL_UNAVAILABLE.equals(s.getTestCasesError()))
                 .forEach(s -> added.add("story \"" + s.getTitle() + "\": " + s.getTestCasesError()));
         if (!added.isEmpty()) {
             List<String> warnings = new java.util.ArrayList<>();
@@ -88,6 +96,11 @@ final class BacklogResponses {
             body.put("warnings", warnings);
         }
         return ResponseEntity.status(response.getStatusCode()).headers(response.getHeaders()).body(body);
+    }
+
+    static String testCasesUnavailableWarning(long count) {
+        return "test cases could not be generated for " + count + " ready stor" + (count == 1 ? "y" : "ies")
+                + " (model unavailable): create them with POST /api/v1/story-tasks once the story exists";
     }
 
     static String readyWithoutTasksWarning(long count) {

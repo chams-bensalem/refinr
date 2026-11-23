@@ -43,10 +43,22 @@ public class CreateEditedBacklogService implements CreateEditedBacklog {
                 if (stories.get(s) == null) {
                     continue;
                 }
-                String violation = fr.heliocraft.refinr.domain.service.TestCasePolicy.violation(stories.get(s),
-                        (e + 1) + "." + (s + 1));
+                String position = (e + 1) + "." + (s + 1);
+                String violation = fr.heliocraft.refinr.domain.service.TestCasePolicy.violation(stories.get(s), position);
                 if (violation != null) {
                     throw new fr.heliocraft.refinr.application.port.in.InvalidRequestException(violation);
+                }
+                // Story qui a des cas de test : chaque critere en a 1 a 3 (sans cas de test : creee sans section)
+                List<fr.heliocraft.refinr.domain.model.TestCase> testCases = stories.get(s).getTestCases();
+                if (testCases != null && !testCases.isEmpty()) {
+                    int criteria = stories.get(s).getAcceptanceCriteria() != null
+                            ? stories.get(s).getAcceptanceCriteria().size() : 0;
+                    List<String> problems = fr.heliocraft.refinr.domain.service.TestCasePolicy.coverageProblems(testCases, criteria);
+                    if (!problems.isEmpty()) {
+                        throw new fr.heliocraft.refinr.application.port.in.InvalidRequestException(
+                                "testCases of story " + position + " do not cover its acceptance criteria: "
+                                        + String.join("; ", problems));
+                    }
                 }
             }
         }

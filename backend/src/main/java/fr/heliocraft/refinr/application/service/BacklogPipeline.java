@@ -87,7 +87,20 @@ public class BacklogPipeline {
         }
         if (testCaseGenerator != null) {
             progress.step(JobView.Step.GENERATING_TEST_CASES);
-            List<List<TestCase>> testCases = LlmFailures.translate(() -> testCaseGenerator.generateTestCases(ready, language));
+            List<List<TestCase>> testCases;
+            try {
+                testCases = LlmFailures.translate(() -> testCaseGenerator.generateTestCases(ready, language));
+            } catch (fr.heliocraft.refinr.application.port.in.ModelUnavailableException
+                     | fr.heliocraft.refinr.application.port.in.ModelOutputException e) {
+                // Mode degrade : le reste du backlog (verdicts, sous-taches) continue ; reprise par story-tasks
+                log.warn("Test cases unavailable for the {} ready stories: {}", ready.size(), e.getClass().getSimpleName());
+                for (Story story : ready) {
+                    if (story.getAcceptanceCriteria() != null && !story.getAcceptanceCriteria().isEmpty()) {
+                        story.setTestCasesError(TestCasePolicy.MODEL_UNAVAILABLE);
+                    }
+                }
+                return epics;
+            }
             int rejected = 0;
             for (int i = 0; i < ready.size(); i++) {
                 Story story = ready.get(i);
