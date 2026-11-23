@@ -122,8 +122,23 @@ class LlmPromptsTest {
             assertEquals(without, LlmPrompts.reassessment("T", "D", "P", language), "4-argument form unchanged");
             assertEquals(without, LlmPrompts.reassessment("T", "D", "P", " ", language), "blank question: no line");
         }
-        assertEquals("verdict-v3.3", LlmPrompts.REASSESSMENT_PROMPT_VERSION);
+        assertEquals("verdict-v3.4", LlmPrompts.REASSESSMENT_PROMPT_VERSION);
         assertEquals("verdict-v3.2", LlmPrompts.VERDICT_PROMPT_VERSION, "prompt 2 (E0, verdict cache) unchanged");
+    }
+
+    @Test
+    @DisplayName("Prompt 3 (verdict-v3.4, R3): two steps; a new point blocks only if READINESS says so or the clarification introduces it")
+    void reassessmentInTwoSteps() {
+        String fr = LlmPrompts.reassessment("T", "D", "P", "Q ?", Language.FR);
+        assertTrue(fr.contains("ÉTAPE 1. Décide si la précision règle la question bloquante précédente"), fr);
+        assertTrue(fr.contains("et un point qui n'est pas nécessaire pour implémenter la story et faire passer ses critères "
+                + "d'acceptation (par exemple un point qui relève d'une autre story)."), fr);
+        String en = LlmPrompts.reassessment("T", "D", "P", "Q ?", Language.EN);
+        assertTrue(en.contains("STEP 1. Decide whether the clarification settles the previous blocking question"), en);
+        assertTrue(en.contains("and a point that is not needed to implement the story and pass its acceptance criteria "
+                + "(for example a point that belongs to another story)."), en);
+        assertTrue(fr.contains("Si la précision règle la question et qu'aucun point de l'étape 2 ne reste ouvert : aiReady = true."));
+        assertTrue(en.contains("If the clarification settles the question and no step-2 point remains open: aiReady = true."));
     }
 
     @Test

@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Chams Bensalem -->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
-# Prompts LLM de Refinr, version française (verdict-v3.2, generation-v2, generation-v3, tasks-v1, test-cases-v1)
+# Prompts LLM de Refinr, version française (verdict-v3.2, verdict-v3.4, generation-v2, generation-v3, tasks-v1, test-cases-v1)
 
 Source : arbitrage PO du 2026-11-16 (v3, v3.1 : bloc READINESS revu après la mesure v3 ; v3.2 : consigne de langue
 explicite). Chargé tel quel par `LlmPrompts` : seuls les huit blocs de code comptent, dans cet ordre. Toute
@@ -106,16 +106,20 @@ Réponds UNIQUEMENT par le JSON, avec exactement un verdict par story, repérée
 {"verdicts":[{"id":"s1","aiReady":false,"aiReadyReason":""}]}
 ```
 
-## Prompt 3 : réévaluation (verdict-v3.3)
+## Prompt 3 : réévaluation (verdict-v3.4)
+
+R3 : la précision est jugée d'abord sur la question précédente ; un nouveau point ne bloque que s'il relève de READINESS ou s'il est introduit par la précision.
 
 La ligne `{{IF_QUESTION}}` porte la dernière question ouverte (raison de la dernière ligne `validation-necessaire`) ; elle est retirée s'il n'y en a pas, et le texte est alors celui de `verdict-v3.2`. Les lignes de verdict sont retirées de la description envoyée (B3).
 
 ```
-MISSION : cette User Story a été jugée non prête. L'utilisateur apporte une précision. Réévalue la story en en tenant compte.
+MISSION : cette User Story a été jugée non prête pour une question bloquante. L'utilisateur apporte une précision. Réévalue la story en deux étapes.
 
 {{READINESS}}
 
-La précision de l'utilisateur fait foi sur ce qu'elle tranche. Ne suppose rien d'autre. Si une autre question reste ouverte, la story reste non prête et aiReadyReason donne cette question.
+ÉTAPE 1. Décide si la précision règle la question bloquante précédente (sans question précédente : le blocage décrit par la story). La précision fait foi sur ce qu'elle tranche ; ne suppose rien d'autre.
+ÉTAPE 2. Un autre point ne bloque la story que s'il relève d'un des problèmes de la liste « aiReady = false seulement si » ci-dessus, ou s'il est introduit par la précision elle-même (par exemple une valeur nouvelle qui contredit un critère). Ne bloquent pas : ce que le développeur tranche seul selon cette même liste (format technique, ordre d'affichage, libellé, cas limite sans montant, droits ni données personnelles), et un point qui n'est pas nécessaire pour implémenter la story et faire passer ses critères d'acceptation (par exemple un point qui relève d'une autre story).
+Si la précision règle la question et qu'aucun point de l'étape 2 ne reste ouvert : aiReady = true. Sinon aiReady = false, et aiReadyReason donne la question bloquante restante.
 
 STORY :
 Titre : {{TITLE}}

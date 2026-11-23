@@ -245,6 +245,7 @@ public final class VerdictEval {
             case "reassess" -> {
                 refuseAutomatedRun(System.getenv(), System.getProperties());
                 eval.reassess(eval.setup(Target.of(arg(positional, 1)), config), Path.of(arg(positional, 2)), opts.get("out"),
+                        List.of(opts.getOrDefault("versions", "v3.2,v3.3").split(",")), Integer.parseInt(opts.getOrDefault("runs", "1")),
                         opts.containsKey("cap") ? Integer.valueOf(opts.get("cap")) : null,
                         Double.parseDouble(opts.getOrDefault("budget", "20")), opts.getOrDefault("phase", "E0"));
             }
@@ -299,7 +300,7 @@ public final class VerdictEval {
                   summarize <resultsDir> [--baseline DIR[,DIR]]      metrics against the labels (no model call)
                   generate  <target> <spec.md>... [--out DIR] [--cap N] [--budget 20] [--phase E0] [--pipeline true]   CALLS THE MODEL
                   probe-schema <target> [--out DIR] [--budget 20] [--phase E0] [--schema backlog|backlog-stories|story-tasks|story-test-cases]   CALLS THE MODEL (Anthropic, 1 call)
-                  reassess <target> <precisions.jsonl> [--out DIR] [--cap N] [--budget 20] [--phase E0]   CALLS THE MODEL (prompt 3, before = verdict-v3.2 / after = verdict-v3.3)
+                  reassess <target> <precisions.jsonl> [--versions v3.2,v3.3|v3.3,v3.4] [--runs 1] [--out DIR] [--cap N] [--budget 20] [--phase E0]   CALLS THE MODEL (prompt 3, before = verdict-v3.2 / after = verdict-v3.3)
                   test-cases <target> <backlog.json>... [--out DIR] [--passes 1] [--budget 20] [--phase E0]   CALLS THE MODEL (prompt 5 only, ready stories of saved backlogs)
                             backlog generation (analysis role) of each spec, one call each, saved as <spec>.json""");
     }
@@ -991,7 +992,13 @@ public final class VerdictEval {
      * question : texte verdict-v3.2) et « apres » (verdict-v3.3 : lignes de verdict retirees, derniere question ouverte
      * dans son champ). Sortie : {@code runs.csv} (id, precision, version, verdict, raison) et {@code calls.csv}.
      */
-    void reassess(Setup s, Path precisions, String outOption, Integer cap, double budget, String phase) throws Exception {
+    void reassess(Setup s, Path precisions, String outOption, List<String> versions, int runs, Integer cap, double budget,
+                  String phase) throws Exception {
+        for (String v : versions) {
+            if (!fr.heliocraft.refinr.adapters.out.llm.PromptThreeVariants.VERSIONS.contains(v)) {
+                throw new IllegalArgumentException("--versions accepts " + fr.heliocraft.refinr.adapters.out.llm.PromptThreeVariants.VERSIONS);
+            }
+        }
         describe(s);
         if (!s.optionalParams().isEmpty() && s.target() != Target.ENV) {
             throw new IllegalStateException("optional parameters would be sent to the evaluation model: " + s.optionalParams());
@@ -1012,11 +1019,14 @@ public final class VerdictEval {
         Files.createDirectories(out);
         Files.createDirectories(stateDir);
         Meter meter = new Meter(s, price, out.resolve("calls.csv"), cap, budget, phase);
-        fr.heliocraft.refinr.adapters.out.llm.LlmReadinessAssessor assessor = new fr.heliocraft.refinr.adapters.out.llm
-                .LlmReadinessAssessor(MeteredLlmClients.create(s.settings(), meter), new StructuredOutput(s.repairs()), 10);
+        fr.heliocraft.refinr.adapters.out.llm.LlmClient client = MeteredLlmClients.create(s.settings(), meter);
+        StructuredOutput output = new StructuredOutput(s.repairs());
+        System.out.println("versions=" + versions + " runs=" + runs);
         Path runsCsv = out.resolve("runs.csv");
         int position = 0;
-        for (String line : Files.readAllLines(precisions, StandardCharsets.UTF_8)) {
+        List<String> lines = Files.readAllLines(precisions, StandardCharsets.UTF_8);
+        for (int run = 1; run <= runs; run++)
+        for (String line : lines) {
             if (line.isBlank()) continue;
             JsonNode p = json.readTree(line);
             String id = p.path("id").asString("");
@@ -1034,28 +1044,24 @@ public final class VerdictEval {
             String written = fr.heliocraft.refinr.domain.service.StoryMarkdown.description(domain);
             for (String kind : List.of("answering", "offTopic")) {
                 String precision = p.path(kind).asString("");
-                for (String version : List.of("before", "after")) {
-                    meter.run = 1;
+                for (String version : versions) {
+                    meter.run = run;
                     meter.batch = ++position;
                     Readiness verdict;
                     try {
-                        verdict = "before".equals(version)
-                                ? assessor.reassess(domain.getTitle(), written, precision, null, fr.heliocraft.refinr.domain.model.Language.FR)
-                                : assessor.reassess(domain.getTitle(),
-                                        fr.heliocraft.refinr.domain.service.StoryMarkdown.forModel(written), precision,
-                                        fr.heliocraft.refinr.domain.service.StoryMarkdown.lastOpenQuestion(written),
-                                        fr.heliocraft.refinr.domain.model.Language.FR);
+                        verdict = fr.heliocraft.refinr.adapters.out.llm.PromptThreeVariants.reassess(version, client, output,
+                                domain.getTitle(), written, precision, fr.heliocraft.refinr.domain.model.Language.FR);
                     } catch (Stop stop) {
-                        stopFile(out, stop.reason, 1, position, meter);
+                        stopFile(out, stop.reason, run, position, meter);
                         return;
                     } catch (RuntimeException e) {
-                        stopFile(out, "error-" + e.getClass().getSimpleName(), 1, position, meter);
+                        stopFile(out, "error-" + e.getClass().getSimpleName(), run, position, meter);
                         System.out.println("error: " + e.getMessage());
                         return;
                     }
-                    appendLine(runsCsv, "id,precision,version,ai_ready,reason", Csv.line(List.of(id, kind, version,
+                    appendLine(runsCsv, "run,id,precision,version,ai_ready,reason", Csv.line(List.of(String.valueOf(run), id, kind, version,
                             String.valueOf(verdict.aiReady()), verdict.aiReadyReason() != null ? verdict.aiReadyReason() : "")));
-                    System.out.printf(Locale.ROOT, "%s %s %s: %s, calls today %d%s%n", id, kind, version,
+                    System.out.printf(Locale.ROOT, "run %d %s %s %s: %s, calls today %d%s%n", run, id, kind, version,
                             verdict.aiReady() ? "ready" : "not ready", meter.calls(),
                             price == null ? "" : String.format(Locale.ROOT, ", spent %.4f USD", meter.spent()));
                 }
