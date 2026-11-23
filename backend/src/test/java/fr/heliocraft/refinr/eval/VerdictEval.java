@@ -245,6 +245,7 @@ public final class VerdictEval {
             case "reassess" -> {
                 refuseAutomatedRun(System.getenv(), System.getProperties());
                 eval.reassess(eval.setup(Target.of(arg(positional, 1)), config), Path.of(arg(positional, 2)), opts.get("out"),
+                        opts.containsKey("cap") ? Integer.valueOf(opts.get("cap")) : null,
                         Double.parseDouble(opts.getOrDefault("budget", "20")), opts.getOrDefault("phase", "E0"));
             }
             case "test-cases" -> {
@@ -298,7 +299,7 @@ public final class VerdictEval {
                   summarize <resultsDir> [--baseline DIR[,DIR]]      metrics against the labels (no model call)
                   generate  <target> <spec.md>... [--out DIR] [--cap N] [--budget 20] [--phase E0] [--pipeline true]   CALLS THE MODEL
                   probe-schema <target> [--out DIR] [--budget 20] [--phase E0] [--schema backlog|backlog-stories|story-tasks|story-test-cases]   CALLS THE MODEL (Anthropic, 1 call)
-                  reassess <target> <precisions.jsonl> [--out DIR] [--budget 20] [--phase E0]   CALLS THE MODEL (prompt 3, before = verdict-v3.2 / after = verdict-v3.3)
+                  reassess <target> <precisions.jsonl> [--out DIR] [--cap N] [--budget 20] [--phase E0]   CALLS THE MODEL (prompt 3, before = verdict-v3.2 / after = verdict-v3.3)
                   test-cases <target> <backlog.json>... [--out DIR] [--passes 1] [--budget 20] [--phase E0]   CALLS THE MODEL (prompt 5 only, ready stories of saved backlogs)
                             backlog generation (analysis role) of each spec, one call each, saved as <spec>.json""");
     }
@@ -990,7 +991,7 @@ public final class VerdictEval {
      * question : texte verdict-v3.2) et « apres » (verdict-v3.3 : lignes de verdict retirees, derniere question ouverte
      * dans son champ). Sortie : {@code runs.csv} (id, precision, version, verdict, raison) et {@code calls.csv}.
      */
-    void reassess(Setup s, Path precisions, String outOption, double budget, String phase) throws Exception {
+    void reassess(Setup s, Path precisions, String outOption, Integer cap, double budget, String phase) throws Exception {
         describe(s);
         if (!s.optionalParams().isEmpty() && s.target() != Target.ENV) {
             throw new IllegalStateException("optional parameters would be sent to the evaluation model: " + s.optionalParams());
@@ -1010,7 +1011,7 @@ public final class VerdictEval {
                 .resolve(LocalDate.now(ZONE) + "-" + s.settings().provider().id() + "-" + s.settings().model());
         Files.createDirectories(out);
         Files.createDirectories(stateDir);
-        Meter meter = new Meter(s, price, out.resolve("calls.csv"), null, budget, phase);
+        Meter meter = new Meter(s, price, out.resolve("calls.csv"), cap, budget, phase);
         fr.heliocraft.refinr.adapters.out.llm.LlmReadinessAssessor assessor = new fr.heliocraft.refinr.adapters.out.llm
                 .LlmReadinessAssessor(MeteredLlmClients.create(s.settings(), meter), new StructuredOutput(s.repairs()), 10);
         Path runsCsv = out.resolve("runs.csv");
