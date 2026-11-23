@@ -59,6 +59,11 @@ public class JobController {
 
     @PostMapping("/analyze-preview")
     public ResponseEntity<Map<String, Object>> submitPreview(@RequestBody Map<String, String> request) {
+        // Projet demande : seulement pour lire son niveau Feature (avertissements), comme l'endpoint synchrone
+        String projectKey = request.get(AnalysisRequests.PROJECT_KEY);
+        if (projectKey != null && !projectKey.isBlank() && !describeTracker.acceptsProjectId(projectKey)) {
+            return BacklogResponses.invalidRequest("Invalid projectKey: " + projectKey);
+        }
         Optional<Language> language;
         try {
             language = Optional.ofNullable(AnalysisRequests.language(request.get(AnalysisRequests.LANGUAGE)));
@@ -69,11 +74,11 @@ public class JobController {
             if (AnalysisRequests.isTextInput(request)) {
                 AnalysisRequests.logTextInput(log, "Preview job", request);
                 return jobs.submitPreviewText(request.get(AnalysisRequests.TITLE), request.get(AnalysisRequests.CONTENT),
-                        language.orElse(null));
+                        projectKey, language.orElse(null));
             }
             String documentId = AnalysisRequests.documentId(request);
             log.info("Preview job request for {} document: {}", describeSource.displayName(), documentId);
-            return jobs.submitPreview(documentId, language.orElse(null));
+            return jobs.submitPreview(documentId, projectKey, language.orElse(null));
         });
     }
 

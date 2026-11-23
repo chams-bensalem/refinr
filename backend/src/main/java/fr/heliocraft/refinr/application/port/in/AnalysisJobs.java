@@ -31,11 +31,24 @@ public interface AnalysisJobs {
         }
     }
 
-    /** Apercu d'un document de la source active. */
-    JobView submitPreview(String documentId, Language language);
+    /** Apercu d'un document de la source active, avertissements du projet par defaut. */
+    default JobView submitPreview(String documentId, Language language) {
+        return submitPreview(documentId, null, language);
+    }
 
-    /** Apercu d'un document fourni en texte. */
-    JobView submitPreviewText(String title, String content, Language language);
+    /**
+     * Apercu d'un document de la source active ; {@code project} (null ou vide : projet par defaut) : projet dont le
+     * niveau Feature donne les avertissements de l'apercu.
+     */
+    JobView submitPreview(String documentId, String project, Language language);
+
+    /** Apercu d'un document fourni en texte, avertissements du projet par defaut. */
+    default JobView submitPreviewText(String title, String content, Language language) {
+        return submitPreviewText(title, content, null, language);
+    }
+
+    /** Apercu d'un document fourni en texte ; {@code project} : comme {@link #submitPreview(String, String, Language)}. */
+    JobView submitPreviewText(String title, String content, String project, Language language);
 
     /** Analyse et creation d'un document de la source active ; {@code project} null ou vide : projet par defaut. */
     JobView submitAnalyzeAndCreate(String documentId, String project, Language language);
