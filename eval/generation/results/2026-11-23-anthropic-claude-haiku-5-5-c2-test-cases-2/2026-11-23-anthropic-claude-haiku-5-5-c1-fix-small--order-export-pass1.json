@@ -1,0 +1,24 @@
+{
+  "source" : "eval/generation/results/2026-11-23-anthropic-claude-haiku-5-5-c1-fix-small/order-export.json",
+  "stories" : [ {
+    "title" : "Exclude cancelled orders from export",
+    "acceptanceCriteria" : [ "Given a customer with one paid order and one cancelled order, When the export is produced, Then the file contains only the paid order.", "Given a customer whose orders are all cancelled, When the export is produced, Then the file contains no order rows." ],
+    "testCases" : [ {
+      "title" : "Le export ne contient que les commandes non annulées",
+      "criterion" : "AC1",
+      "kind" : "nominal",
+      "given" : "Un client possède une commande payée et une commande annulée",
+      "when" : "L'export est produit",
+      "then" : "Le fichier CSV contient uniquement la commande payée"
+    }, {
+      "title" : "Le export ne contient aucune ligne de commande si toutes sont annulées",
+      "criterion" : "AC2",
+      "kind" : "edge",
+      "given" : "Un client dont toutes les commandes sont annulées",
+      "when" : "L'export est produit",
+      "then" : "Le fichier CSV ne contient aucune ligne de commande"
+    } ]
+  } ],
+  "repairs" : 0,
+  "language" : "fr"
+}
