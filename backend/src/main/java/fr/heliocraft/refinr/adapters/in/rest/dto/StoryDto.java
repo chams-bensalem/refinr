@@ -31,7 +31,9 @@ public class StoryDto {
     private List<String> labels = new ArrayList<>();
     private List<TaskDto> tasks = new ArrayList<>();
 
-    // Chaine C2 (ajout retrocompatible) : cas de test des stories pretes
+    // Chaine C2 (ajout retrocompatible) : cas de test des stories pretes ; absent quand il n'y en a pas (reponses
+    // sans la chaine strictement inchangees)
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
     private List<TestCaseDto> testCases = new ArrayList<>();
 
     // Cas de test non ecrits (couverture non conforme) : la raison, absente sinon ; ignoree en entree (create-jira)

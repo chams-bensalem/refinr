@@ -25,7 +25,6 @@ public class LlmTestCaseGenerator extends LlmStoryBatches<List<TestCase>> implem
 
     private static final Logger log = LoggerFactory.getLogger(LlmTestCaseGenerator.class);
 
-    private List<Story> stories;
     // Reparations de couverture declenchees depuis la creation (mesure C2) ; jamais de contenu
     private final java.util.concurrent.atomic.AtomicInteger repairs = new java.util.concurrent.atomic.AtomicInteger();
     // Une seule tentative pour la reparation de couverture (deja une seconde chance)
@@ -47,25 +46,21 @@ public class LlmTestCaseGenerator extends LlmStoryBatches<List<TestCase>> implem
      * d'origine est rendue, l'application refuse alors d'ecrire une section partielle.
      */
     @Override
-    public synchronized List<List<TestCase>> generateTestCases(List<Story> stories, Language language) {
-        this.stories = stories;
-        try {
-            List<List<TestCase>> results = new java.util.ArrayList<>(run(stories, language));
-            for (int i = 0; i < stories.size(); i++) {
-                List<TestCase> found = results.get(i);
-                int criteria = stories.get(i).getAcceptanceCriteria() != null ? stories.get(i).getAcceptanceCriteria().size() : 0;
-                if (found == null) {
-                    continue;
-                }
-                List<String> problems = fr.heliocraft.refinr.domain.service.TestCasePolicy.coverageProblems(found, criteria);
-                if (!problems.isEmpty()) {
-                    results.set(i, repair(stories.get(i), found, problems, language, i + 1, stories.size()));
-                }
+    public List<List<TestCase>> generateTestCases(List<Story> stories, Language language) {
+        List<List<TestCase>> results = new java.util.ArrayList<>(run(stories, language, (indexes, ids, lang) ->
+                LlmPrompts.testCases(indexes.stream().map(stories::get).toList(), ids, lang)));
+        for (int i = 0; i < stories.size(); i++) {
+            List<TestCase> found = results.get(i);
+            int criteria = stories.get(i).getAcceptanceCriteria() != null ? stories.get(i).getAcceptanceCriteria().size() : 0;
+            if (found == null) {
+                continue;
             }
-            return results;
-        } finally {
-            this.stories = null;
+            List<String> problems = fr.heliocraft.refinr.domain.service.TestCasePolicy.coverageProblems(found, criteria);
+            if (!problems.isEmpty()) {
+                results.set(i, repair(stories.get(i), found, problems, language, i + 1, stories.size()));
+            }
         }
+        return results;
     }
 
     private List<TestCase> repair(Story story, List<TestCase> previous, List<String> problems, Language language, int position,
@@ -105,11 +100,6 @@ public class LlmTestCaseGenerator extends LlmStoryBatches<List<TestCase>> implem
         }
         return tools.jackson.databind.json.JsonMapper.builder().build()
                 .writeValueAsString(java.util.Map.of("stories", List.of(java.util.Map.of("id", "s1", "testCases", cases))));
-    }
-
-    @Override
-    String prompt(List<Integer> indexes, List<String> ids, Language language) {
-        return LlmPrompts.testCases(indexes.stream().map(stories::get).toList(), ids, language);
     }
 
     @Override

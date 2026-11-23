@@ -148,6 +148,9 @@ class PipelineContractTest {
 
         JsonNode explicitFalse = read(send("/api/v1/analyze-preview", "{\"content\":\"" + SPEC + "\",\"pipeline\":false}"));
         assertFalse(explicitFalse.has("questions"));
+        // C2 : pas de clé testCases / testCasesError sans cas de test (reponses sans la chaine strictement inchangees)
+        assertFalse(body.at("/epics/0/stories/0").has("testCases"), body.toString());
+        assertFalse(body.at("/epics/0/stories/0").has("testCasesError"));
     }
 
     @Test

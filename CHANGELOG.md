@@ -8,7 +8,7 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 ### Added
 - **Cas de test (C2)**, dans la chaîne (`"pipeline": true`) et pour les seules stories prêtes : prompt 5
   (`test-cases-v1`), section `### Test cases` dans la description de la story, avant la ligne de verdict ; `testCases`
-  sur chaque story (aperçu, création, entrée de `create-jira`), nouvelle étape de job `generating-test-cases`.
+  sur les stories qui en ont (absent sinon : réponses sans la chaîne inchangées ; aperçu, création, entrée de `create-jira`), nouvelle étape de job `generating-test-cases`.
   Couverture contrôlée (1 à 3 cas par critère, critère existant) avec une seule réparation par story ; sinon aucune
   section partielle, `testCasesError` sur la story et avertissement. Story devenue prête (`story-tasks`, `createTasks`) :
   section ajoutée au même endroit (`testCases`, `testCasesSkipped`, `testCasesError`) ; `story-tasks` sur une story qui

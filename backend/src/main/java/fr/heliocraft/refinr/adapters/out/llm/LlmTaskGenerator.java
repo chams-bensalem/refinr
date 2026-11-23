@@ -24,32 +24,17 @@ public class LlmTaskGenerator extends LlmStoryBatches<List<Task>> implements Tas
 
     private static final Logger log = LoggerFactory.getLogger(LlmTaskGenerator.class);
 
-    private List<Story> stories;
-    private List<String> precisions;
-
     public LlmTaskGenerator(LlmClient client, StructuredOutput output, int batchSize) {
         super(client, output, batchSize, LlmSchemas.STORY_TASKS);
     }
 
     @Override
-    public synchronized List<List<Task>> generateTasks(List<Story> stories, List<String> precisions, Language language) {
+    public List<List<Task>> generateTasks(List<Story> stories, List<String> precisions, Language language) {
         if (precisions.size() != stories.size()) {
             throw new IllegalArgumentException("one precision (or null) per story is required");
         }
-        this.stories = stories;
-        this.precisions = precisions;
-        try {
-            return run(stories, language);
-        } finally {
-            this.stories = null;
-            this.precisions = null;
-        }
-    }
-
-    @Override
-    String prompt(List<Integer> indexes, List<String> ids, Language language) {
-        return LlmPrompts.tasks(indexes.stream().map(stories::get).toList(),
-                indexes.stream().map(precisions::get).toList(), ids, language);
+        return run(stories, language, (indexes, ids, lang) -> LlmPrompts.tasks(indexes.stream().map(stories::get).toList(),
+                indexes.stream().map(precisions::get).toList(), ids, lang));
     }
 
     @Override

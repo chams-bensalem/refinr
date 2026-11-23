@@ -43,8 +43,11 @@ abstract class LlmStoryBatches<T> {
         this.schema = LlmSchemas.load(schemaName);
     }
 
-    /** Texte du prompt d'un lot (stories, leur position d'origine et leurs identifiants). */
-    abstract String prompt(List<Integer> indexes, List<String> ids, Language language);
+    /** Texte du prompt d'un lot : positions d'origine des stories du lot et leurs identifiants. */
+    @FunctionalInterface
+    interface Prompt {
+        String text(List<Integer> indexes, List<String> ids, Language language);
+    }
 
     /** Resultat par identifiant ; une exception = sortie invalide (relance avec l'erreur). */
     abstract Map<String, T> parse(JsonNode json);
@@ -66,19 +69,22 @@ abstract class LlmStoryBatches<T> {
         return schemaName;
     }
 
+    /** Etat d'un appel (aucun etat partage entre appels : pas de verrou, appels simultanes possibles). */
     private final class Run {
         final Object[] results;
+        final Prompt prompt;
         LlmException lastError;
         int answered;
 
-        Run(int size) {
+        Run(int size, Prompt prompt) {
             results = new Object[size];
+            this.prompt = prompt;
         }
     }
 
     @SuppressWarnings("unchecked")
-    final List<T> run(List<Story> stories, Language language) {
-        Run run = new Run(stories.size());
+    final List<T> run(List<Story> stories, Language language, Prompt prompt) {
+        Run run = new Run(stories.size(), prompt);
         for (int from = 0; from < stories.size(); from += batchSize) {
             List<Integer> batch = new ArrayList<>();
             for (int i = from; i < Math.min(from + batchSize, stories.size()); i++) {
@@ -107,7 +113,7 @@ abstract class LlmStoryBatches<T> {
                 client.settings().describe(), language.code());
         Map<String, T> byId;
         try {
-            LlmRequest request = LlmRequest.of(LlmPrompts.system(language), prompt(indexes, ids, language), schemaName,
+            LlmRequest request = LlmRequest.of(LlmPrompts.system(language), run.prompt.text(indexes, ids, language), schemaName,
                     LlmSchemas.forProvider(schema));
             byId = output.call(client, request, schema, this::parse);
         } catch (LlmException e) {

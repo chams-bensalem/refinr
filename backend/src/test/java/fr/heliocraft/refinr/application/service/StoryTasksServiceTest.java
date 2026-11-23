@@ -107,6 +107,21 @@ class StoryTasksServiceTest {
     }
 
     @Test
+    @DisplayName("C2 review: unexpected error while writing the test cases (Jira unreachable) -> sub-tasks kept in the result")
+    void writeFailureKeepsTheSubtasks() {
+        when(tracker.findStory("PROJ-7")).thenReturn(written(List.of(), ""));
+        when(generator.generateTasks(anyList(), anyList(), any())).thenReturn(List.of(List.of(task("API"))));
+        when(tracker.createSubtask(any(), eq("PROJ-7"), any())).thenReturn("PROJ-8");
+        when(testCaseGenerator.generateTestCases(anyList(), any())).thenReturn(List.of(List.of(tc("AC1"))));
+        when(tracker.insertTestCases(eq("PROJ-7"), any())).thenThrow(new IllegalStateException("connection reset"));
+
+        StoryTasksResult result = withTestCases.generate("PROJ-7", null, null);
+
+        assertEquals(List.of("PROJ-8"), result.created().stream().map(c -> c.key()).toList());
+        assertEquals(StoryTasksService.TEST_CASES_WRITE_FAILED, result.testCasesError());
+    }
+
+    @Test
     @DisplayName("C2: coverage not compliant after the repair -> testCasesError naming the criteria, nothing written")
     void nonCompliantCoverage() {
         when(tracker.findStory("PROJ-7")).thenReturn(written(List.of("PROJ-8"), ""));
