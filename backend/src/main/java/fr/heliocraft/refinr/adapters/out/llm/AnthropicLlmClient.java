@@ -75,16 +75,17 @@ public class AnthropicLlmClient extends LlmClient {
 
     // Contraintes refusees (HTTP 400) par les sorties structurees d'Anthropic ; elles restent verifiees localement
     private static final Set<String> UNSUPPORTED = Set.of("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
-            "multipleOf", "minLength", "maxLength", "minItems", "maxItems", "uniqueItems", "pattern");
+            "multipleOf", "minLength", "maxLength", "maxItems", "uniqueItems", "pattern");
 
     /**
      * Copie du schema pour Anthropic (validation locale inchangee) : sans les contraintes non prises en charge, et
      * <b>toutes les proprietes obligatoires</b>. Anthropic compile le schema en grammaire et refuse (400 « Schema is too
      * complex ») un schema trop complexe : chaque propriete facultative double une partie de la grammaire, et le
      * backlog en a une quinzaine sur quatre niveaux (epic, feature, story, sous-tache). Une propriete obligatoire peut
-     * rester vide : chaine vide, liste vide ou 0 (les bornes {@code minLength}, {@code minItems} et {@code minimum} ne sont
-     * pas envoyees) ; seules les priorites (enumeration High, Medium, Low) n'ont pas de valeur vide, et le prompt les
-     * demande pour chaque element.
+     * rester vide : chaine vide, liste vide ou 0 (les bornes {@code minLength} et {@code minimum} ne sont pas envoyees ;
+     * {@code minItems} seulement s'il vaut 0 ou 1 : une Feature a au moins une story, un epic au moins une Feature) ;
+     * seules les priorites (enumeration High, Medium, Low) n'ont pas de valeur vide, et le prompt les demande pour
+     * chaque element.
      */
     static JsonNode supportedSchema(JsonNode schema) {
         JsonNode copy = schema.deepCopy();
@@ -126,6 +127,11 @@ public class AnthropicLlmClient extends LlmClient {
     private static void strip(ObjectNode object, boolean keywords) {
         if (keywords) {
             UNSUPPORTED.forEach(object::remove);
+            // minItems : seules les valeurs 0 et 1 sont prises en charge ; 1 est garde (ni Feature sans story, ni
+            // epic sans Feature), une borne plus grande reste a la validation locale
+            if (object.get("minItems") instanceof JsonNode min && (!min.isIntegralNumber() || min.asInt() > 1)) {
+                object.remove("minItems");
+            }
         }
         for (Map.Entry<String, JsonNode> field : object.properties()) {
             JsonNode value = field.getValue();

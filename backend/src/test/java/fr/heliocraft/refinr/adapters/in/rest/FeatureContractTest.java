@@ -183,6 +183,21 @@ class FeatureContractTest {
         }
 
         @Test
+        @DisplayName("create-jira with an empty feature sent by a client: dropped, warning, no Feature issue for it")
+        void emptyFeatureFromAClientIsDropped() throws Exception {
+            when(tracker.featureLevel(any())).thenReturn(FeatureLevel.OPTIONAL);
+
+            MockHttpServletResponse response = postJson("/api/v1/create-jira", "[{\"name\":\"E\",\"features\":["
+                    + "{\"name\":\"A\",\"stories\":[{\"title\":\"S1\"}]},{\"name\":\"B\",\"stories\":[]}]}]");
+
+            assertEquals(200, response.getStatus(), response.getContentAsString());
+            verify(tracker, never()).createFeature(any(), anyString(), any());
+            verify(tracker).createStory(any(), eq("TEST-1"), any());
+            assertEquals("an empty feature was dropped",
+                    JSON.readTree(response.getContentAsString()).at("/warnings/0").asString());
+        }
+
+        @Test
         @DisplayName("create-jira, both shapes identical (preview sent back as is): features used, no shape warning")
         void bothShapesIdentical() throws Exception {
             String preview = postJson("/api/v1/analyze-preview", json("content", SPEC)).getContentAsString();
