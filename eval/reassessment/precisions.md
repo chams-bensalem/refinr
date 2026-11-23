@@ -18,7 +18,7 @@
 
 **Précision qui répond** : Le logiciel de paie est Silae. Le 1er jour ouvré de chaque mois, l'application produit un fichier CSV (séparateur point-virgule, UTF-8) des absences validées du mois précédent, une ligne par absence : matricule, code absence, date de début, date de fin, nombre de jours. Le fichier est déposé sur le serveur SFTP de la paie ; hôte, compte et clé sont fournis dans la configuration de l'application. Critères : le fichier contient toutes les absences validées du mois précédent et seulement elles ; une absence non validée n'y figure pas ; un échec de dépôt est journalisé et réessayé une fois.
 
-**Précision hors sujet** : Le fichier exporté s'appellera absences_AAAA-MM.csv.
+**Précision hors sujet** : Dans le menu, l'export s'appellera « Export paie ».
 
 ## 2. v005 — Notifier les personnes concernées
 
