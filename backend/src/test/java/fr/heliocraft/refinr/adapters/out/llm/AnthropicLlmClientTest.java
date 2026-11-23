@@ -114,6 +114,60 @@ class AnthropicLlmClientTest extends AbstractLlmClientTest {
         assertFalse(stripped.path("properties").path("pattern").has("minLength"));
     }
 
+    /** Objets du schema dont une propriete n'est pas dans required (chemin JSON de chacun). */
+    private static void optionalProperties(JsonNode node, String path, java.util.List<String> found) {
+        if (node.isObject()) {
+            JsonNode properties = node.get("properties");
+            if (properties != null && properties.isObject()) {
+                java.util.Set<String> required = new java.util.HashSet<>();
+                node.path("required").forEach(name -> required.add(name.asString()));
+                for (String name : properties.propertyNames()) {
+                    if (!required.contains(name)) {
+                        found.add(path + "/" + name);
+                    }
+                    optionalProperties(properties.get(name), path + "/" + name, found);
+                }
+            }
+            for (String key : node.propertyNames()) {
+                if (!"properties".equals(key)) {
+                    optionalProperties(node.get(key), path + "/" + key, found);
+                }
+            }
+        } else if (node.isArray()) {
+            node.forEach(item -> optionalProperties(item, path + "[]", found));
+        }
+    }
+
+    @Test
+    @DisplayName("Backlog schema sent to Anthropic: no optional property at any level, and every field still accepts an empty value")
+    void backlogSchemaHasNoOptionalProperty() {
+        JsonNode local = LlmSchemas.load(LlmSchemas.BACKLOG);
+        JsonNode sent = AnthropicLlmClient.supportedSchema(LlmSchemas.forProvider(local));
+
+        java.util.List<String> optional = new java.util.ArrayList<>();
+        optionalProperties(sent, "", optional);
+        assertTrue(optional.isEmpty(), "optional properties sent to Anthropic: " + optional);
+        java.util.List<String> localOptional = new java.util.ArrayList<>();
+        optionalProperties(local, "", localOptional);
+        assertFalse(localOptional.isEmpty(), "the local schema keeps its optional properties");
+
+        // Tout vide sauf les priorites (enumeration) et le verdict (booleen) : le modele n'est jamais force a inventer
+        String task = "{\"title\":\"\",\"description\":\"\",\"estimatedHours\":0,\"labels\":[]}";
+        String story = "{\"asA\":\"\",\"iWant\":\"\",\"soThat\":\"\",\"title\":\"\",\"description\":\"\","
+                + "\"acceptanceCriteria\":[],\"estimatedStoryPoints\":0,\"priority\":\"Medium\",\"labels\":[],"
+                + "\"dependencies\":[],\"aiReady\":false,\"aiReadyReason\":\"\",\"tasks\":[" + task + "]}";
+        String feature = "{\"name\":\"\",\"description\":\"\",\"priority\":\"Medium\",\"labels\":[],\"stories\":["
+                + story + "]}";
+        String backlog = "{\"epics\":[{\"name\":\"\",\"description\":\"\",\"priority\":\"Medium\",\"labels\":[],"
+                + "\"features\":[" + feature + "]}]}";
+        StructuredOutput validator = new StructuredOutput(0);
+        assertTrue(validator.validate(sent, json.readTree(backlog)).isEmpty(),
+                () -> validator.validate(sent, json.readTree(backlog)).toString());
+        String emptyLists = "{\"epics\":[{\"name\":\"\",\"description\":\"\",\"priority\":\"Low\",\"labels\":[],"
+                + "\"features\":[]}]}";
+        assertTrue(validator.validate(sent, json.readTree(emptyLists)).isEmpty(), "empty lists accepted");
+    }
+
     @Test
     @DisplayName("HTTP 529 (overloaded) is retried")
     void overloadedIsRetried() {

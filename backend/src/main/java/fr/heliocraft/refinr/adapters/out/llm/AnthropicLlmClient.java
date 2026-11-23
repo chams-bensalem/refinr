@@ -77,11 +77,40 @@ public class AnthropicLlmClient extends LlmClient {
     private static final Set<String> UNSUPPORTED = Set.of("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
             "multipleOf", "minLength", "maxLength", "minItems", "maxItems", "uniqueItems", "pattern");
 
-    /** Copie du schema sans les contraintes non prises en charge par Anthropic (validation locale inchangee). */
+    /**
+     * Copie du schema pour Anthropic (validation locale inchangee) : sans les contraintes non prises en charge, et
+     * <b>toutes les proprietes obligatoires</b>. Anthropic compile le schema en grammaire et refuse (400 « Schema is too
+     * complex ») un schema trop complexe : chaque propriete facultative double une partie de la grammaire, et le
+     * backlog en a une quinzaine sur quatre niveaux (epic, feature, story, sous-tache). Une propriete obligatoire peut
+     * rester vide : chaine vide, liste vide ou 0 (les bornes {@code minLength}, {@code minItems} et {@code minimum} ne sont
+     * pas envoyees) ; seules les priorites (enumeration High, Medium, Low) n'ont pas de valeur vide, et le prompt les
+     * demande pour chaque element.
+     */
     static JsonNode supportedSchema(JsonNode schema) {
         JsonNode copy = schema.deepCopy();
         strip(copy);
+        requireAll(copy);
         return copy;
+    }
+
+    /** Chaque objet a proprietes les declare toutes dans {@code required}, dans leur ordre. */
+    private static void requireAll(JsonNode node) {
+        if (node instanceof ObjectNode object) {
+            if (object.get("properties") instanceof ObjectNode properties) {
+                tools.jackson.databind.node.ArrayNode required = object.putArray("required");
+                for (Map.Entry<String, JsonNode> property : properties.properties()) {
+                    required.add(property.getKey());
+                    requireAll(property.getValue());
+                }
+            }
+            for (Map.Entry<String, JsonNode> field : object.properties()) {
+                if (!"properties".equals(field.getKey())) {
+                    requireAll(field.getValue());
+                }
+            }
+        } else if (node != null && node.isArray()) {
+            node.forEach(AnthropicLlmClient::requireAll);
+        }
     }
 
     private static void strip(JsonNode node) {
