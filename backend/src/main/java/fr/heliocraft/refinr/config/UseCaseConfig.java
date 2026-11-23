@@ -133,7 +133,7 @@ public class UseCaseConfig {
 
     @Bean
     public ValidateStory validateStory(IssueTrackerPort issueTracker) {
-        return new ValidateStoryService(issueTracker);
+        return new ValidateStoryService(issueTracker, languagePolicy);
     }
 
     @Bean

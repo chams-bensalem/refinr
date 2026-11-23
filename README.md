@@ -771,7 +771,7 @@ Or validate it yourself, without any LLM call (same guard: `409` if the story is
 ```bash
 curl -s -X POST http://localhost:8080/api/v1/validate-story -H "Content-Type: application/json" \
   -d '{"issueKey": "PROJ-42"}'
-# { "success": true, "issueKey": "PROJ-42", "aiReady": true, "aiReadyReason": "validee par un humain, sans appel au modele", "aiReadySource": "human" }
+# { "success": true, "issueKey": "PROJ-42", "aiReady": true, "aiReadyReason": "validated by a human, without a model call", "aiReadySource": "human" }
 ```
 
 ### Pipeline: questions for the PO, sub-tasks only for ready stories

@@ -17,18 +17,27 @@ import fr.heliocraft.refinr.domain.service.ReadinessPolicy;
 public class ValidateStoryService implements ValidateStory {
 
     private final IssueTrackerPort issueTracker;
+    private final fr.heliocraft.refinr.domain.service.OutputLanguagePolicy languagePolicy;
 
     public ValidateStoryService(IssueTrackerPort issueTracker) {
+        this(issueTracker, fr.heliocraft.refinr.domain.service.OutputLanguagePolicy.DETECT);
+    }
+
+    public ValidateStoryService(IssueTrackerPort issueTracker,
+                                fr.heliocraft.refinr.domain.service.OutputLanguagePolicy languagePolicy) {
         this.issueTracker = issueTracker;
+        this.languagePolicy = languagePolicy;
     }
 
     @Override
-    public Readiness validate(String storyKey) {
+    public Readiness validate(String storyKey, fr.heliocraft.refinr.domain.model.Language requested) {
         TrackedStory story = issueTracker.findStory(storyKey);
         if (!ReadinessPolicy.isAwaitingValidation(story.labels())) {
             throw new StoryNotAwaitingValidationException(storyKey);
         }
-        Readiness verdict = ReadinessPolicy.humanValidation();
+        // Raison ecrite dans le ticket : langue demandee, puis propriete, puis detection sur la story
+        Readiness verdict = ReadinessPolicy.humanValidation(
+                languagePolicy.resolve(requested, story.summary() + "\n" + story.description()));
         issueTracker.applyHumanValidation(story, verdict);
         return verdict;
     }
