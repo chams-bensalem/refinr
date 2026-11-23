@@ -74,6 +74,11 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   règle pour `docker stop -t` et `terminationGracePeriodSeconds` de Kubernetes).
 
 ### Changed
+- **Réévaluation (prompt 3, `verdict-v3.4`)** : le modèle juge d'abord si la précision règle la question bloquante
+  précédente ; un autre point ne bloque la story que s'il relève des blocages de READINESS ou s'il est introduit par la
+  précision, et pas s'il n'est pas nécessaire pour l'implémenter et faire passer ses critères. Une réévaluation avec
+  une précision qui répond rend la story prête bien plus souvent (mesure R3 : 10,5 stories sur 18 contre 4,0), sans
+  story prête à tort. Contrat REST inchangé.
 - **Réévaluation et validation (B3), contenu écrit dans les tickets** : l'ancienne ligne de verdict est barrée et
   datée selon la langue (*(remplacée le AAAA-MM-JJ)* / *(replaced on YYYY-MM-DD)* ; Jira : marque `strike`,
   OpenProject : `~~`), la précision et la nouvelle ligne sont insérées juste après la dernière ligne de verdict (et
