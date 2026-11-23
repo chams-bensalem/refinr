@@ -242,6 +242,11 @@ public final class VerdictEval {
                         opts.containsKey("cap") ? Integer.valueOf(opts.get("cap")) : null, Double.parseDouble(opts.getOrDefault("budget", "20")),
                         opts.getOrDefault("phase", "E0"));
             }
+            case "probe-schema" -> {
+                refuseAutomatedRun(System.getenv(), System.getProperties());
+                eval.probeSchema(Target.of(arg(positional, 1)), config, opts.get("out"),
+                        Double.parseDouble(opts.getOrDefault("budget", "20")), opts.getOrDefault("phase", "E0"));
+            }
             default -> usage();
         }
     }
@@ -280,6 +285,7 @@ public final class VerdictEval {
                   run       <target> <runs> [--out DIR] [--pause 15] [--cap N] [--budget 20] [--phase E0]   CALLS THE MODEL
                   summarize <resultsDir> [--baseline DIR[,DIR]]      metrics against the labels (no model call)
                   generate  <target> <spec.md>... [--out DIR] [--cap N] [--budget 20] [--phase E0]   CALLS THE MODEL
+                  probe-schema <target> [--out DIR] [--budget 20] [--phase E0]   CALLS THE MODEL (Anthropic, 1 call)
                             backlog generation (analysis role) of each spec, one call each, saved as <spec>.json""");
     }
 
@@ -865,6 +871,45 @@ public final class VerdictEval {
      * texte fourni comme par {@code analyze-preview}), sans tracker. Sortie : le backlog tel que Refinr le renvoie (pas la
      * reponse brute), tokens et cout par appel ; memes garde-fous que {@code run} (plafond, budget, arrets).
      */
+    /**
+     * Sonde du schema de generation chez Anthropic : un appel (corps de production, prompt d'une phrase, sortie limitee),
+     * meme configuration que {@code generate}. N'affiche que le statut HTTP, {@code error.message} et la duree.
+     */
+    void probeSchema(Target target, String config, String outOption, double budget, String phase) throws Exception {
+        List<String> args = new ArrayList<>(List.of("--spring.config.location=file:" + config,
+                "--logging.level.root=WARN", "--logging.level.fr.heliocraft.refinr=WARN"));
+        args.addAll(target.analysisSpringArgs());
+        Setup s;
+        try (ConfigurableApplicationContext ctx = new SpringApplicationBuilder(LlmOnly.class).web(WebApplicationType.NONE)
+                .bannerMode(Banner.Mode.OFF).logStartupInfo(false).run(args.toArray(String[]::new))) {
+            LlmProperties props = ctx.getBean(LlmProperties.class);
+            s = new Setup(target, EvalLlmSettings.analysisRole(props), EvalLlmSettings.maxRepairAttempts(props), 0,
+                    languagePolicy(ctx));
+        }
+        if (s.settings().apiKey().isBlank()) throw new IllegalStateException("EVAL_ANTHROPIC_API_KEY is empty");
+        Price price = price(s);
+        if (price == null) throw new IllegalStateException("no price for " + s.settings().model() + " in eval/verdict/prices.csv");
+        System.out.println("target=" + target.id + " describe=" + s.settings().describe() + " api_key_set=true");
+        Path out = outOption != null ? Path.of(outOption) : root.resolve("eval/generation/results")
+                .resolve(LocalDate.now(ZONE) + "-schema-probe-" + s.settings().model());
+        Files.createDirectories(out);
+        Files.createDirectories(stateDir);
+        Meter meter = new Meter(s, price, out.resolve("calls.csv"), null, budget, phase);
+        fr.heliocraft.refinr.adapters.out.llm.LlmRequest request = fr.heliocraft.refinr.adapters.out.llm.SchemaProbe.request();
+        meter.before(s.settings(), request);
+        fr.heliocraft.refinr.adapters.out.llm.SchemaProbe.Result result = fr.heliocraft.refinr.adapters.out.llm.SchemaProbe
+                .probe(s.settings(), request, Duration.ofMinutes(4));
+        if (result.status() == 200) {
+            meter.usage(result.response());
+            meter.success();
+            System.out.printf(Locale.ROOT, "status=200 duration_ms=%d%n", result.millis());
+        } else {
+            meter.failure(new LlmException(LlmException.Reason.UNAVAILABLE, "HTTP " + result.status()));
+            System.out.printf(Locale.ROOT, "status=%d duration_ms=%d error.message=%s%n", result.status(), result.millis(),
+                    result.errorMessage());
+        }
+    }
+
     void generate(Target target, String config, List<String> specs, String outOption, Integer cap, double budget, String phase) throws Exception {
         if (specs.isEmpty()) throw new IllegalArgumentException("missing spec file(s), see usage");
         List<String> args = new ArrayList<>(List.of("--spring.config.location=file:" + config,
