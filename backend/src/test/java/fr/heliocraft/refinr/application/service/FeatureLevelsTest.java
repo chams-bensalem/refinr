@@ -52,25 +52,28 @@ class FeatureLevelsTest {
         assertTrue(error.getMessage().contains("refinr.features.without-level"));
     }
 
-    @Test
-    @DisplayName("Preview warnings: only explicit features without a native level; nothing when the level is unknown")
-    void previewWarnings() {
+    private static List<String> warnings(FeatureLevel level, FeatureLevels.Policy policy, List<Epic> epics) {
         IssueTrackerPort tracker = mock(IssueTrackerPort.class);
-        DescribeTrackerService describe = new DescribeTrackerService(tracker);
+        when(tracker.featureLevel(null)).thenReturn(level);
+        return new DescribeTrackerService(tracker, policy).featureWarnings(epics, null);
+    }
+
+    @Test
+    @DisplayName("Preview warnings: explicit features without a native level; level not checked when unknown; none otherwise")
+    void previewWarnings() {
         List<Epic> explicit = List.of(epic(feature("A"), feature("B")));
         List<Epic> implicit = List.of(epic(feature("A")));
 
-        when(tracker.featureLevel(null)).thenReturn(FeatureLevel.NONE);
-        assertEquals(List.of(FeatureLevels.LABELS_WARNING), describe.featureWarnings(explicit, null));
-        assertTrue(describe.featureWarnings(implicit, null).isEmpty());
-        assertEquals(List.of(FeatureLevels.REFUSE_WARNING),
-                new DescribeTrackerService(tracker, FeatureLevels.Policy.REFUSE).featureWarnings(explicit, null));
+        assertEquals(List.of(FeatureLevels.LABELS_WARNING), warnings(FeatureLevel.NONE, FeatureLevels.Policy.LABEL, explicit));
+        assertTrue(warnings(FeatureLevel.NONE, FeatureLevels.Policy.LABEL, implicit).isEmpty());
+        assertEquals(List.of(FeatureLevels.REFUSE_WARNING), warnings(FeatureLevel.NONE, FeatureLevels.Policy.REFUSE, explicit));
+        assertTrue(warnings(FeatureLevel.OPTIONAL, FeatureLevels.Policy.LABEL, explicit).isEmpty());
+        assertEquals(List.of(FeatureLevels.UNCHECKED_WARNING),
+                warnings(FeatureLevel.UNKNOWN, FeatureLevels.Policy.LABEL, explicit));
 
-        when(tracker.featureLevel(null)).thenReturn(FeatureLevel.OPTIONAL);
-        assertTrue(describe.featureWarnings(explicit, null).isEmpty());
-        when(tracker.featureLevel(null)).thenReturn(FeatureLevel.UNKNOWN);
-        assertTrue(describe.featureWarnings(explicit, null).isEmpty());
-        when(tracker.featureLevel(null)).thenThrow(new IllegalStateException("down"));
-        assertTrue(describe.featureWarnings(explicit, null).isEmpty());
+        IssueTrackerPort down = mock(IssueTrackerPort.class);
+        when(down.featureLevel(null)).thenThrow(new IllegalStateException("down"));
+        assertEquals(List.of(FeatureLevels.UNCHECKED_WARNING), new DescribeTrackerService(down).featureWarnings(explicit, null));
+        assertTrue(new DescribeTrackerService(down).featureWarnings(implicit, null).isEmpty(), "no lookup without explicit features");
     }
 }

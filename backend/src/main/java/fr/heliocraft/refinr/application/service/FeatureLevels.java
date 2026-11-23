@@ -44,6 +44,7 @@ public final class FeatureLevels {
             + "labels (feature-…) on their stories";
     static final String REFUSE_WARNING = "The tracker has no Feature level in this project: creating these issues "
             + "will be refused (" + PROPERTY + "=refuse)";
+    static final String UNCHECKED_WARNING = "The Feature level of the tracker could not be checked";
     static final String LABEL_PREFIX = "feature ";
 
     private static final Logger log = LoggerFactory.getLogger(FeatureLevels.class);

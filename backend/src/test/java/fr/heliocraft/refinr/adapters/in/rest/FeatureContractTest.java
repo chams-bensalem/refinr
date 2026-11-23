@@ -129,6 +129,9 @@ class FeatureContractTest {
         }
 
         @Test
+        // Contexte neuf : le niveau Feature lu par un autre test est en cache (1 h) dans le bean DescribeTracker
+        @org.springframework.test.annotation.DirtiesContext(
+                methodMode = org.springframework.test.annotation.DirtiesContext.MethodMode.BEFORE_METHOD)
         @DisplayName("Preview with a native feature level, or a single (implicit) feature: no warnings field at all")
         void noWarningsField() throws Exception {
             when(tracker.featureLevel(any())).thenReturn(FeatureLevel.OPTIONAL);
