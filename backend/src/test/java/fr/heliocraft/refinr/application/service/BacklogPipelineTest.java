@@ -91,17 +91,40 @@ class BacklogPipelineTest {
         when(tasks.generateTasks(anyList(), anyList(), any())).thenReturn(List.of(List.of(task("A1"))));
         when(testCases.generateTestCases(anyList(), any())).thenReturn(List.of(List.of(
                 new fr.heliocraft.refinr.domain.model.TestCase("T1", "AC1", "nominal", "g", "w", "t"),
-                new fr.heliocraft.refinr.domain.model.TestCase("T2", "AC2", "edge", "g", "w", "t"),
-                new fr.heliocraft.refinr.domain.model.TestCase("T3", "AC3", "edge", "g", "w", "t"))));
+                new fr.heliocraft.refinr.domain.model.TestCase("T2", "AC2", "edge", "g", "w", "t"))));
         List<JobView.Step> steps = new ArrayList<>();
 
         new BacklogPipeline(generator, assessor, tasks, testCases).run("SPEC", Language.EN, steps::add);
 
-        assertEquals(List.of("T1", "T2"), a.getTestCases().stream().map(fr.heliocraft.refinr.domain.model.TestCase::title).toList(),
-                "AC3 does not exist: dropped");
+        assertEquals(List.of("T1", "T2"), a.getTestCases().stream().map(fr.heliocraft.refinr.domain.model.TestCase::title).toList());
+        assertNull(a.getTestCasesError());
         assertTrue(b.getTestCases().isEmpty(), "not ready: no test case");
         verify(testCases).generateTestCases(List.of(a), Language.EN);
         assertEquals(JobView.Step.GENERATING_TEST_CASES, steps.getLast());
+    }
+
+    @Test
+    @DisplayName("C2: coverage still not compliant (after the generator's repair): no partial section, the error names the criteria")
+    void nonCompliantCoverageWritesNothing() {
+        BacklogGeneratorPort generator = mock(BacklogGeneratorPort.class);
+        ReadinessAssessorPort assessor = mock(ReadinessAssessorPort.class);
+        TaskGeneratorPort tasks = mock(TaskGeneratorPort.class);
+        fr.heliocraft.refinr.application.port.out.TestCaseGeneratorPort testCases =
+                mock(fr.heliocraft.refinr.application.port.out.TestCaseGeneratorPort.class);
+        Story a = story("A", true);
+        a.setAcceptanceCriteria(new ArrayList<>(List.of("Given …", "Given …")));
+        when(generator.generateStories(any(), any())).thenReturn(backlog(a));
+        when(assessor.assess(anyList(), anyList())).thenReturn(List.of(new Readiness(true, "ok")));
+        when(tasks.generateTasks(anyList(), anyList(), any())).thenReturn(List.of(List.of(task("A1"))));
+        when(testCases.generateTestCases(anyList(), any())).thenReturn(List.of(List.of(
+                new fr.heliocraft.refinr.domain.model.TestCase("T1", "AC1", "nominal", "g", "w", "t"))));
+
+        new BacklogPipeline(generator, assessor, tasks, testCases).run("SPEC", Language.EN, AnalysisProgress.NONE);
+
+        assertTrue(a.getTestCases().isEmpty(), "no partial section");
+        assertEquals("test cases not written: AC2 has no test case", a.getTestCasesError());
+        assertEquals(1, a.getTasks().size(), "sub-tasks and verdict untouched");
+        assertTrue(a.getAiReady());
     }
 
     @Test

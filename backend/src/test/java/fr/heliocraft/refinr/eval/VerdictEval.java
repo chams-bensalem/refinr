@@ -946,6 +946,7 @@ public final class VerdictEval {
                 meter.run = pass;
                 meter.batch = f + 1;
                 List<List<fr.heliocraft.refinr.domain.model.TestCase>> result;
+                int repairsBefore = generator.repairsTriggered();
                 try {
                     result = generator.generateTestCases(ready, language);
                 } catch (Stop stop) {
@@ -966,11 +967,14 @@ public final class VerdictEval {
                 }
                 writeString(out.resolve(name + "-pass" + pass + ".json"), json.writerWithDefaultPrettyPrinter()
                         .writeValueAsString(java.util.Map.of("source", source.toString().replace("../", ""),
-                                "language", language.code(), "stories", stories)));
-                System.out.printf(Locale.ROOT, "%s pass %d: %d ready stor(ies), calls today %d%s%n", name, pass, ready.size(),
-                        meter.calls(), price == null ? "" : String.format(Locale.ROOT, ", spent %.4f USD", meter.spent()));
+                                "language", language.code(), "repairs", generator.repairsTriggered() - repairsBefore,
+                                "stories", stories)));
+                System.out.printf(Locale.ROOT, "%s pass %d: %d ready stor(ies), %d coverage repair(s), calls today %d%s%n", name,
+                        pass, ready.size(), generator.repairsTriggered() - repairsBefore, meter.calls(),
+                        price == null ? "" : String.format(Locale.ROOT, ", spent %.4f USD", meter.spent()));
             }
         }
+        System.out.println("coverage repairs triggered: " + generator.repairsTriggered());
         System.out.println("done: " + out);
     }
 

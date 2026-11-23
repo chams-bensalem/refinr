@@ -58,6 +58,14 @@ abstract class LlmStoryBatches<T> {
         return client;
     }
 
+    JsonNode schema() {
+        return schema;
+    }
+
+    String schemaName() {
+        return schemaName;
+    }
+
     private final class Run {
         final Object[] results;
         LlmException lastError;

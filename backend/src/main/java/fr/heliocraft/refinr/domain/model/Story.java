@@ -23,6 +23,8 @@ public class Story {
     private List<Task> tasks = new ArrayList<>();
     // Chaine C2 : cas de test (stories pretes seulement), ecrits dans la description
     private List<TestCase> testCases = new ArrayList<>();
+    // Cas de test non ecrits (couverture non conforme apres la reparation) : la raison, sans contenu ; sinon null
+    private String testCasesError;
     private List<String> dependencies = new ArrayList<>();
     // Jugement de l'analyse : la story est-elle implementable par un agent de code sans decision humaine ?
     private Boolean aiReady;
@@ -120,6 +122,14 @@ public class Story {
 
     public void setTestCases(List<TestCase> testCases) {
         this.testCases = testCases != null ? testCases : new ArrayList<>();
+    }
+
+    public String getTestCasesError() {
+        return testCasesError;
+    }
+
+    public void setTestCasesError(String testCasesError) {
+        this.testCasesError = testCasesError;
     }
 
     public List<String> getDependencies() {

@@ -88,13 +88,14 @@ class StoryTasksServiceTest {
     @DisplayName("C2: after its sub-tasks, the story's test cases are written into its description (criteria read back from it)")
     void testCasesWritten() {
         when(tracker.findStory("PROJ-7")).thenReturn(written(List.of("PROJ-8"), ""));
-        when(testCaseGenerator.generateTestCases(anyList(), any())).thenReturn(List.of(List.of(tc("AC1"), tc("AC5"))));
+        when(testCaseGenerator.generateTestCases(anyList(), any())).thenReturn(List.of(List.of(tc("AC1"))));
         when(tracker.insertTestCases(eq("PROJ-7"), any())).thenReturn(true);
 
         StoryTasksResult result = withTestCases.generate("PROJ-7", null, Language.EN);
 
-        assertEquals(1, result.existingSubtasks(), "sub-tasks already there: skipped");
-        assertEquals(1, result.testCases(), "AC5 does not exist: dropped");
+        assertEquals(1, result.existingSubtasks(), "sub-tasks already there: skipped (recovery path)");
+        assertEquals(1, result.testCases(), "only the test cases are generated");
+        verifyNoInteractions(generator);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<Story>> input = ArgumentCaptor.forClass(List.class);
         verify(testCaseGenerator).generateTestCases(input.capture(), eq(Language.EN));
@@ -103,6 +104,19 @@ class StoryTasksServiceTest {
         ArgumentCaptor<String> section = ArgumentCaptor.forClass(String.class);
         verify(tracker).insertTestCases(eq("PROJ-7"), section.capture());
         assertTrue(section.getValue().startsWith("### Test cases\n\n- **TC1 (AC1, nominal):** CSV"), section.getValue());
+    }
+
+    @Test
+    @DisplayName("C2: coverage not compliant after the repair -> testCasesError naming the criteria, nothing written")
+    void nonCompliantCoverage() {
+        when(tracker.findStory("PROJ-7")).thenReturn(written(List.of("PROJ-8"), ""));
+        when(testCaseGenerator.generateTestCases(anyList(), any())).thenReturn(List.of(List.of(tc("AC1"), tc("AC5"))));
+
+        StoryTasksResult result = withTestCases.generate("PROJ-7", null, null);
+
+        assertEquals("test cases not written: test case 2: criterion must name an existing acceptance criterion (AC1 to AC1)",
+                result.testCasesError());
+        verify(tracker, never()).insertTestCases(any(), any());
     }
 
     @Test

@@ -88,17 +88,27 @@ public class BacklogPipeline {
         if (testCaseGenerator != null) {
             progress.step(JobView.Step.GENERATING_TEST_CASES);
             List<List<TestCase>> testCases = LlmFailures.translate(() -> testCaseGenerator.generateTestCases(ready, language));
-            int dropped = 0;
+            int rejected = 0;
             for (int i = 0; i < ready.size(); i++) {
                 Story story = ready.get(i);
                 List<TestCase> found = i < testCases.size() ? testCases.get(i) : null;
-                List<TestCase> valid = TestCasePolicy.valid(found, story.getAcceptanceCriteria().size());
-                dropped += found == null ? 0 : found.size() - valid.size();
-                story.setTestCases(new ArrayList<>(valid));
+                int criteria = story.getAcceptanceCriteria() != null ? story.getAcceptanceCriteria().size() : 0;
+                if (criteria == 0) {
+                    // Rien a couvrir : ni cas de test, ni avertissement
+                    continue;
+                }
+                List<String> problems = found == null ? List.of("the model gave no test case")
+                        : TestCasePolicy.coverageProblems(found, criteria);
+                if (problems.isEmpty()) {
+                    story.setTestCases(new ArrayList<>(TestCasePolicy.valid(found, criteria)));
+                } else {
+                    // Couverture non conforme apres la reparation : aucune section partielle, raison sur la story
+                    rejected++;
+                    story.setTestCasesError(TestCasePolicy.notWritten(problems));
+                }
             }
-            if (dropped > 0) {
-                // Critere inexistant, champ vide ou trop long : ecarte, jamais corrige
-                log.warn("{} invalid test case(s) dropped", dropped);
+            if (rejected > 0) {
+                log.warn("Test cases not written for {} of {} ready stories (coverage)", rejected, ready.size());
             }
         }
         return epics;

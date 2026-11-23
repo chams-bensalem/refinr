@@ -230,7 +230,8 @@ class PipelineContractTest {
         JsonNode skipped = read(send("/api/v1/story-tasks", "{\"issueKey\":\"OTHER-7\"}"));
         assertEquals("the story already has 2 sub-tasks", skipped.get("tasksSkipped").asString());
         verify(taskGenerator, times(1)).generateTasks(anyList(), anyList(), any());
-        assertFalse(output.getAll().contains("Secret-marker-c1"), "no story content in the logs");
+        assertFalse(output.getAll().contains("Secret-marker-c1"), () -> "no story content in the logs: " + output.getAll().lines()
+                .filter(l -> l.contains("Secret-marker-c1")).map(l -> l.substring(0, Math.min(400, l.length()))).toList());
     }
 
     private static final String WITH_TEST_CASE = "[{\"name\":\"E\",\"stories\":[{\"title\":\"S\",\"acceptanceCriteria\":[\"Given a\"],"
@@ -288,6 +289,44 @@ class PipelineContractTest {
         assertEquals(1, written.at("/testCases/written").asInt(), written.toString());
         JsonNode skipped = read(send("/api/v1/story-tasks", "{\"issueKey\":\"TEST-7\"}"));
         assertEquals("the description already has a test cases section", skipped.get("testCasesSkipped").asString());
+    }
+
+    @Test
+    @DisplayName("C2 recovery: story-tasks on a story with sub-tasks but no section -> tasksSkipped AND testCases, no sub-task call")
+    void storyTasksRecovery() throws Exception {
+        String description = "### Acceptance Criteria\n- **AC1:** Given a\nAI readiness (ai-ready): ok";
+        when(tracker.findStory("TEST-9")).thenReturn(new TrackedStory("TEST-9", "S", description, List.of("ai-ready"),
+                null, null, List.of("TEST-10", "TEST-11")));
+        when(testCaseGenerator.generateTestCases(anyList(), any())).thenReturn(List.of(List.of(
+                new fr.heliocraft.refinr.domain.model.TestCase("T1", "AC1", "nominal", "g", "w", "t"))));
+        when(tracker.insertTestCases(eq("TEST-9"), any())).thenReturn(true);
+
+        JsonNode body = read(send("/api/v1/story-tasks", "{\"issueKey\":\"TEST-9\"}"));
+
+        assertEquals("the story already has 2 sub-tasks", body.get("tasksSkipped").asString(), body.toString());
+        assertEquals(1, body.at("/testCases/written").asInt());
+        assertEquals("Sub-tasks already present; 1 test cases written", body.get("message").asString());
+        verifyNoInteractions(taskGenerator);
+    }
+
+    @Test
+    @DisplayName("C2 preview: coverage not compliant -> no testCases, testCasesError on the story, warning naming story and criteria")
+    void previewCoverageError() throws Exception {
+        when(testCaseGenerator.generateTestCases(anyList(), any())).thenAnswer(call -> List.of(List.of(
+                new fr.heliocraft.refinr.domain.model.TestCase("T1", "AC1", "nominal", "g", "w", "t"))));
+        Epic epic = new Epic();
+        epic.setName("Orders");
+        Story ready = story("Export");
+        ready.setAcceptanceCriteria(new ArrayList<>(List.of("Given paid orders", "Given no order")));
+        epic.setStories(new ArrayList<>(List.of(ready, story("Separator"), story("Encoding"))));
+        when(generator.generateStories(any(), any())).thenReturn(new ArrayList<>(List.of(epic)));
+
+        JsonNode body = read(send("/api/v1/analyze-preview", "{\"content\":\"" + SPEC + "\",\"pipeline\":true}"));
+
+        assertEquals(0, body.at("/epics/0/stories/0/testCases").size(), body.toString());
+        assertEquals("test cases not written: AC2 has no test case", body.at("/epics/0/stories/0/testCasesError").asString());
+        assertEquals("story \"Export\": test cases not written: AC2 has no test case", body.at("/warnings/0").asString());
+        assertTrue(body.at("/epics/0/stories/1/testCasesError").isMissingNode(), "absent when there is no error");
     }
 
     @Test

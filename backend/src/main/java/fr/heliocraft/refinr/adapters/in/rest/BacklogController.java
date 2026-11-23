@@ -437,7 +437,9 @@ public class BacklogController {
             HttpStatus status = HttpStatus.OK;
             if (result.existingSubtasks() != null) {
                 body.put("success", true);
-                body.put("message", "Nothing created");
+                // Sous-taches deja la : seuls les cas de test ont pu etre ecrits (reprise apres un testCasesError)
+                body.put("message", result.testCases() != null
+                        ? "Sub-tasks already present; " + result.testCases() + " test cases written" : "Nothing created");
             } else if (result.failed().isEmpty()) {
                 body.put("success", true);
                 body.put("message", "Successfully created " + result.created().size() + " sub-tasks");
