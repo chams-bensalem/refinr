@@ -625,4 +625,14 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
   par le mainteneur avant la relance : 5 nouvelles exécutions avec le schéma corrigé, critère 2 jugé sur leur moyenne,
   critère 1 complété par « aucune Feature vide » ; order-export et customer-data-export : 1 exécution chacune
   (critères 1, 4, 5, 6).
+- **Mesure C1, critère 1 (« au plus 1 Feature à une seule story dans un epic qui en a plusieurs ») mal formulé**, comme
+  les seuils 4 et 5 de F1 : jugé sur les résultats commités **sans changer le critère pour cette mesure**. Les 3
+  Features à une seule story (reservation-salles, exécutions 1, 3 et 4 avec le schéma corrigé) sont toutes
+  « Intégration Outlook », qui correspond à la section « Intégration » de la spec, un seul besoin (les réservations
+  dans l'agenda Outlook) ; aucune ne découpe Réservation, Notifications ou Administration. Une capacité distincte avec
+  un seul besoin donne légitimement une Feature d'une seule story. Règle de décision fixée par le mainteneur avant de
+  lire les noms : toutes les 3 dans « Intégration » → limite connue de la chaîne, acceptée (option 1), sans nouveau
+  prompt. À revoir en M1 : la règle du prompt « jamais de Feature à une seule story dans un epic qui en a plusieurs »
+  peut pousser à des fusions artificielles (avec `generation-v2`, l'intégration Outlook était fusionnée dans une autre
+  Feature).
 
