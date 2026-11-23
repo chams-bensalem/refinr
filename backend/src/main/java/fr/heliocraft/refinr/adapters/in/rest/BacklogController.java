@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.adapters.in.rest;
 
+import fr.heliocraft.refinr.application.port.in.ContextRequest;
 import java.util.LinkedHashMap;
 import fr.heliocraft.refinr.application.port.in.StoryTasksInProgressException;
 import fr.heliocraft.refinr.application.port.in.StoryNotReadyException;
@@ -120,17 +121,14 @@ public class BacklogController {
                 AnalysisRequests.logTextInput(log, "Analyze", request);
                 String title = request.get(AnalysisRequests.TITLE);
                 String content = request.get(AnalysisRequests.CONTENT);
-                // Sans la chaine : exactement l'appel d'avant
-                BacklogCreationResult result = pipeline
-                        ? analyzeDocument.analyzeTextAndCreate(title, content, projectKey, language, true, AnalysisProgress.NONE)
-                        : analyzeDocument.analyzeTextAndCreate(title, content, projectKey, language);
+                BacklogCreationResult result = analyzeDocument.analyzeTextAndCreate(title, content, projectKey, language,
+                        pipeline, AnalysisRequests.context(request), AnalysisProgress.NONE);
                 return creationResponse(result, pipeline);
             }
             String documentId = AnalysisRequests.documentId(request);
             log.info("Received request to analyze {} document: {}", describeSource.displayName(), documentId);
-            BacklogCreationResult result = pipeline
-                    ? analyzeDocument.analyzeAndCreate(documentId, projectKey, language, true, AnalysisProgress.NONE)
-                    : analyzeDocument.analyzeAndCreate(documentId, projectKey, language);
+            BacklogCreationResult result = analyzeDocument.analyzeAndCreate(documentId, projectKey, language, pipeline,
+                    AnalysisRequests.context(request), AnalysisProgress.NONE);
             return BacklogResponses.withDocumentUrl(creationResponse(result, pipeline),
                     describeSource.documentUrl(documentId));
 
@@ -172,6 +170,7 @@ public class BacklogController {
     }
 
     static final String RATE_LIMITED = BacklogResponses.RATE_LIMITED;
+    static final String CONTEXT_NEEDS_CREATE_TASKS = "context and contextDocumentId are only accepted with createTasks";
     static final String OVERLOADED = BacklogResponses.OVERLOADED;
 
     /**
@@ -246,17 +245,14 @@ public class BacklogController {
                 AnalysisRequests.logTextInput(log, "Preview", request);
                 String title = request.get(AnalysisRequests.TITLE);
                 String content = request.get(AnalysisRequests.CONTENT);
-                // Sans la chaine : exactement l'appel d'avant
-                List<Epic> epics = pipeline
-                        ? previewBacklog.previewText(title, content, language, true, AnalysisProgress.NONE)
-                        : previewBacklog.previewText(title, content, language);
+                List<Epic> epics = previewBacklog.previewText(title, content, language, pipeline,
+                        AnalysisRequests.context(request), projectKey, AnalysisProgress.NONE);
                 return previewResponse(epics, projectKey, pipeline);
             }
             String documentId = AnalysisRequests.documentId(request);
             log.info("Preview request for {} document: {}", describeSource.displayName(), documentId);
-            List<Epic> epics = pipeline
-                    ? previewBacklog.preview(documentId, language, true, AnalysisProgress.NONE)
-                    : previewBacklog.preview(documentId, language);
+            List<Epic> epics = previewBacklog.preview(documentId, language, pipeline, AnalysisRequests.context(request),
+                    projectKey, AnalysisProgress.NONE);
             return BacklogResponses.withDocumentUrl(previewResponse(epics, projectKey, pipeline),
                     describeSource.documentUrl(documentId));
 
@@ -284,7 +280,9 @@ public class BacklogController {
             // Projet cible optionnel (sinon le projet par defaut du gestionnaire actif), meme validation que analyze-and-create
             @RequestParam(required = false) String projectKey,
             // Langue des verdicts optionnelle (ex. celle de l'apercu) ; sinon la propriete, puis la detection par story
-            @RequestParam(required = false) String language) {
+            @RequestParam(required = false) String language,
+            // Contexte projet (X1) : page de la source documentaire (le corps est la liste des epics)
+            @RequestParam(required = false) String contextDocumentId) {
         if (!isValidProjectKey(projectKey)) {
             return invalidProjectKey(projectKey);
         }
@@ -300,12 +298,18 @@ public class BacklogController {
             List<String> shapeWarnings = new java.util.ArrayList<>();
             List<Epic> epics = RestBacklogMapper.toDomain(request, shapeWarnings);
             // Verdict recalcule sur le contenu final : aiReady / aiReadyReason envoyes par le client sont ignores
-            return BacklogResponses.creation(createEditedBacklog.create(epics, projectKey, verdictLanguage)
-                    .withWarnings(shapeWarnings));
+            return BacklogResponses.creation(createEditedBacklog.create(epics, projectKey, verdictLanguage,
+                    new ContextRequest(null, contextDocumentId)).withWarnings(shapeWarnings));
 
         } catch (InvalidRequestException e) {
             // Cas de test du client invalides : message ecrit par l'application, sans le contenu
             return invalidRequest(e);
+        } catch (ContentTooLargeException e) {
+            return contentTooLarge(e);
+        } catch (DocumentNotFoundException e) {
+            return documentNotFound(e);
+        } catch (DocumentSourceUnavailableException e) {
+            return sourceUnavailable(e);
         } catch (FeatureLevelMissingException e) {
             return BacklogResponses.featureLevelMissing(e.getMessage());
         } catch (Exception e) {
@@ -344,7 +348,8 @@ public class BacklogController {
 
         log.info("Reassessment request for {}", issueKey);
         try {
-            Readiness verdict = reassessStory.reassess(issueKey, precision, language);
+            ContextRequest context = AnalysisRequests.context(request);
+            Readiness verdict = reassessStory.reassess(issueKey, precision, language, context);
             Map<String, Object> body = new LinkedHashMap<>(Map.of(
                     "success", true,
                     "issueKey", issueKey,
@@ -353,11 +358,19 @@ public class BacklogController {
                     "aiReadySource", verdict.source().id()
             ));
             if (createTasks) {
-                putTasks(body, storyTasks.afterVerdict(issueKey, precision, verdict, language));
+                putTasks(body, storyTasks.afterVerdict(issueKey, precision, verdict, language, context));
             }
             return ResponseEntity.ok(body);
         } catch (StoryNotAwaitingValidationException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponses.error(e.getMessage()));
+        } catch (InvalidRequestException e) {
+            return invalidRequest(e);
+        } catch (ContentTooLargeException e) {
+            return contentTooLarge(e);
+        } catch (DocumentNotFoundException e) {
+            return documentNotFound(e);
+        } catch (DocumentSourceUnavailableException e) {
+            return sourceUnavailable(e);
         } catch (ModelOutputException e) {
             return modelOutputFailure(e);
         } catch (ModelUnavailableException e) {
@@ -391,8 +404,17 @@ public class BacklogController {
         } catch (IllegalArgumentException e) {
             return invalidLanguage();
         }
+        ContextRequest context = AnalysisRequests.context(request);
+        if (!context.isEmpty() && !createTasks) {
+            // Sans createTasks, aucun appel au modele : un contexte n'aurait aucun effet
+            return ResponseEntity.badRequest().body(ErrorResponses.error(CONTEXT_NEEDS_CREATE_TASKS));
+        }
         log.info("Human validation request for {}", issueKey);
         try {
+            if (createTasks) {
+                // Controles locaux du contexte (400, 413) avant d'ecrire la validation dans le ticket
+                storyTasks.checkContext(context);
+            }
             Readiness verdict = validateStory.validate(issueKey, language);
             Map<String, Object> body = new LinkedHashMap<>(Map.of(
                     "success", true,
@@ -402,11 +424,15 @@ public class BacklogController {
                     "aiReadySource", verdict.source().id()
             ));
             if (createTasks) {
-                putTasks(body, storyTasks.afterVerdict(issueKey, null, verdict, language));
+                putTasks(body, storyTasks.afterVerdict(issueKey, null, verdict, language, context));
             }
             return ResponseEntity.ok(body);
         } catch (StoryNotAwaitingValidationException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponses.error(e.getMessage()));
+        } catch (InvalidRequestException e) {
+            return invalidRequest(e);
+        } catch (ContentTooLargeException e) {
+            return contentTooLarge(e);
         } catch (Exception e) {
             log.error("Error validating story {}", issueKey, e);
             return ResponseEntity.internalServerError().body(ErrorResponses.error("Failed to validate the story"));
@@ -432,7 +458,7 @@ public class BacklogController {
         }
         log.info("Sub-task request for {}", issueKey);
         try {
-            StoryTasksResult result = storyTasks.generate(issueKey, null, language);
+            StoryTasksResult result = storyTasks.generate(issueKey, null, language, AnalysisRequests.context(request));
             Map<String, Object> body = new LinkedHashMap<>();
             HttpStatus status = HttpStatus.OK;
             if (result.existingSubtasks() != null) {
@@ -457,6 +483,14 @@ public class BacklogController {
             return ResponseEntity.status(status).body(body);
         } catch (StoryNotReadyException | StoryTasksInProgressException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponses.error(e.getMessage()));
+        } catch (InvalidRequestException e) {
+            return invalidRequest(e);
+        } catch (ContentTooLargeException e) {
+            return contentTooLarge(e);
+        } catch (DocumentNotFoundException e) {
+            return documentNotFound(e);
+        } catch (DocumentSourceUnavailableException e) {
+            return sourceUnavailable(e);
         } catch (ModelOutputException e) {
             return modelOutputFailure(e);
         } catch (ModelUnavailableException e) {

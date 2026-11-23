@@ -3,6 +3,8 @@
 
 package fr.heliocraft.refinr.application.service;
 
+import fr.heliocraft.refinr.application.port.in.ContextRequest;
+import fr.heliocraft.refinr.domain.model.ProjectContext;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult.CreatedIssue;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult.FailedIssue;
 import fr.heliocraft.refinr.application.port.in.GenerateStoryTasks;
@@ -51,6 +53,8 @@ public class StoryTasksService implements GenerateStoryTasks {
     private final StoryLocks locks;
     // Chaine C2 : cas de test (prompt 5), ou null
     private final TestCaseGeneratorPort testCases;
+    // Contexte projet (X1), ou null
+    private final ProjectContextResolver contexts;
 
     public StoryTasksService(IssueTrackerPort issueTracker, TaskGeneratorPort taskGenerator,
                              OutputLanguagePolicy languagePolicy) {
@@ -64,6 +68,14 @@ public class StoryTasksService implements GenerateStoryTasks {
 
     public StoryTasksService(IssueTrackerPort issueTracker, TaskGeneratorPort taskGenerator,
                              OutputLanguagePolicy languagePolicy, StoryLocks locks, TestCaseGeneratorPort testCases) {
+        this(issueTracker, taskGenerator, languagePolicy, locks, testCases, null);
+    }
+
+    /** @param contexts contexte projet (X1) ; null : aucun contexte (une demande de contexte est refusee) */
+    public StoryTasksService(IssueTrackerPort issueTracker, TaskGeneratorPort taskGenerator,
+                             OutputLanguagePolicy languagePolicy, StoryLocks locks, TestCaseGeneratorPort testCases,
+                             ProjectContextResolver contexts) {
+        this.contexts = contexts;
         this.issueTracker = issueTracker;
         this.taskGenerator = taskGenerator;
         this.languagePolicy = languagePolicy;
@@ -73,6 +85,17 @@ public class StoryTasksService implements GenerateStoryTasks {
 
     @Override
     public StoryTasksResult generate(String storyKey, String precision, Language requested) {
+        return generate(storyKey, precision, requested, ContextRequest.NONE);
+    }
+
+    @Override
+    public StoryTasksResult generate(String storyKey, String precision, Language requested, ContextRequest contextRequest) {
+        if (contexts == null && !contextRequest.isEmpty()) {
+            throw new UnsupportedOperationException("project context not configured");
+        }
+        if (contexts != null) {
+            contexts.check(contextRequest);
+        }
         // Verrou sur la cle que rend le gestionnaire (PROJ-7 et proj-7, 039 et 39 : une seule story), puis relecture
         // sous le verrou : les sous-taches creees entre-temps par un autre chemin sont vues
         String key = issueTracker.findStory(storyKey).key();
@@ -86,9 +109,15 @@ public class StoryTasksService implements GenerateStoryTasks {
             }
             // Meme priorite que partout : parametre language, puis propriete, puis detection sur la story
             Language language = languagePolicy.resolve(requested, story.summary() + "\n" + story.description());
-            StoryTasksResult result = story.subtaskKeys().isEmpty() ? createTasks(story, precision, language)
+            // Contexte de la requete, sinon celui du projet du ticket, sinon celui par defaut (prompts 4 et 5)
+            ProjectContext context = contexts == null ? ProjectContext.NONE : contexts.resolve(contextRequest, story.project());
+            TaskGeneratorPort taskGenerator = context.isPresent() ? this.taskGenerator.withContext(context.text())
+                    : this.taskGenerator;
+            TestCaseGeneratorPort testCases = context.isPresent() && this.testCases != null
+                    ? this.testCases.withContext(context.text()) : this.testCases;
+            StoryTasksResult result = story.subtaskKeys().isEmpty() ? createTasks(story, precision, language, taskGenerator)
                     : skipTasks(story);
-            return testCases == null ? result : withTestCases(story, precision, result, language);
+            return testCases == null ? result : withTestCases(story, precision, result, language, testCases);
         } finally {
             locks.unlock(key);
         }
@@ -99,7 +128,8 @@ public class StoryTasksService implements GenerateStoryTasks {
         return StoryTasksResult.skipped(story.subtaskKeys().size());
     }
 
-    private StoryTasksResult createTasks(TrackedStory story, String precision, Language language) {
+    private StoryTasksResult createTasks(TrackedStory story, String precision, Language language,
+                                         TaskGeneratorPort taskGenerator) {
         String storyKey = story.key();
         Story input = new Story();
         input.setTitle(StoryMarkdown.decodeEntities(story.summary()));
@@ -138,7 +168,8 @@ public class StoryTasksService implements GenerateStoryTasks {
      * Chaine C2 : cas de test de la story, ecrits dans sa description (meme place qu'a la creation). Idempotent par le
      * titre de section ; une erreur ici est rendue dans le resultat, sans annuler les sous-taches deja creees.
      */
-    private StoryTasksResult withTestCases(TrackedStory story, String precision, StoryTasksResult result, Language language) {
+    private StoryTasksResult withTestCases(TrackedStory story, String precision, StoryTasksResult result, Language language,
+                                           TestCaseGeneratorPort testCases) {
         if (StoryMarkdown.hasTestCases(story.description())) {
             return result.withTestCases(null, true, null);
         }
@@ -186,13 +217,35 @@ public class StoryTasksService implements GenerateStoryTasks {
     }
 
     @Override
+    public void checkContext(ContextRequest context) {
+        if (contexts == null && !context.isEmpty()) {
+            throw new UnsupportedOperationException("project context not configured");
+        }
+        if (contexts != null) {
+            contexts.check(context);
+        }
+    }
+
+    @Override
     public StoryTasksResult afterVerdict(String storyKey, String precision, Readiness verdict, Language language) {
+        return afterVerdict(storyKey, precision, verdict, language, ContextRequest.NONE);
+    }
+
+    @Override
+    public StoryTasksResult afterVerdict(String storyKey, String precision, Readiness verdict, Language language,
+                                         ContextRequest context) {
         if (verdict == null || !verdict.aiReady()) {
             return StoryTasksResult.notReadyYet();
         }
         try {
-            return generate(storyKey, precision, language);
+            return generate(storyKey, precision, language, context);
         } catch (StoryTasksInProgressException | StoryNotReadyException e) {
+            return StoryTasksResult.failure(e.getMessage());
+        } catch (fr.heliocraft.refinr.application.port.in.InvalidRequestException
+                 | fr.heliocraft.refinr.application.port.in.ContentTooLargeException
+                 | fr.heliocraft.refinr.application.port.in.DocumentNotFoundException
+                 | fr.heliocraft.refinr.application.port.in.DocumentSourceUnavailableException e) {
+            // Contexte projet illisible (X1) : message ecrit par l'application ou l'adaptateur, jamais le contexte
             return StoryTasksResult.failure(e.getMessage());
         } catch (ModelOutputException | ModelUnavailableException e) {
             log.warn("Sub-tasks of {} not generated after the verdict: {}", storyKey, e.getClass().getSimpleName());

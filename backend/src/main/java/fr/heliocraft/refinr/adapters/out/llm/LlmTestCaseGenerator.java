@@ -26,12 +26,24 @@ public class LlmTestCaseGenerator extends LlmStoryBatches<List<TestCase>> implem
     private static final Logger log = LoggerFactory.getLogger(LlmTestCaseGenerator.class);
 
     // Reparations de couverture declenchees depuis la creation (mesure C2) ; jamais de contenu
-    private final java.util.concurrent.atomic.AtomicInteger repairs = new java.util.concurrent.atomic.AtomicInteger();
+    // (partage avec les copies liees a un contexte projet)
+    private final java.util.concurrent.atomic.AtomicInteger repairs;
     // Une seule tentative pour la reparation de couverture (deja une seconde chance)
     private final StructuredOutput once = new StructuredOutput(0);
 
     public LlmTestCaseGenerator(LlmClient client, StructuredOutput output, int batchSize) {
         super(client, output, batchSize, LlmSchemas.STORY_TEST_CASES);
+        this.repairs = new java.util.concurrent.atomic.AtomicInteger();
+    }
+
+    private LlmTestCaseGenerator(LlmTestCaseGenerator base, String context) {
+        super(base.client(), base.output(), base.batchSize(), LlmSchemas.STORY_TEST_CASES, context);
+        this.repairs = base.repairs;
+    }
+
+    @Override
+    public LlmTestCaseGenerator withContext(String context) {
+        return new LlmTestCaseGenerator(this, context);
     }
 
     /** Nombre de reparations de couverture declenchees (une par story non conforme). */
@@ -52,7 +64,7 @@ public class LlmTestCaseGenerator extends LlmStoryBatches<List<TestCase>> implem
         }
         List<List<TestCase>> results = new java.util.ArrayList<>(run(stories, language, (indexes, ids, lang) ->
                 LlmPrompts.testCases(indexes.stream().map(stories::get).toList(),
-                        indexes.stream().map(precisions::get).toList(), ids, lang)));
+                        indexes.stream().map(precisions::get).toList(), ids, lang, context())));
         for (int i = 0; i < stories.size(); i++) {
             List<TestCase> found = results.get(i);
             int criteria = stories.get(i).getAcceptanceCriteria() != null ? stories.get(i).getAcceptanceCriteria().size() : 0;
@@ -74,7 +86,8 @@ public class LlmTestCaseGenerator extends LlmStoryBatches<List<TestCase>> implem
         log.warn("Test cases of ready story {}/{}: {} coverage problem(s), one repair for this story only", position, size,
                 problems.size());
         LlmRequest request = LlmRequest.of(LlmPrompts.system(language),
-                LlmPrompts.testCases(List.of(story), java.util.Collections.singletonList(precision), List.of("s1"), language),
+                LlmPrompts.testCases(List.of(story), java.util.Collections.singletonList(precision), List.of("s1"), language,
+                        context()),
                 schemaName(), LlmSchemas.forProvider(schema()))
                 .followUp(answer(previous), StructuredOutput.repairMessage(problems));
         try {

@@ -36,6 +36,7 @@ public class CachingReadinessAssessor implements ReadinessAssessorPort {
     private final String fingerprint;
     private final long ttlNanos;
     private final LongSupplier nanoTime;
+    // Partage avec les copies liees a un contexte projet (empreinte differente, donc cles differentes)
     private final Map<String, Cached> entries;
 
     private record Cached(Readiness verdict, long storedAt) {}
@@ -56,6 +57,27 @@ public class CachingReadinessAssessor implements ReadinessAssessorPort {
                 return size() > maxEntries;
             }
         };
+    }
+
+    private CachingReadinessAssessor(CachingReadinessAssessor base, ReadinessAssessorPort delegate, String fingerprint) {
+        this.delegate = delegate;
+        this.fingerprint = fingerprint;
+        this.ttlNanos = base.ttlNanos;
+        this.nanoTime = base.nanoTime;
+        this.entries = base.entries;
+    }
+
+    /**
+     * Meme cache, verdicts juges avec le contexte projet {@code context} : l'empreinte du contexte (SHA-256) entre dans
+     * la cle, un verdict juge sans contexte ou avec un autre contexte n'est donc jamais rendu.
+     */
+    @Override
+    public CachingReadinessAssessor withContext(String context) {
+        if (context == null || context.isBlank()) {
+            return this;
+        }
+        return new CachingReadinessAssessor(this, delegate.withContext(context),
+                fingerprint + "\u0000context:" + sha256(context.strip()));
     }
 
     @Override
@@ -95,20 +117,24 @@ public class CachingReadinessAssessor implements ReadinessAssessorPort {
         return delegate.reassess(summary, description, precision, previousQuestion, language);
     }
 
-    private synchronized Readiness get(String key) {
-        Cached entry = entries.get(key);
-        if (entry == null) {
-            return null;
+    private Readiness get(String key) {
+        synchronized (entries) {
+            Cached entry = entries.get(key);
+            if (entry == null) {
+                return null;
+            }
+            if (nanoTime.getAsLong() - entry.storedAt() >= ttlNanos) {
+                entries.remove(key);
+                return null;
+            }
+            return entry.verdict();
         }
-        if (nanoTime.getAsLong() - entry.storedAt() >= ttlNanos) {
-            entries.remove(key);
-            return null;
-        }
-        return entry.verdict();
     }
 
-    private synchronized void put(String key, Readiness verdict) {
-        entries.put(key, new Cached(verdict, nanoTime.getAsLong()));
+    private void put(String key, Readiness verdict) {
+        synchronized (entries) {
+            entries.put(key, new Cached(verdict, nanoTime.getAsLong()));
+        }
     }
 
     /** SHA-256 du contenu juge et de l'empreinte du fournisseur (separateurs non ambigus). */
@@ -119,8 +145,12 @@ public class CachingReadinessAssessor implements ReadinessAssessorPort {
         if (story.getAcceptanceCriteria() != null) {
             story.getAcceptanceCriteria().forEach(c -> content.append(nullToEmpty(c)).append('\u0001'));
         }
+        return sha256(content.toString());
+    }
+
+    static String sha256(String text) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(content.toString().getBytes(StandardCharsets.UTF_8));
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);

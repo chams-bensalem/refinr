@@ -3,6 +3,8 @@
 
 package fr.heliocraft.refinr.application.service;
 
+import fr.heliocraft.refinr.application.port.in.ContextRequest;
+import fr.heliocraft.refinr.domain.model.ProjectContext;
 import fr.heliocraft.refinr.domain.service.OutputLanguagePolicy;
 import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.application.port.in.AnalysisProgress;
@@ -26,6 +28,8 @@ public class PreviewBacklogService implements PreviewBacklog {
     private final OutputLanguagePolicy languagePolicy;
     // Chaine C1, ou null : "pipeline": true refuse
     private final BacklogPipeline pipeline;
+    // Contexte projet (X1)
+    private final ProjectContextResolver contexts;
 
     public PreviewBacklogService(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
                                  ReadinessAssessorPort separateAssessor, int maxContentChars) {
@@ -41,6 +45,15 @@ public class PreviewBacklogService implements PreviewBacklog {
     public PreviewBacklogService(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
                                  ReadinessAssessorPort separateAssessor, int maxContentChars,
                                  OutputLanguagePolicy languagePolicy, BacklogPipeline pipeline) {
+        this(documentSource, generator, separateAssessor, maxContentChars, languagePolicy, pipeline, null);
+    }
+
+    /** @param contexts contexte projet (X1) ; null : seul le contexte de la requete s'applique */
+    public PreviewBacklogService(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
+                                 ReadinessAssessorPort separateAssessor, int maxContentChars,
+                                 OutputLanguagePolicy languagePolicy, BacklogPipeline pipeline,
+                                 ProjectContextResolver contexts) {
+        this.contexts = contexts != null ? contexts : ProjectContextResolver.requestOnly(documentSource);
         this.pipeline = pipeline;
         this.languagePolicy = languagePolicy;
         this.documentSource = documentSource;
@@ -61,18 +74,34 @@ public class PreviewBacklogService implements PreviewBacklog {
 
     @Override
     public List<Epic> preview(String documentId, Language language, boolean pipelined, AnalysisProgress progress) {
-        requirePipeline(pipelined);
-        DocumentAnalysis.requireValidId(documentSource, documentId);
-        progress.step(JobView.Step.READING_DOCUMENT);
-        String content = SourceFailures.translate(() -> documentSource.getDocumentContent(documentId));
-        return analyze(content, language, pipelined, progress);
+        return preview(documentId, language, pipelined, ContextRequest.NONE, null, progress);
     }
 
     @Override
     public List<Epic> previewText(String title, String content, Language language, boolean pipelined,
                                   AnalysisProgress progress) {
+        return previewText(title, content, language, pipelined, ContextRequest.NONE, null, progress);
+    }
+
+    @Override
+    public List<Epic> preview(String documentId, Language language, boolean pipelined, ContextRequest context,
+                              String projectKey, AnalysisProgress progress) {
         requirePipeline(pipelined);
-        return analyze(DocumentAnalysis.providedText(title, content, maxContentChars), language, pipelined, progress);
+        DocumentAnalysis.requireValidId(documentSource, documentId);
+        contexts.check(context);
+        progress.step(JobView.Step.READING_DOCUMENT);
+        String content = SourceFailures.translate(() -> documentSource.getDocumentContent(documentId));
+        DocumentAnalysis.requireUsefulText(content);
+        return analyze(content, language, pipelined, contexts.resolve(context, projectKey), progress);
+    }
+
+    @Override
+    public List<Epic> previewText(String title, String content, Language language, boolean pipelined,
+                                  ContextRequest context, String projectKey, AnalysisProgress progress) {
+        requirePipeline(pipelined);
+        String text = DocumentAnalysis.providedText(title, content, maxContentChars);
+        contexts.check(context);
+        return analyze(text, language, pipelined, contexts.resolve(context, projectKey), progress);
     }
 
     private void requirePipeline(boolean pipelined) {
@@ -93,18 +122,21 @@ public class PreviewBacklogService implements PreviewBacklog {
     }
 
     /** Chemin commun aux deux entrees : texte utile, generation, verdict distinct eventuel. */
-    private List<Epic> analyze(String content, Language requested, boolean pipelined, AnalysisProgress progress) {
+    private List<Epic> analyze(String content, Language requested, boolean pipelined, ProjectContext context,
+                               AnalysisProgress progress) {
         DocumentAnalysis.requireUsefulText(content);
         // Langue resolue une fois sur le document : la generation et le verdict distinct la partagent
         Language language = languagePolicy.resolve(requested, content);
         if (pipelined) {
-            return pipeline.run(content, language, progress);
+            return pipeline.run(content, language, progress, context.text());
         }
         progress.step(JobView.Step.GENERATING);
+        BacklogGeneratorPort generator = context.isPresent() ? this.generator.withContext(context.text()) : this.generator;
         List<Epic> epics = LlmFailures.translate(() -> generator.generate(content, language));
         if (separateAssessor != null) {
             progress.step(JobView.Step.ASSESSING);
-            StoryVerdicts.apply(epics, separateAssessor, story -> language);
+            StoryVerdicts.apply(epics, context.isPresent() ? separateAssessor.withContext(context.text()) : separateAssessor,
+                    story -> language);
         }
         return epics;
     }

@@ -67,4 +67,25 @@ public interface AnalyzeDocument {
         }
         return analyzeTextAndCreate(title, content, project, language, progress);
     }
+
+    /**
+     * X1 : meme analyse avec le contexte projet demande ({@code context}) ; le contexte par projet suit {@code project}.
+     * Sans contexte demande ni configure : exactement l'analyse sans contexte.
+     */
+    default BacklogCreationResult analyzeAndCreate(String documentId, String project, Language language, boolean pipeline,
+                                                   ContextRequest context, AnalysisProgress progress) {
+        if (!context.isEmpty()) {
+            throw new UnsupportedOperationException("project context not supported");
+        }
+        return analyzeAndCreate(documentId, project, language, pipeline, progress);
+    }
+
+    /** Comme {@link #analyzeAndCreate(String, String, Language, boolean, ContextRequest, AnalysisProgress)}, pour un texte. */
+    default BacklogCreationResult analyzeTextAndCreate(String title, String content, String project, Language language,
+                                                       boolean pipeline, ContextRequest context, AnalysisProgress progress) {
+        if (!context.isEmpty()) {
+            throw new UnsupportedOperationException("project context not supported");
+        }
+        return analyzeTextAndCreate(title, content, project, language, pipeline, progress);
+    }
 }

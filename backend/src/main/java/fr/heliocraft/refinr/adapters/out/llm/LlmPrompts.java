@@ -21,9 +21,10 @@ import java.util.regex.Pattern;
 /**
  * Prompts envoyes aux modeles (le format de sortie est en plus impose par le schema JSON), charges de deux ressources
  * seulement : {@code llm/prompts/prompts.fr.md} pour le francais, {@code llm/prompts/prompts.en.md} pour l'anglais et
- * toute autre langue. Chaque fichier contient huit blocs de code, dans l'ordre : message systeme, bloc READINESS,
+ * toute autre langue. Chaque fichier contient dix blocs de code, dans l'ordre : message systeme, bloc READINESS,
  * generation, verdict par lots, reevaluation, generation sans sous-taches (chaine C1), sous-taches des stories pretes,
- * cas de test des stories pretes (C2). Les marqueurs {@code {{…}}} du texte sont remplaces par les valeurs ;
+ * cas de test des stories pretes (C2), contexte projet et regle READINESS avec contexte (X1, envoyes seulement avec un
+ * contexte : sans contexte, les prompts sont identiques octet pour octet). Les marqueurs {@code {{…}}} du texte sont remplaces par les valeurs ;
  * {@code {{LANGUAGE}}} recoit le nom de la langue de sortie, jamais une valeur recue d'un utilisateur.
  */
 final class LlmPrompts {
@@ -33,7 +34,7 @@ final class LlmPrompts {
 
     /** Textes d'une langue, marqueurs non remplaces. */
     record Texts(String system, String readiness, String analysis, String verdicts, String reassessment,
-                 String stories, String tasks, String testCases) {}
+                 String stories, String tasks, String testCases, String context, String contextRule) {}
 
     private static final Pattern BLOCK = Pattern.compile("```\\n(.*?)\\n```", Pattern.DOTALL);
     private static final Pattern MARKER = Pattern.compile("\\{\\{([A-Z_]+)\\}\\}");
@@ -80,9 +81,34 @@ final class LlmPrompts {
 
     /** Prompt 1 : generation du backlog. */
     static String analysis(String documentContent, Language language) {
+        return analysis(documentContent, language, null);
+    }
+
+    /** Prompt 1 avec le contexte projet {@code context} (null : texte sans contexte, inchange). */
+    static String analysis(String documentContent, Language language, String context) {
         Texts t = texts(language);
-        return fill(t.analysis(), Map.of("READINESS", t.readiness(), "DOCUMENT", documentContent,
-                "LANGUAGE", languageName(language)));
+        return withContext(t, context, fill(t.analysis(), Map.of("READINESS", readiness(t, context), "DOCUMENT",
+                documentContent, "LANGUAGE", languageName(language))));
+    }
+
+    /** Bloc READINESS, suivi de la regle du contexte projet seulement s'il y a un contexte. */
+    static String readiness(Texts t, String context) {
+        return hasContext(context) ? t.readiness() + "\n\n" + t.contextRule() : t.readiness();
+    }
+
+    static boolean hasContext(String context) {
+        return context != null && !context.isBlank();
+    }
+
+    /**
+     * Bloc du contexte projet place en tete du prompt ; sans contexte, le prompt est rendu tel quel. Le contexte est
+     * une valeur inseree : ses eventuels marqueurs ne sont jamais relus.
+     */
+    static String withContext(Texts t, String context, String prompt) {
+        if (!hasContext(context)) {
+            return prompt;
+        }
+        return fill(t.context(), Map.of("CONTEXT", context.strip())) + "\n\n" + prompt;
     }
 
     /**
@@ -91,6 +117,11 @@ final class LlmPrompts {
      * lot. Cles francaises dans le prompt francais, anglaises dans le prompt anglais.
      */
     static String verdicts(List<Story> stories, List<String> ids, Language language) {
+        return verdicts(stories, ids, language, null);
+    }
+
+    /** Prompt 2 avec le contexte projet {@code context} (null : texte sans contexte, inchange). */
+    static String verdicts(List<Story> stories, List<String> ids, Language language, String context) {
         boolean french = language.isFrench();
         List<Map<String, Object>> items = new ArrayList<>();
         for (int i = 0; i < stories.size(); i++) {
@@ -104,16 +135,21 @@ final class LlmPrompts {
             items.add(item);
         }
         Texts t = texts(language);
-        return fill(t.verdicts(), Map.of("READINESS", t.readiness(),
+        return withContext(t, context, fill(t.verdicts(), Map.of("READINESS", readiness(t, context),
                 "STORIES_JSON", JSON.writerWithDefaultPrettyPrinter().writeValueAsString(items),
-                "LANGUAGE", languageName(language)));
+                "LANGUAGE", languageName(language))));
     }
 
     /** Prompt 1 de la chaine C1 : generation sans sous-taches. */
     static String stories(String documentContent, Language language) {
+        return stories(documentContent, language, null);
+    }
+
+    /** Prompt 1 de la chaine avec le contexte projet {@code context} (null : texte sans contexte, inchange). */
+    static String stories(String documentContent, Language language, String context) {
         Texts t = texts(language);
-        return fill(t.stories(), Map.of("READINESS", t.readiness(), "DOCUMENT", documentContent,
-                "LANGUAGE", languageName(language)));
+        return withContext(t, context, fill(t.stories(), Map.of("READINESS", readiness(t, context), "DOCUMENT",
+                documentContent, "LANGUAGE", languageName(language))));
     }
 
     /**
@@ -122,6 +158,12 @@ final class LlmPrompts {
      * pour le verdict ; cles francaises dans le prompt francais, anglaises dans le prompt anglais.
      */
     static String tasks(List<Story> stories, List<String> precisions, List<String> ids, Language language) {
+        return tasks(stories, precisions, ids, language, null);
+    }
+
+    /** Prompt 4 avec le contexte projet {@code context} (null : texte sans contexte, inchange). */
+    static String tasks(List<Story> stories, List<String> precisions, List<String> ids, Language language,
+                        String context) {
         boolean french = language.isFrench();
         List<Map<String, Object>> items = new ArrayList<>();
         for (int i = 0; i < stories.size(); i++) {
@@ -139,8 +181,8 @@ final class LlmPrompts {
             items.add(item);
         }
         Texts t = texts(language);
-        return fill(t.tasks(), Map.of("STORIES_JSON", JSON.writerWithDefaultPrettyPrinter().writeValueAsString(items),
-                "LANGUAGE", languageName(language)));
+        return withContext(t, context, fill(t.tasks(), Map.of("STORIES_JSON",
+                JSON.writerWithDefaultPrettyPrinter().writeValueAsString(items), "LANGUAGE", languageName(language))));
     }
 
     /**
@@ -159,6 +201,12 @@ final class LlmPrompts {
      * precision, la ligne {@link #IF_PRECISION} est retiree : texte identique a celui de la chaine mesuree.
      */
     static String testCases(List<Story> stories, List<String> precisions, List<String> ids, Language language) {
+        return testCases(stories, precisions, ids, language, null);
+    }
+
+    /** Prompt 5 avec le contexte projet {@code context} (null : texte sans contexte, inchange). */
+    static String testCases(List<Story> stories, List<String> precisions, List<String> ids, Language language,
+                            String context) {
         boolean french = language.isFrench();
         boolean anyPrecision = precisions.stream().anyMatch(p -> p != null && !p.isBlank());
         List<Map<String, Object>> items = new ArrayList<>();
@@ -183,8 +231,8 @@ final class LlmPrompts {
         Texts t = texts(language);
         String template = anyPrecision ? t.testCases().replace(IF_PRECISION, "")
                 : t.testCases().replaceAll("(?m)^" + java.util.regex.Pattern.quote(IF_PRECISION) + ".*\\R", "");
-        return fill(template, Map.of("STORIES_JSON", JSON.writerWithDefaultPrettyPrinter().writeValueAsString(items),
-                "LANGUAGE", languageName(language)));
+        return withContext(t, context, fill(template, Map.of("STORIES_JSON",
+                JSON.writerWithDefaultPrettyPrinter().writeValueAsString(items), "LANGUAGE", languageName(language))));
     }
 
     /** Prompt 3 : reevaluation d'une story jugee non prete, avec la precision de l'utilisateur. */
@@ -198,17 +246,23 @@ final class LlmPrompts {
      */
     static String reassessment(String summary, String description, String precision, String previousQuestion,
                                Language language) {
+        return reassessment(summary, description, precision, previousQuestion, language, null);
+    }
+
+    /** Prompt 3 avec le contexte projet {@code context} (null : texte sans contexte, inchange). */
+    static String reassessment(String summary, String description, String precision, String previousQuestion,
+                               Language language, String context) {
         Texts t = texts(language);
         boolean question = previousQuestion != null && !previousQuestion.isBlank();
         String template = question ? t.reassessment().replace(IF_QUESTION, "")
                 : t.reassessment().replaceAll("(?m)^" + java.util.regex.Pattern.quote(IF_QUESTION) + ".*\\R", "");
-        Map<String, String> values = new java.util.HashMap<>(Map.of("READINESS", t.readiness(), "TITLE", String.valueOf(summary),
+        Map<String, String> values = new java.util.HashMap<>(Map.of("READINESS", readiness(t, context), "TITLE", String.valueOf(summary),
                 "DESCRIPTION", String.valueOf(description), "PRECISION", String.valueOf(precision),
                 "LANGUAGE", languageName(language)));
         if (question) {
             values.put("PREVIOUS_QUESTION", previousQuestion.strip());
         }
-        return fill(template, values);
+        return withContext(t, context, fill(template, values));
     }
 
     /**
@@ -229,18 +283,18 @@ final class LlmPrompts {
         return out.toString();
     }
 
-    /** Huit blocs de code, dans l'ordre ; tout autre contenu du fichier est ignore. */
+    /** Dix blocs de code, dans l'ordre ; tout autre contenu du fichier est ignore. */
     static Texts parse(String markdown, String name) {
         List<String> blocks = new ArrayList<>();
         Matcher m = BLOCK.matcher(markdown);
         while (m.find()) {
             blocks.add(m.group(1));
         }
-        if (blocks.size() != 8) {
-            throw new IllegalStateException(name + ": expected 8 prompt blocks, found " + blocks.size());
+        if (blocks.size() != 10) {
+            throw new IllegalStateException(name + ": expected 10 prompt blocks, found " + blocks.size());
         }
         return new Texts(blocks.get(0), blocks.get(1), blocks.get(2), blocks.get(3), blocks.get(4), blocks.get(5),
-                blocks.get(6), blocks.get(7));
+                blocks.get(6), blocks.get(7), blocks.get(8), blocks.get(9));
     }
 
     private static Texts load(String resource) {

@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.adapters.in.rest;
 
+import fr.heliocraft.refinr.application.port.in.ContextRequest;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult;
 import fr.heliocraft.refinr.application.port.in.CreateEditedBacklog;
@@ -33,6 +34,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.eq;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -90,7 +92,8 @@ class RestJsonContractTest {
     @Test
     @DisplayName("analyze-preview serializes every Epic/Story/Task field exactly as the snapshot")
     void previewResponseMatchesSnapshot() throws Exception {
-        when(previewBacklog.preview("42", null)).thenReturn(List.of(fullEpic()));
+        when(previewBacklog.preview(eq("42"), isNull(), eq(false), eq(ContextRequest.NONE), isNull(), any()))
+                .thenReturn(List.of(fullEpic()));
 
         String body = mockMvc.perform(post("/api/v1/analyze-preview")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -112,7 +115,7 @@ class RestJsonContractTest {
             .andExpect(status().isOk());
 
         ArgumentCaptor<List<Epic>> captor = ArgumentCaptor.forClass(List.class);
-        verify(createBacklog).create(captor.capture(), isNull(), isNull());
+        verify(createBacklog).create(captor.capture(), isNull(), isNull(), eq(ContextRequest.NONE));
         assertEquals(1, captor.getValue().size());
         assertEpicFields(captor.getValue().get(0));
     }
@@ -129,7 +132,7 @@ class RestJsonContractTest {
             .andExpect(status().isOk());
 
         ArgumentCaptor<List<Epic>> captor = ArgumentCaptor.forClass(List.class);
-        verify(createBacklog).create(captor.capture(), isNull(), isNull());
+        verify(createBacklog).create(captor.capture(), isNull(), isNull(), eq(ContextRequest.NONE));
         assertEquals("T", captor.getValue().get(0).getStories().get(0).getTasks().get(0).getTitle());
     }
 
@@ -145,14 +148,14 @@ class RestJsonContractTest {
             .andExpect(status().isOk());
 
         ArgumentCaptor<List<Epic>> captor = ArgumentCaptor.forClass(List.class);
-        verify(createBacklog).create(captor.capture(), isNull(), isNull());
+        verify(createBacklog).create(captor.capture(), isNull(), isNull(), eq(ContextRequest.NONE));
         assertEquals(5, captor.getValue().get(0).getStories().get(0).getEstimatedStoryPoints());
         assertNull(captor.getValue().get(1).getStories().get(0).getEstimatedStoryPoints());
     }
 
     /** create renvoie desormais le resultat de la creation (crees / echoues) : ici, tout est cree. */
     private void stubCreationResult() {
-        when(createBacklog.create(any(), any(), any())).thenAnswer(invocation ->
+        when(createBacklog.create(any(), any(), any(), any())).thenAnswer(invocation ->
             new BacklogCreationResult(invocation.getArgument(0), List.of(), List.of()));
     }
 

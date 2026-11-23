@@ -53,6 +53,20 @@ public class BacklogPipeline {
 
     /** Backlog qualifie du texte {@code content} (deja controle), dans la langue {@code language} deja resolue. */
     public List<Epic> run(String content, Language language, AnalysisProgress progress) {
+        return run(content, language, progress, null);
+    }
+
+    /**
+     * Meme chaine avec le contexte projet {@code context} (X1) donne aux prompts 1, 2, 4 et 5 ; null : exactement la
+     * chaine sans contexte.
+     */
+    public List<Epic> run(String content, Language language, AnalysisProgress progress, String context) {
+        boolean withContext = context != null && !context.isBlank();
+        BacklogGeneratorPort generator = withContext ? this.generator.withContext(context) : this.generator;
+        ReadinessAssessorPort assessor = withContext ? this.assessor.withContext(context) : this.assessor;
+        TaskGeneratorPort taskGenerator = withContext ? this.taskGenerator.withContext(context) : this.taskGenerator;
+        TestCaseGeneratorPort testCaseGenerator = withContext && this.testCaseGenerator != null
+                ? this.testCaseGenerator.withContext(context) : this.testCaseGenerator;
         progress.step(JobView.Step.GENERATING);
         List<Epic> epics = LlmFailures.translate(() -> generator.generateStories(content, language));
         progress.step(JobView.Step.ASSESSING);

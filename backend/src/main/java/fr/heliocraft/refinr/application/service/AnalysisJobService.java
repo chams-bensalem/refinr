@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.application.service;
 
+import fr.heliocraft.refinr.application.port.in.ContextRequest;
 import fr.heliocraft.refinr.application.port.in.AnalysisJobs;
 import fr.heliocraft.refinr.application.port.in.AnalysisProgress;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
@@ -96,6 +97,8 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
     private final Clock clock;
     // Avertissements de l'apercu (niveau Feature), calcules a la fin du job ; null : aucun
     private final DescribeTracker describeTracker;
+    // Contexte projet (X1) : controles locaux a la soumission
+    private final ProjectContextResolver contexts;
     private final ThreadPoolExecutor workers;
     private final ScheduledExecutorService watchdog;
     private final Map<String, Job> active = new ConcurrentHashMap<>();
@@ -113,6 +116,15 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
     public AnalysisJobService(PreviewBacklog previewBacklog, AnalyzeDocument analyzeDocument,
                               DocumentSourcePort documentSource, int maxContentChars, JobStorePort<JobView> store,
                               Settings settings, Clock clock, DescribeTracker describeTracker) {
+        this(previewBacklog, analyzeDocument, documentSource, maxContentChars, store, settings, clock, describeTracker, null);
+    }
+
+    /** @param contexts contexte projet (X1), pour les controles a la soumission ; null : requete seule */
+    public AnalysisJobService(PreviewBacklog previewBacklog, AnalyzeDocument analyzeDocument,
+                              DocumentSourcePort documentSource, int maxContentChars, JobStorePort<JobView> store,
+                              Settings settings, Clock clock, DescribeTracker describeTracker,
+                              ProjectContextResolver contexts) {
+        this.contexts = contexts != null ? contexts : ProjectContextResolver.requestOnly(documentSource);
         this.describeTracker = describeTracker;
         this.previewBacklog = previewBacklog;
         this.analyzeDocument = analyzeDocument;
@@ -131,33 +143,61 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
 
     @Override
     public JobView submitPreview(String documentId, String project, Language language, boolean pipeline) {
-        DocumentAnalysis.requireValidId(documentSource, documentId);
-        return submit(JobView.Type.ANALYZE_PREVIEW, documentId, pipeline,
-                progress -> new Result(previewBacklog.preview(documentId, language, pipeline, progress), null, project));
+        return submitPreview(documentId, project, language, pipeline, ContextRequest.NONE);
     }
 
     @Override
     public JobView submitPreviewText(String title, String content, String project, Language language,
                                      boolean pipeline) {
-        // Memes refus que l'endpoint synchrone (413, puis 400), avant de creer le job
-        DocumentAnalysis.providedText(title, content, maxContentChars);
-        return submit(JobView.Type.ANALYZE_PREVIEW, null, pipeline, progress ->
-                new Result(previewBacklog.previewText(title, content, language, pipeline, progress), null, project));
+        return submitPreviewText(title, content, project, language, pipeline, ContextRequest.NONE);
     }
 
     @Override
     public JobView submitAnalyzeAndCreate(String documentId, String project, Language language, boolean pipeline) {
-        DocumentAnalysis.requireValidId(documentSource, documentId);
-        return submit(JobView.Type.ANALYZE_AND_CREATE, documentId, pipeline, progress ->
-                new Result(null, analyzeDocument.analyzeAndCreate(documentId, project, language, pipeline, progress)));
+        return submitAnalyzeAndCreate(documentId, project, language, pipeline, ContextRequest.NONE);
     }
 
     @Override
     public JobView submitAnalyzeTextAndCreate(String title, String content, String project, Language language,
                                               boolean pipeline) {
+        return submitAnalyzeTextAndCreate(title, content, project, language, pipeline, ContextRequest.NONE);
+    }
+
+    @Override
+    public JobView submitPreview(String documentId, String project, Language language, boolean pipeline,
+                                 ContextRequest context) {
+        DocumentAnalysis.requireValidId(documentSource, documentId);
+        contexts.check(context);
+        return submit(JobView.Type.ANALYZE_PREVIEW, documentId, pipeline, progress -> new Result(
+                previewBacklog.preview(documentId, language, pipeline, context, project, progress), null, project));
+    }
+
+    @Override
+    public JobView submitPreviewText(String title, String content, String project, Language language,
+                                     boolean pipeline, ContextRequest context) {
+        // Memes refus que l'endpoint synchrone (413, puis 400), avant de creer le job
         DocumentAnalysis.providedText(title, content, maxContentChars);
+        contexts.check(context);
+        return submit(JobView.Type.ANALYZE_PREVIEW, null, pipeline, progress -> new Result(
+                previewBacklog.previewText(title, content, language, pipeline, context, project, progress), null, project));
+    }
+
+    @Override
+    public JobView submitAnalyzeAndCreate(String documentId, String project, Language language, boolean pipeline,
+                                          ContextRequest context) {
+        DocumentAnalysis.requireValidId(documentSource, documentId);
+        contexts.check(context);
+        return submit(JobView.Type.ANALYZE_AND_CREATE, documentId, pipeline, progress -> new Result(null,
+                analyzeDocument.analyzeAndCreate(documentId, project, language, pipeline, context, progress)));
+    }
+
+    @Override
+    public JobView submitAnalyzeTextAndCreate(String title, String content, String project, Language language,
+                                              boolean pipeline, ContextRequest context) {
+        DocumentAnalysis.providedText(title, content, maxContentChars);
+        contexts.check(context);
         return submit(JobView.Type.ANALYZE_AND_CREATE, null, pipeline, progress -> new Result(null,
-                analyzeDocument.analyzeTextAndCreate(title, content, project, language, pipeline, progress)));
+                analyzeDocument.analyzeTextAndCreate(title, content, project, language, pipeline, context, progress)));
     }
 
     @Override

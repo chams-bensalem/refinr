@@ -32,7 +32,15 @@ abstract class LlmStoryBatches<T> {
     private final JsonNode schema;
     private final String schemaName;
 
+    // Contexte projet (X1), ou null
+    private final String context;
+
     LlmStoryBatches(LlmClient client, StructuredOutput output, int batchSize, String schemaName) {
+        this(client, output, batchSize, schemaName, null);
+    }
+
+    LlmStoryBatches(LlmClient client, StructuredOutput output, int batchSize, String schemaName, String context) {
+        this.context = context;
         if (batchSize < 1) {
             throw new IllegalArgumentException("batch size must be >= 1");
         }
@@ -59,6 +67,19 @@ abstract class LlmStoryBatches<T> {
 
     LlmClient client() {
         return client;
+    }
+
+    StructuredOutput output() {
+        return output;
+    }
+
+    int batchSize() {
+        return batchSize;
+    }
+
+    /** Contexte projet de ce generateur, ou null. */
+    String context() {
+        return context;
     }
 
     JsonNode schema() {

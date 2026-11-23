@@ -33,12 +33,21 @@ public final class PromptThreeVariants {
     /** Reevaluation de la story ({@code fullDescription} : telle qu'ecrite dans le ticket, ligne de verdict comprise). */
     public static Readiness reassess(String version, LlmClient client, StructuredOutput output, String title,
                                      String fullDescription, String precision, Language language) {
+        return reassess(version, client, output, title, fullDescription, precision, language, null);
+    }
+
+    /** X1 : {@code context} (contexte projet) seulement avec le prompt de production ({@code v3.4}). */
+    public static Readiness reassess(String version, LlmClient client, StructuredOutput output, String title,
+                                     String fullDescription, String precision, Language language, String context) {
+        if (context != null && !"v3.4".equals(version)) {
+            throw new IllegalArgumentException("a project context is only measured with v3.4");
+        }
         String stripped = StoryMarkdown.forModel(fullDescription);
         String question = StoryMarkdown.lastOpenQuestion(fullDescription);
         String prompt = switch (version) {
             case "v3.2" -> frozen(language, title, fullDescription, precision, null);
             case "v3.3" -> frozen(language, title, stripped, precision, question);
-            case "v3.4" -> LlmPrompts.reassessment(title, stripped, precision, question, language);
+            case "v3.4" -> LlmPrompts.reassessment(title, stripped, precision, question, language, context);
             default -> throw new IllegalArgumentException("--versions accepts " + VERSIONS);
         };
         JsonNode schema = LlmSchemas.load(LlmSchemas.READINESS);

@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.config;
 
+import fr.heliocraft.refinr.application.service.ProjectContextResolver;
 import fr.heliocraft.refinr.domain.service.OutputLanguagePolicy;
 import fr.heliocraft.refinr.application.port.in.AnalyzeDocument;
 import fr.heliocraft.refinr.application.port.in.CheckHealth;
@@ -83,6 +84,27 @@ public class UseCaseConfig {
         this.maxContentChars = maxContentChars;
     }
 
+    static final String CONTEXT_DOCUMENT_ID_PROPERTY = "refinr.context.document-id";
+    static final String CONTEXT_PROJECTS_PROPERTY = "refinr.context.projects";
+    static final String CONTEXT_MAX_CHARACTERS_PROPERTY = "refinr.context.max-characters";
+
+    /**
+     * Contexte projet (X1) : page par defaut, page par projet ({@code refinr.context.projects.<projectKey>}) et taille
+     * maximale ; un identifiant au mauvais format pour la source active refuse le demarrage.
+     */
+    @Bean
+    public ProjectContextResolver projectContextResolver(DocumentSourcePort documentSource,
+            org.springframework.core.env.Environment environment,
+            @Value("${" + CONTEXT_DOCUMENT_ID_PROPERTY + ":}") String defaultDocumentId,
+            @Value("${" + CONTEXT_MAX_CHARACTERS_PROPERTY + ":" + ProjectContextResolver.DEFAULT_MAX_CHARACTERS + "}")
+            int maxCharacters) {
+        java.util.Map<String, String> projects = org.springframework.boot.context.properties.bind.Binder.get(environment)
+                .bind(CONTEXT_PROJECTS_PROPERTY, org.springframework.boot.context.properties.bind.Bindable
+                        .mapOf(String.class, String.class))
+                .orElse(java.util.Map.of());
+        return new ProjectContextResolver(documentSource, defaultDocumentId, projects, maxCharacters);
+    }
+
     /** Verrous par story partages par la creation et story-tasks (sous-taches jamais creees par deux chemins). */
     @Bean
     public StoryLocks storyLocks() {
@@ -95,8 +117,9 @@ public class UseCaseConfig {
     }
 
     @Bean
-    public CreateEditedBacklog createEditedBacklog(ReadinessAssessorPort assessor, CreateBacklog createBacklog) {
-        return new CreateEditedBacklogService(assessor, createBacklog, languagePolicy);
+    public CreateEditedBacklog createEditedBacklog(ReadinessAssessorPort assessor, CreateBacklog createBacklog,
+                                                   ProjectContextResolver contexts) {
+        return new CreateEditedBacklogService(assessor, createBacklog, languagePolicy, contexts);
     }
 
     /** Chaine C1 ("pipeline": true) : le verdict du prompt 2 y est toujours execute, fournisseur distinct ou non. */
@@ -108,28 +131,31 @@ public class UseCaseConfig {
 
     @Bean
     public PreviewBacklog previewBacklog(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
-                                         ReadinessAssessorPort assessor, BacklogPipeline pipeline) {
+                                         ReadinessAssessorPort assessor, BacklogPipeline pipeline,
+                                         ProjectContextResolver contexts) {
         return new PreviewBacklogService(documentSource, generator, separateVerdict ? assessor : null, maxContentChars,
-                languagePolicy, pipeline);
+                languagePolicy, pipeline, contexts);
     }
 
     @Bean
     public AnalyzeDocument analyzeDocument(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
                                            ReadinessAssessorPort assessor, CreateBacklog createBacklog,
-                                           BacklogPipeline pipeline) {
+                                           BacklogPipeline pipeline, ProjectContextResolver contexts) {
         return new AnalyzeDocumentService(documentSource, generator, separateVerdict ? assessor : null, createBacklog,
-                maxContentChars, languagePolicy, pipeline);
+                maxContentChars, languagePolicy, pipeline, contexts);
     }
 
     @Bean
     public GenerateStoryTasks generateStoryTasks(IssueTrackerPort issueTracker, TaskGeneratorPort taskGenerator,
-                                                 StoryLocks storyLocks, TestCaseGeneratorPort testCaseGenerator) {
-        return new StoryTasksService(issueTracker, taskGenerator, languagePolicy, storyLocks, testCaseGenerator);
+                                                 StoryLocks storyLocks, TestCaseGeneratorPort testCaseGenerator,
+                                                 ProjectContextResolver contexts) {
+        return new StoryTasksService(issueTracker, taskGenerator, languagePolicy, storyLocks, testCaseGenerator, contexts);
     }
 
     @Bean
-    public ReassessStory reassessStory(IssueTrackerPort issueTracker, ReadinessAssessorPort assessor) {
-        return new ReassessStoryService(issueTracker, assessor, languagePolicy);
+    public ReassessStory reassessStory(IssueTrackerPort issueTracker, ReadinessAssessorPort assessor,
+                                       ProjectContextResolver contexts) {
+        return new ReassessStoryService(issueTracker, assessor, languagePolicy, contexts);
     }
 
     @Bean
