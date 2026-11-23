@@ -1,0 +1,56 @@
+{
+  "epics" : [ {
+    "description" : "Allow support agents to export the data of a customer account so that they can answer customer requests. Format, encoding, delimiter, access rights, exported content, size limits and delivery mode are not decided in the specification.",
+    "features" : [ {
+      "description" : "Single capability: a support agent exports the data of one customer account. The specification leaves the output format, content, access rights and delivery open.",
+      "labels" : [ "backend", "security" ],
+      "name" : "Customer data export",
+      "priority" : "High",
+      "stories" : [ {
+        "acceptanceCriteria" : [ "Given a support agent has selected an existing customer account, When the agent triggers the export, Then an export of the data of that customer account is produced", "Given a support agent exports a customer account, When the export is produced, Then it contains no data belonging to other customer accounts" ],
+        "aiReady" : false,
+        "aiReadyReason" : "The story itself lists the blocking open points (output format, roles allowed to export, included fields including personal data subject to GDPR review, large-account handling, delivery mode), so the developer cannot decide them alone: Which output format, which fields, and which roles may export the data, and how is the export delivered?",
+        "aiReadySource" : "MODEL",
+        "asA" : "support agent",
+        "dependencies" : [ ],
+        "description" : "A support agent can trigger an export of the data of one customer account. The export concerns only the selected customer account. Open points that block development: the output format (CSV, JSON or a ZIP archive with several files), the encoding and delimiter, the roles allowed to export, the fields included (orders, invoices, personal data, support history, subject to GDPR review), the handling of very large accounts, and the delivery mode (browser download or email).",
+        "epicTrackerKey" : null,
+        "estimatedStoryPoints" : 3,
+        "iWant" : "to export the data of a customer account",
+        "labels" : [ "backend", "security" ],
+        "priority" : "High",
+        "soThat" : "I can answer customer requests",
+        "tasks" : [ ],
+        "title" : "Export the data of a customer account",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "labels" : [ "backend", "security" ],
+    "name" : "Customer data export",
+    "priority" : "High",
+    "stories" : [ {
+      "acceptanceCriteria" : [ "Given a support agent has selected an existing customer account, When the agent triggers the export, Then an export of the data of that customer account is produced", "Given a support agent exports a customer account, When the export is produced, Then it contains no data belonging to other customer accounts" ],
+      "aiReady" : false,
+      "aiReadyReason" : "The story itself lists the blocking open points (output format, roles allowed to export, included fields including personal data subject to GDPR review, large-account handling, delivery mode), so the developer cannot decide them alone: Which output format, which fields, and which roles may export the data, and how is the export delivered?",
+      "aiReadySource" : "MODEL",
+      "asA" : "support agent",
+      "dependencies" : [ ],
+      "description" : "A support agent can trigger an export of the data of one customer account. The export concerns only the selected customer account. Open points that block development: the output format (CSV, JSON or a ZIP archive with several files), the encoding and delimiter, the roles allowed to export, the fields included (orders, invoices, personal data, support history, subject to GDPR review), the handling of very large accounts, and the delivery mode (browser download or email).",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 3,
+      "iWant" : "to export the data of a customer account",
+      "labels" : [ "backend", "security" ],
+      "priority" : "High",
+      "soThat" : "I can answer customer requests",
+      "tasks" : [ ],
+      "title" : "Export the data of a customer account",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "trackerKey" : null,
+    "trackerUrl" : null
+  } ]
+}
