@@ -38,7 +38,8 @@ class LlmPromptsTest {
 
     private static List<String> prompts(Language language) {
         return List.of(LlmPrompts.analysis("DOC", language), LlmPrompts.verdicts(List.of(story()), List.of("s1"), language),
-                LlmPrompts.reassessment("Titre A", "Description A", "Precision A", language));
+                LlmPrompts.reassessment("Titre A", "Description A", "Precision A", language),
+                LlmPrompts.stories("DOC", language));
     }
 
     private static String file(String name) throws Exception {
@@ -153,12 +154,17 @@ class LlmPromptsTest {
                 .replace("{{LANGUAGE}}", name), verdicts);
         assertEquals(b.get(4).replace("{{READINESS}}", readiness).replace("{{TITLE}}", "T").replace("{{DESCRIPTION}}", "D")
                 .replace("{{PRECISION}}", "P").replace("{{LANGUAGE}}", name), LlmPrompts.reassessment("T", "D", "P", language));
+        assertEquals(b.get(5).replace("{{READINESS}}", readiness).replace("{{DOCUMENT}}", "DOC").replace("{{LANGUAGE}}", name),
+                LlmPrompts.stories("DOC", language));
+        String tasks = LlmPrompts.tasks(List.of(story()), java.util.Collections.singletonList(null), List.of("s1"), language);
+        assertEquals(b.get(6).replace("{{STORIES_JSON}}", storiesJson(tasks, header)).replace("{{LANGUAGE}}", name), tasks);
     }
 
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {"fr", "en"})
-    @DisplayName("Generation, batch verdict and reassessment share the same READINESS block, once each; every marker is replaced")
-    void threePromptsShareTheReadinessBlock(String code) {
+    @DisplayName("Generation (v2 and pipeline v3), batch verdict and reassessment share the same READINESS block, once each; "
+            + "prompt 4 (sub-tasks of ready stories) has none; every marker is replaced")
+    void promptsShareTheReadinessBlock(String code) {
         Language language = Language.of(code);
         String readiness = LlmPrompts.readiness(language);
         for (String prompt : prompts(language)) {
@@ -166,6 +172,10 @@ class LlmPromptsTest {
             assertEquals(prompt.indexOf(readiness), prompt.lastIndexOf(readiness), "block present once");
             assertFalse(prompt.contains("{{"), prompt);
         }
+        // Prompt 4 ne juge pas : il ecrit les sous-taches de stories deja pretes (pas de verdict a produire)
+        String tasks = LlmPrompts.tasks(List.of(story()), java.util.Collections.singletonList(null), List.of("s1"), language);
+        assertFalse(tasks.contains(readiness), "no READINESS block in prompt 4");
+        assertFalse(tasks.contains("{{"), tasks);
     }
 
     // ---------- langue de sortie ----------
