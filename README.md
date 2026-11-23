@@ -81,6 +81,11 @@ adjudication is **contested** (two models disagree with it, 3 times out of 3), s
 Details per run, disagreements and costs: `eval/verdict/results/` and `DECISIONS.md`. A model or prompt not listed
 here has not been measured.
 
+**Generation, Feature level (prompt `generation-v2`), known limit of Gemini 3.6 Flash** (2026-11-23): Gemini groups
+into fewer Features; the Feature level stays visible from 2 explicit Features. On the multi-module spec
+`reservation-salles`, 1 run out of 3 reached 3 Features (Claude Haiku 5.5: 2 out of 2); small specs get a single
+story. Details: `eval/generation/results/2026-11-23-f1-summary.md`.
+
 ---
 
 ## 📚 Contents

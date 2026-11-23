@@ -575,4 +575,10 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
   chaque côté au lieu de 2, **sans changer les seuils** : 3,20 → 3,60 stories, 46,7 % → 43,3 % ai-ready, tenus.
   **M1 devra utiliser des specs plus grandes, ou des seuils en nombre de stories.** Résultats :
   `eval/generation/results/2026-11-23-f1-summary.md`.
+- **Limite connue de Gemini (`gemini-3.6-flash`) : Gemini regroupe en moins de Features ; le niveau Feature reste
+  visible dès 2 Features explicites.** Vérification du 2026-11-23, règle fixée par le mainteneur avant la relance :
+  au moins 2 exécutions sur 3 de reservation-salles avec au moins 3 Features explicites. Résultat : 1 sur 3 (2, 2 et
+  4 Features ; la troisième compte 2 Features à une seule story). Critère non tenu : **pas de retouche du prompt**,
+  limite consignée (README EN/FR, résultats). Schéma : 5 réponses valides sur 5, sans 400 ni 429. Petites specs :
+  1 epic, 1 Feature, 1 seule story (Haiku : 3,6 en moyenne sur order-export), constat reporté à M1.
 

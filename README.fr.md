@@ -82,6 +82,11 @@ réponses des modèles (`ready` → `not-ready`) ; cet arbitrage est **contesté
 Détail par exécution, désaccords et coûts : `eval/verdict/results/` et `DECISIONS.md`. Un modèle ou un prompt absent
 de ce tableau n'a pas été mesuré.
 
+**Génération, niveau Feature (prompt `generation-v2`), limite connue de Gemini 3.6 Flash** (2026-11-23) : Gemini
+regroupe en moins de Features ; le niveau Feature reste visible dès 2 Features explicites. Sur la spec à plusieurs
+modules `reservation-salles`, 1 exécution sur 3 atteint 3 Features (Claude Haiku 5.5 : 2 sur 2) ; les petites specs
+n'ont qu'une story. Détail : `eval/generation/results/2026-11-23-f1-summary.md`.
+
 ---
 
 ## 📚 Sommaire

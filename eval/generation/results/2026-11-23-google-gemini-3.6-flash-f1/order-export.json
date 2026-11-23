@@ -1,0 +1,104 @@
+{
+  "epics" : [ {
+    "description" : "Capability allowing customers to export paid orders from their account page into a CSV file.",
+    "features" : [ {
+      "description" : "CSV export feature for paid customer orders on the account page.",
+      "labels" : [ "backend", "frontend", "api" ],
+      "name" : "Order Export",
+      "priority" : "High",
+      "stories" : [ {
+        "acceptanceCriteria" : [ "Given a customer on their account page with paid orders, When they export their orders, Then a file named orders-YYYY-MM-DD.csv is generated containing one row per order with order number, date, and total amount including VAT.", "Given a customer with cancelled orders, When the order export is generated, Then cancelled orders are excluded from the file." ],
+        "aiReady" : false,
+        "aiReadyReason" : "Which delimiter (comma or semicolon) and file encoding should be used for the CSV export?",
+        "aiReadySource" : "MODEL",
+        "asA" : "customer",
+        "dependencies" : [ ],
+        "description" : "Customers can export their paid orders as a CSV file from their account page. The file name must be orders-YYYY-MM-DD.csv. It contains one row per paid order with order number, date, and total amount including VAT. Cancelled orders are excluded. The delimiter and file encoding are not yet specified.",
+        "epicTrackerKey" : null,
+        "estimatedStoryPoints" : 3,
+        "iWant" : "to export my paid orders as a CSV file from my account page",
+        "labels" : [ "backend", "frontend", "api" ],
+        "priority" : "High",
+        "soThat" : "I can view and retain my paid order history offline",
+        "tasks" : [ {
+          "description" : "Implement the backend service to retrieve paid orders excluding cancelled ones and format rows with order number, date, and total amount including VAT. Pending PO decision on delimiter and encoding.",
+          "estimatedHours" : 4,
+          "labels" : [ "backend", "api" ],
+          "parentTrackerKey" : null,
+          "title" : "Implement backend order query and CSV generator",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Add the export action on the customer account page to trigger file download with name orders-YYYY-MM-DD.csv.",
+          "estimatedHours" : 3,
+          "labels" : [ "frontend" ],
+          "parentTrackerKey" : null,
+          "title" : "Add export button and trigger to account page",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        }, {
+          "description" : "Write integration and end-to-end tests to verify that paid orders are correctly included, cancelled orders are excluded, and the filename format is respected.",
+          "estimatedHours" : 2,
+          "labels" : [ "test" ],
+          "parentTrackerKey" : null,
+          "title" : "Verify CSV export acceptance criteria",
+          "trackerKey" : null,
+          "trackerUrl" : null
+        } ],
+        "title" : "Export paid orders to CSV",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "labels" : [ "backend", "frontend", "api" ],
+    "name" : "Order Export",
+    "priority" : "High",
+    "stories" : [ {
+      "acceptanceCriteria" : [ "Given a customer on their account page with paid orders, When they export their orders, Then a file named orders-YYYY-MM-DD.csv is generated containing one row per order with order number, date, and total amount including VAT.", "Given a customer with cancelled orders, When the order export is generated, Then cancelled orders are excluded from the file." ],
+      "aiReady" : false,
+      "aiReadyReason" : "Which delimiter (comma or semicolon) and file encoding should be used for the CSV export?",
+      "aiReadySource" : "MODEL",
+      "asA" : "customer",
+      "dependencies" : [ ],
+      "description" : "Customers can export their paid orders as a CSV file from their account page. The file name must be orders-YYYY-MM-DD.csv. It contains one row per paid order with order number, date, and total amount including VAT. Cancelled orders are excluded. The delimiter and file encoding are not yet specified.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 3,
+      "iWant" : "to export my paid orders as a CSV file from my account page",
+      "labels" : [ "backend", "frontend", "api" ],
+      "priority" : "High",
+      "soThat" : "I can view and retain my paid order history offline",
+      "tasks" : [ {
+        "description" : "Implement the backend service to retrieve paid orders excluding cancelled ones and format rows with order number, date, and total amount including VAT. Pending PO decision on delimiter and encoding.",
+        "estimatedHours" : 4,
+        "labels" : [ "backend", "api" ],
+        "parentTrackerKey" : null,
+        "title" : "Implement backend order query and CSV generator",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Add the export action on the customer account page to trigger file download with name orders-YYYY-MM-DD.csv.",
+        "estimatedHours" : 3,
+        "labels" : [ "frontend" ],
+        "parentTrackerKey" : null,
+        "title" : "Add export button and trigger to account page",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      }, {
+        "description" : "Write integration and end-to-end tests to verify that paid orders are correctly included, cancelled orders are excluded, and the filename format is respected.",
+        "estimatedHours" : 2,
+        "labels" : [ "test" ],
+        "parentTrackerKey" : null,
+        "title" : "Verify CSV export acceptance criteria",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "title" : "Export paid orders to CSV",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "trackerKey" : null,
+    "trackerUrl" : null
+  } ]
+}
