@@ -110,6 +110,23 @@ class LlmPromptsTest {
     }
 
     @Test
+    @DisplayName("Prompt 3 (verdict-v3.3): previous blocking question as its own line when given; without it, verdict-v3.2 text")
+    void reassessmentWithPreviousQuestion() {
+        for (Language language : List.of(Language.FR, Language.EN)) {
+            String with = LlmPrompts.reassessment("T", "D", "P", "Quel canal ?", language);
+            String without = LlmPrompts.reassessment("T", "D", "P", null, language);
+            String label = language.isFrench() ? "Question bloquante précédente : Quel canal ?" : "Previous blocking question: Quel canal ?";
+            assertTrue(with.contains("\n" + label + "\n"), with);
+            assertFalse(with.contains(LlmPrompts.IF_QUESTION) || without.contains(LlmPrompts.IF_QUESTION));
+            assertFalse(without.contains(language.isFrench() ? "Question bloquante" : "Previous blocking question"));
+            assertEquals(without, LlmPrompts.reassessment("T", "D", "P", language), "4-argument form unchanged");
+            assertEquals(without, LlmPrompts.reassessment("T", "D", "P", " ", language), "blank question: no line");
+        }
+        assertEquals("verdict-v3.3", LlmPrompts.REASSESSMENT_PROMPT_VERSION);
+        assertEquals("verdict-v3.2", LlmPrompts.VERDICT_PROMPT_VERSION, "prompt 2 (E0, verdict cache) unchanged");
+    }
+
+    @Test
     @DisplayName("Prompt 5 with a PO clarification (createTasks): the precision rule is kept, the clarification is story data")
     void testCasesWithClarification() {
         for (Language language : List.of(Language.FR, Language.EN)) {
@@ -179,7 +196,8 @@ class LlmPromptsTest {
         String header = code.equals("fr") ? "STORIES (JSON) :\n" : "STORIES (JSON):\n";
         assertEquals(b.get(3).replace("{{READINESS}}", readiness).replace("{{STORIES_JSON}}", storiesJson(verdicts, header))
                 .replace("{{LANGUAGE}}", name), verdicts);
-        assertEquals(b.get(4).replace("{{READINESS}}", readiness).replace("{{TITLE}}", "T").replace("{{DESCRIPTION}}", "D")
+        assertEquals(b.get(4).replaceAll("(?m)^" + java.util.regex.Pattern.quote(LlmPrompts.IF_QUESTION) + ".*\\R", "")
+                .replace("{{READINESS}}", readiness).replace("{{TITLE}}", "T").replace("{{DESCRIPTION}}", "D")
                 .replace("{{PRECISION}}", "P").replace("{{LANGUAGE}}", name), LlmPrompts.reassessment("T", "D", "P", language));
         assertEquals(b.get(5).replace("{{READINESS}}", readiness).replace("{{DOCUMENT}}", "DOC").replace("{{LANGUAGE}}", name),
                 LlmPrompts.stories("DOC", language));

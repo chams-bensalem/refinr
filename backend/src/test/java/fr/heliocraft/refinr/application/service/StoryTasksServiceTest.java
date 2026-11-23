@@ -142,10 +142,12 @@ class StoryTasksServiceTest {
         assertEquals("Consulter l'occupation", sent.getTitle());
         assertTrue(sent.getAcceptanceCriteria().getFirst().contains("l'occupation des salles"));
         assertFalse(sent.getDescription().contains("&#x27;") || sent.getAcceptanceCriteria().toString().contains("&#x27;"));
+        assertFalse(sent.getDescription().contains("AI readiness"), "B3: no verdict line sent to prompt 5");
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<Story>> toPrompt4 = ArgumentCaptor.forClass(List.class);
         verify(generator).generateTasks(toPrompt4.capture(), anyList(), any());
         assertFalse(toPrompt4.getValue().getFirst().getDescription().contains("&#x27;"));
+        assertFalse(toPrompt4.getValue().getFirst().getDescription().contains("AI readiness"), "B3: no verdict line sent to prompt 4");
     }
 
     @Test

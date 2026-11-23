@@ -394,7 +394,7 @@ class PipelineContractTest {
         when(tracker.findStory("TEST-7")).thenReturn(
                 new TrackedStory("TEST-7", "S", "d", List.of("validation-necessaire")),
                 new TrackedStory("TEST-7", "S", "d", List.of("ai-ready"), null, null, List.of()));
-        when(assessor.reassess(any(), any(), any(), any())).thenReturn(new Readiness(true, "clear now"));
+        when(assessor.reassess(any(), any(), any(), any(), any())).thenReturn(new Readiness(true, "clear now"));
 
         JsonNode body = read(send("/api/v1/reassess-story",
                 "{\"issueKey\":\"TEST-7\",\"precision\":\"Separator ;\",\"createTasks\":true}"));

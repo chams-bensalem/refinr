@@ -486,12 +486,24 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
      */
     @Override
     public void applyReassessment(TrackedStory story, String precision, Readiness readiness) {
-        applyVerdict(story, precision, readiness);
+        applyVerdict(story, precision, readiness, fr.heliocraft.refinr.domain.model.Language.FR);
+    }
+
+    @Override
+    public void applyReassessment(TrackedStory story, String precision, Readiness readiness,
+                                  fr.heliocraft.refinr.domain.model.Language language) {
+        applyVerdict(story, precision, readiness, language);
     }
 
     @Override
     public void applyHumanValidation(TrackedStory story, Readiness readiness) {
-        applyVerdict(story, null, readiness);
+        applyVerdict(story, null, readiness, fr.heliocraft.refinr.domain.model.Language.FR);
+    }
+
+    @Override
+    public void applyHumanValidation(TrackedStory story, Readiness readiness,
+                                     fr.heliocraft.refinr.domain.model.Language language) {
+        applyVerdict(story, null, readiness, language);
     }
 
     /**
@@ -528,7 +540,7 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
         }
         int at = content.size();
         for (int i = 0; i < content.size(); i++) {
-            if (adfToText(content.get(i)).strip().startsWith(StoryMarkdown.VERDICT_LINE_PREFIX)) {
+            if (StoryMarkdown.isVerdictLine(adfToText(content.get(i)).strip())) {
                 at = i;
                 break;
             }
@@ -555,21 +567,37 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
         return true;
     }
 
-    /** Description d'origine + precision (si fournie) + ligne du verdict, et label de verdict remplace. */
-    private void applyVerdict(TrackedStory story, String precision, Readiness readiness) {
+    /**
+     * Description d'origine, chaque ligne de verdict courante barree ({@code strike}) avec la mention de remplacement
+     * (B3), precision (si fournie) et nouvelle ligne de verdict inserees juste apres la derniere ligne de verdict (a la
+     * fin s'il n'y en a pas) ; label de verdict remplace.
+     */
+    private void applyVerdict(TrackedStory story, String precision, Readiness readiness,
+                              fr.heliocraft.refinr.domain.model.Language language) {
         boolean aiReady = readiness.aiReady();
         String verdict = ReadinessPolicy.verdictLabel(aiReady);
+        String suffix = StoryMarkdown.replacedSuffix(language, java.time.LocalDate.now(java.time.ZoneOffset.UTC));
         List<Object> content = new ArrayList<>();
+        int lastVerdict = -1;
         Map<String, Object> originalAdf = adfOf(story.originalContent());
         if (originalAdf != null && originalAdf.get("content") instanceof List<?> original) {
-            content.addAll(original);
+            for (Object node : original) {
+                if (StoryMarkdown.isVerdictLine(adfToText(node).strip())) {
+                    lastVerdict = content.size();
+                    content.add(struck(node) ? node : strike(node, suffix));
+                } else {
+                    content.add(node);
+                }
+            }
         } else if (story.description() != null && !story.description().isBlank()) {
             content.add(adfParagraph(story.description()));
         }
+        List<Object> added = new ArrayList<>();
         if (precision != null) {
-            content.add(adfParagraph(StoryMarkdown.precisionLine(precision)));
+            added.add(adfParagraph(StoryMarkdown.precisionLine(precision, language)));
         }
-        content.add(adfParagraph(StoryMarkdown.reassessedReadinessLine(readiness)));
+        added.add(adfParagraph(StoryMarkdown.reassessedReadinessLine(readiness)));
+        content.addAll(lastVerdict < 0 ? content.size() : lastVerdict + 1, added);
         Map<String, Object> description = new HashMap<>();
         description.put("type", "doc");
         description.put("version", 1);
@@ -592,6 +620,46 @@ public class JiraIssueTracker implements IssueTrackerPort, HealthCheckable {
             throw new RuntimeException("Failed to update issue " + story.key() + ": Jira unreachable ("
                     + e.getClass().getSimpleName() + ")");
         }
+    }
+
+    /** Vrai si un noeud texte du bloc porte deja la marque {@code strike} (ligne de verdict deja remplacee). */
+    private static boolean struck(Object node) {
+        if (!(node instanceof Map<?, ?> map)) {
+            return false;
+        }
+        if ("text".equals(map.get("type")) && map.get("marks") instanceof List<?> marks
+                && marks.stream().anyMatch(m -> m instanceof Map<?, ?> mark && "strike".equals(mark.get("type")))) {
+            return true;
+        }
+        return map.get("content") instanceof List<?> children && children.stream().anyMatch(JiraIssueTracker::struck);
+    }
+
+    /** Copie du bloc : chaque noeud texte barre ({@code strike}), mention de remplacement ajoutee en texte simple. */
+    private static Map<String, Object> strike(Object node, String suffix) {
+        Map<String, Object> copy = strikeTexts(node);
+        if (copy.get("content") instanceof List<?> children) {
+            List<Object> withSuffix = new ArrayList<>(children);
+            withSuffix.add(Map.of("type", "text", "text", suffix));
+            copy.put("content", withSuffix);
+        }
+        return copy;
+    }
+
+    private static Map<String, Object> strikeTexts(Object node) {
+        Map<String, Object> copy = new HashMap<>();
+        ((Map<?, ?>) node).forEach((k, v) -> copy.put(String.valueOf(k), v));
+        if ("text".equals(copy.get("type"))) {
+            List<Object> marks = new ArrayList<>(copy.get("marks") instanceof List<?> existing ? existing : List.of());
+            marks.add(Map.of("type", "strike"));
+            copy.put("marks", marks);
+        } else if (copy.get("content") instanceof List<?> children) {
+            List<Object> struckChildren = new ArrayList<>();
+            for (Object child : children) {
+                struckChildren.add(child instanceof Map<?, ?> ? strikeTexts(child) : child);
+            }
+            copy.put("content", struckChildren);
+        }
+        return copy;
     }
 
     /** Contenu d'origine lu par cet adaptateur ; tout autre type est refuse explicitement (jamais ignore). */

@@ -461,6 +461,59 @@ class JiraIssueTrackerTest {
         assertTrue(section >= 0 && section < testCase && testCase < original && original < reassessed, body);
     }
 
+    private static final String B3_ADF = "{\"type\":\"doc\",\"version\":1,\"content\":["
+            + "{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"AC1: Given a\"}]},"
+            + "{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"AI readiness (validation-necessaire): Which channel?\"}]},"
+            + "{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Note du PO : semaine.\"}]}]}";
+
+    @SuppressWarnings("unchecked")
+    private static TrackedStory b3Story(String adf) throws Exception {
+        java.util.Map<String, Object> document = new tools.jackson.databind.json.JsonMapper().readValue(adf, java.util.Map.class);
+        return new TrackedStory("TEST-7", "S", "text", List.of("validation-necessaire"), new JiraAdfContent(document));
+    }
+
+    @Test
+    @DisplayName("B3 (Jira): old verdict line struck (strike mark) with the dated note, precision and new line right after, PO note last")
+    void b3StrikesTheOldVerdictLine() throws Exception {
+        mockWebServer.enqueue(new MockResponse().setResponseCode(204));
+
+        jiraService.applyReassessment(b3Story(B3_ADF), "Email only", new Readiness(true, "Clear now"),
+                fr.heliocraft.refinr.domain.model.Language.EN);
+
+        tools.jackson.databind.JsonNode content = new tools.jackson.databind.json.JsonMapper()
+                .readTree(mockWebServer.takeRequest().getBody().readUtf8()).at("/fields/description/content");
+        assertEquals(5, content.size(), content.toString());
+        assertEquals("strike", content.at("/1/content/0/marks/0/type").asString(), "old line struck");
+        assertTrue(content.at("/1/content/1/text").asString().matches(" \\(replaced on \\d{4}-\\d{2}-\\d{2}\\)"),
+                content.at("/1/content/1").toString());
+        assertTrue(content.at("/1/content/1/marks").isMissingNode(), "the note itself is not struck");
+        assertEquals("User clarification (reassessment): Email only", content.at("/2/content/0/text").asString());
+        assertEquals("AI readiness (ai-ready): Clear now", content.at("/3/content/0/text").asString());
+        assertEquals("Note du PO : semaine.", content.at("/4/content/0/text").asString(), "PO note last");
+    }
+
+    @Test
+    @DisplayName("B3 (Jira): a second reassessment strikes only the current line; French note in French")
+    void b3SecondReassessment() throws Exception {
+        String once = B3_ADF.replace("{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"AI readiness (validation-necessaire): Which channel?\"}]},",
+                "{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"AI readiness (validation-necessaire): Which channel?\","
+                + "\"marks\":[{\"type\":\"strike\"}]},{\"type\":\"text\",\"text\":\" (remplacée le 2026-11-23)\"}]},"
+                + "{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"AI readiness (validation-necessaire): Which room?\"}]},");
+        mockWebServer.enqueue(new MockResponse().setResponseCode(204));
+
+        jiraService.applyReassessment(b3Story(once), "Salle A", new Readiness(true, "ok"), fr.heliocraft.refinr.domain.model.Language.FR);
+
+        tools.jackson.databind.JsonNode content = new tools.jackson.databind.json.JsonMapper()
+                .readTree(mockWebServer.takeRequest().getBody().readUtf8()).at("/fields/description/content");
+        assertEquals(1, content.at("/1/content/0/marks").size(), "already struck: unchanged");
+        assertEquals(" (remplacée le 2026-11-23)", content.at("/1/content/1/text").asString());
+        assertEquals("strike", content.at("/2/content/0/marks/0/type").asString());
+        assertTrue(content.at("/2/content/1/text").asString().startsWith(" (remplacée le "));
+        assertEquals("Précision de l'utilisateur (réévaluation) : Salle A", content.at("/3/content/0/text").asString());
+        assertEquals("AI readiness (ai-ready): ok", content.at("/4/content/0/text").asString());
+        assertEquals("Note du PO : semaine.", content.at("/5/content/0/text").asString());
+    }
+
     @Test
     @DisplayName("Should record the user's precision and swap the readiness label")
     void shouldApplyReassessment() throws InterruptedException {
@@ -538,7 +591,7 @@ class JiraIssueTrackerTest {
         assertTrue(body.contains("\"mediaSingle\""));
         assertTrue(body.contains("maquette-123"));
         assertTrue(body.contains("\"strong\""));
-        assertTrue(body.contains("Precision de l'utilisateur (reevaluation): format A4"));
+        assertTrue(body.contains("Précision de l'utilisateur (réévaluation) : format A4"));
         assertTrue(body.contains("AI readiness (validation-necessaire): La maquette manque"));
     }
 

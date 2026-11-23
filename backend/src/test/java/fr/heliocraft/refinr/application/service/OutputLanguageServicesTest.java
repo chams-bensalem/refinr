@@ -129,12 +129,12 @@ class OutputLanguageServicesTest {
                 "The customer can cancel an order from the account page as long as it has not been shipped.",
                 List.of("validation-necessaire"));
         when(tracker.findStory("PROJ-7")).thenReturn(story);
-        when(assessor.reassess(any(), any(), any(), any())).thenReturn(new Readiness(true, "ok"));
+        when(assessor.reassess(any(), any(), any(), any(), any())).thenReturn(new Readiness(true, "ok"));
         ReassessStoryService service = new ReassessStoryService(tracker, assessor, OutputLanguagePolicy.DETECT);
 
         service.reassess("PROJ-7", "precision", null);
-        verify(assessor).reassess(any(), any(), eq("precision"), eq(Language.EN));
+        verify(assessor).reassess(any(), any(), eq("precision"), any(), eq(Language.EN));
         service.reassess("PROJ-7", "autre", Language.of("es"));
-        verify(assessor).reassess(any(), any(), eq("autre"), eq(Language.of("es")));
+        verify(assessor).reassess(any(), any(), eq("autre"), any(), eq(Language.of("es")));
     }
 }

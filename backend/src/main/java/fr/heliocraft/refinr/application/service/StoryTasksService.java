@@ -103,7 +103,7 @@ public class StoryTasksService implements GenerateStoryTasks {
         String storyKey = story.key();
         Story input = new Story();
         input.setTitle(StoryMarkdown.decodeEntities(story.summary()));
-        input.setDescription(StoryMarkdown.decodeEntities(story.description()));
+        input.setDescription(StoryMarkdown.forModel(story.description()));
         List<List<Task>> answer = LlmFailures.translate(() -> taskGenerator.generateTasks(List.of(input),
                 Collections.singletonList(precision), language));
         List<Task> tasks = answer.isEmpty() ? null : answer.getFirst();
@@ -149,7 +149,7 @@ public class StoryTasksService implements GenerateStoryTasks {
         Story input = new Story();
         // Texte relu dans le gestionnaire : entites HTML de l'editeur decodees avant l'envoi au modele
         input.setTitle(StoryMarkdown.decodeEntities(story.summary()));
-        input.setDescription(StoryMarkdown.decodeEntities(story.description()));
+        input.setDescription(StoryMarkdown.forModel(story.description()));
         input.setAcceptanceCriteria(criteria);
         List<TestCase> valid;
         try {

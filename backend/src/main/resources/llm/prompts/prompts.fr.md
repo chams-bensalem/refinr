@@ -106,7 +106,9 @@ Réponds UNIQUEMENT par le JSON, avec exactement un verdict par story, repérée
 {"verdicts":[{"id":"s1","aiReady":false,"aiReadyReason":""}]}
 ```
 
-## Prompt 3 : réévaluation
+## Prompt 3 : réévaluation (verdict-v3.3)
+
+La ligne `{{IF_QUESTION}}` porte la dernière question ouverte (raison de la dernière ligne `validation-necessaire`) ; elle est retirée s'il n'y en a pas, et le texte est alors celui de `verdict-v3.2`. Les lignes de verdict sont retirées de la description envoyée (B3).
 
 ```
 MISSION : cette User Story a été jugée non prête. L'utilisateur apporte une précision. Réévalue la story en en tenant compte.
@@ -118,6 +120,7 @@ La précision de l'utilisateur fait foi sur ce qu'elle tranche. Ne suppose rien 
 STORY :
 Titre : {{TITLE}}
 Description : {{DESCRIPTION}}
+{{IF_QUESTION}}Question bloquante précédente : {{PREVIOUS_QUESTION}}
 
 PRÉCISION DE L'UTILISATEUR :
 {{PRECISION}}

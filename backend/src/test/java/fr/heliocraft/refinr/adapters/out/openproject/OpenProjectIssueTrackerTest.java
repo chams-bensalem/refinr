@@ -325,6 +325,34 @@ class OpenProjectIssueTrackerTest {
         }
 
         @Test
+        @DisplayName("B3 (OpenProject): one PATCH with the old line struck (dated note in English), precision and new line after it")
+        void b3StrikesTheOldVerdictLine() throws Exception {
+            String raw = DESCRIPTION.replace("AI readiness (ai-ready): clear", "AI readiness (validation-necessaire): Which channel?");
+            server.enqueue(json(200, withDescription(0, raw)));
+            server.enqueue(json(200, TYPES));
+            server.enqueue(json(200, FORM));
+            TrackedStory story = tracker.findStory("39");
+            for (int i = 0; i < 3; i++) {
+                next();
+            }
+            server.enqueue(json(201, "{\"_type\":\"Activity::Comment\",\"id\":64}"));
+            server.enqueue(json(200, withDescription(3, raw)));
+            server.enqueue(json(200, workPackage(39, 4, "ai-ready")));
+
+            tracker.applyReassessment(story, "Email only", new Readiness(true, "Clear now."), fr.heliocraft.refinr.domain.model.Language.EN);
+
+            assertEquals("User clarification (reassessment): Email only\n\nAI readiness (ai-ready): Clear now.",
+                    body(next()).at("/comment/raw").asString(), "comment kept as the history");
+            next();
+            JsonNode patch = body(next());
+            assertEquals(3, patch.at("/lockVersion").asInt());
+            String updated = patch.at("/description/raw").asString();
+            assertTrue(updated.matches("(?s).*~~AI readiness \\(validation-necessaire\\): Which channel\\?~~ \\(replaced on \\d{4}-\\d{2}-\\d{2}\\)\n\n"
+                    + "User clarification \\(reassessment\\): Email only\n\nAI readiness \\(ai-ready\\): Clear now\\.\n\nLabels: backend"), updated);
+            assertEquals("/api/v3/custom_options/1", patch.at("/_links/customField1/href").asString(), "verdict field in the same PATCH");
+        }
+
+        @Test
         @DisplayName("C2 real trial: description rewritten by the OpenProject editor -> section before the verdict line, PO note intact")
         void editorRewrittenDescription() throws Exception {
             String raw = fr.heliocraft.refinr.TrackerFixtures.OPENPROJECT_EDITED;
@@ -360,8 +388,8 @@ class OpenProjectIssueTrackerTest {
         }
 
         @Test
-        @DisplayName("C2: reassessment with the section present: comment and verdict field only, the description is never rewritten")
-        void reassessmentLeavesTheDescription() throws Exception {
+        @DisplayName("B3 with C2: reassessment keeps the test cases above the struck verdict line, new line right after it")
+        void reassessmentKeepsTheTestCases() throws Exception {
             server.enqueue(json(200, withDescription(0, DESCRIPTION.replace("AI readiness", "### Test cases\n\n- TC1\n\nAI readiness"))
                     .replace("custom_options/1", "custom_options/2").replace("\"title\":\"ai-ready\"", "\"title\":\"validation-necessaire\"")));
             server.enqueue(json(200, TYPES));
@@ -371,7 +399,8 @@ class OpenProjectIssueTrackerTest {
                 next();
             }
             server.enqueue(json(201, "{\"_type\":\"Activity::Comment\",\"id\":64}"));
-            server.enqueue(json(200, workPackage(39, 1, "validation-necessaire")));
+            // Relecture juste avant le PATCH : c'est cette description qui est reecrite
+            server.enqueue(json(200, withDescription(1, DESCRIPTION.replace("AI readiness", "### Test cases\n\n- TC1\n\nAI readiness"))));
             server.enqueue(json(200, workPackage(39, 2, "ai-ready")));
 
             tracker.applyReassessment(story, "precision", new Readiness(true, "Now clear."));
@@ -379,7 +408,11 @@ class OpenProjectIssueTrackerTest {
             assertEquals("POST", next().getMethod());
             next();
             JsonNode patch = body(next());
-            assertTrue(patch.at("/description").isMissingNode(), "description untouched: " + patch);
+            String raw = patch.at("/description/raw").asString();
+            int section = raw.indexOf("### Test cases"), struck = raw.indexOf("~~AI readiness (ai-ready): clear~~");
+            int fresh = raw.indexOf("AI readiness (ai-ready): Now clear.");
+            assertTrue(section >= 0 && section < struck && struck < fresh, raw);
+            assertTrue(raw.endsWith("Labels: backend"), "the rest of the description is intact: " + raw);
         }
     }
 
@@ -766,7 +799,7 @@ class OpenProjectIssueTrackerTest {
             RecordedRequest comment = next();
             assertEquals("POST", comment.getMethod());
             assertEquals("/api/v3/work_packages/39/activities?notify=false", comment.getPath());
-            assertEquals("Precision de l'utilisateur (reevaluation): Alerts go to Slack #stock\n\n"
+            assertEquals("Précision de l'utilisateur (réévaluation) : Alerts go to Slack #stock\n\n"
                     + "AI readiness (ai-ready): Channel now known.", body(comment).at("/comment/raw").asString());
 
             RecordedRequest read = next();

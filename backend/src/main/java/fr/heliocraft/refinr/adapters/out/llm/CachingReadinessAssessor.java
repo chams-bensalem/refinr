@@ -90,8 +90,9 @@ public class CachingReadinessAssessor implements ReadinessAssessorPort {
     }
 
     @Override
-    public Readiness reassess(String summary, String description, String precision, Language language) {
-        return delegate.reassess(summary, description, precision, language);
+    public Readiness reassess(String summary, String description, String precision, String previousQuestion,
+                              Language language) {
+        return delegate.reassess(summary, description, precision, previousQuestion, language);
     }
 
     private synchronized Readiness get(String key) {

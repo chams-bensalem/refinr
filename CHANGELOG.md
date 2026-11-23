@@ -74,6 +74,15 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   règle pour `docker stop -t` et `terminationGracePeriodSeconds` de Kubernetes).
 
 ### Changed
+- **Réévaluation et validation (B3), contenu écrit dans les tickets** : l'ancienne ligne de verdict est barrée et
+  datée selon la langue (*(remplacée le AAAA-MM-JJ)* / *(replaced on YYYY-MM-DD)* ; Jira : marque `strike`,
+  OpenProject : `~~`), la précision et la nouvelle ligne sont insérées juste après la dernière ligne de verdict (et
+  non plus à la fin) ; OpenProject écrit désormais aussi la description (même PATCH que le champ du verdict,
+  `lockVersion`), le commentaire est gardé. Préfixe de la précision selon la langue (*Précision de l'utilisateur
+  (réévaluation) :* / *User clarification (reassessment):*). Contrat REST inchangé.
+- **Texte envoyé au modèle** (prompts 3, 4, 5) : lignes de verdict retirées ; prompt 3 `verdict-v3.3` avec la dernière
+  question ouverte dans un champ à part (sans question, texte de `verdict-v3.2`) ; le prompt 2 (`verdict-v3.2`, E0) ne
+  change pas.
 - **`validate-story`** : la raison écrite dans le ticket et renvoyée (`aiReadyReason`) a ses accents en français
   (*validée par un humain, sans appel au modèle*) et une version anglaise (*validated by a human, without a model
   call*), selon la langue (paramètre `language`, propriété, détection sur la story). **Changement de comportement** :

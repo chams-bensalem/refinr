@@ -29,11 +29,11 @@ class ReassessStoryServiceTest {
         TrackedStory story = new TrackedStory("PROJ-7", "Export PDF", "Exporter", List.of("validation-necessaire"));
         Readiness verdict = new Readiness(true, "Perimetre clair");
         when(tracker.findStory("PROJ-7")).thenReturn(story);
-        when(llm.reassess(eq("Export PDF"), eq("Exporter"), eq("format A4"), any())).thenReturn(verdict);
+        when(llm.reassess(eq("Export PDF"), eq("Exporter"), eq("format A4"), any(), any())).thenReturn(verdict);
 
         assertEquals(verdict, service.reassess("PROJ-7", "format A4"));
 
-        verify(tracker).applyReassessment(story, "format A4", verdict);
+        verify(tracker).applyReassessment(eq(story), eq("format A4"), eq(verdict), any());
     }
 
     @Test
@@ -47,6 +47,23 @@ class ReassessStoryServiceTest {
 
         assertEquals("Issue PROJ-7 is not awaiting validation (label validation-necessaire absent)", error.getMessage());
         verifyNoInteractions(llm);
-        verify(tracker, never()).applyReassessment(any(), any(), any());
+        verify(tracker, never()).applyReassessment(any(), any(), any(), any());
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("B3: the model gets the description without verdict lines and the last open question apart; tracker gets the language")
+    void modelInputWithoutVerdictLines() {
+        String description = "Exporter\n\n~~AI readiness (validation-necessaire): Quel format ?~~ (remplacée le 2026-11-23)\n\n"
+                + "Précision de l'utilisateur (réévaluation) : CSV\n\nAI readiness (validation-necessaire): Quel séparateur ?";
+        TrackedStory story = new TrackedStory("PROJ-1", "Export l&#x27;état", description, List.of("validation-necessaire"));
+        when(tracker.findStory("PROJ-1")).thenReturn(story);
+        Readiness verdict = new Readiness(true, "ok");
+        when(llm.reassess(any(), any(), any(), any(), any())).thenReturn(verdict);
+
+        new ReassessStoryService(tracker, llm).reassess("PROJ-1", "Point-virgule", fr.heliocraft.refinr.domain.model.Language.FR);
+
+        verify(llm).reassess(eq("Export l'état"), eq("Exporter\n\nPrécision de l'utilisateur (réévaluation) : CSV"),
+                eq("Point-virgule"), eq("Quel séparateur ?"), eq(fr.heliocraft.refinr.domain.model.Language.FR));
+        verify(tracker).applyReassessment(eq(story), eq("Point-virgule"), eq(verdict), eq(fr.heliocraft.refinr.domain.model.Language.FR));
     }
 }

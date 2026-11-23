@@ -107,7 +107,9 @@ Answer ONLY with the JSON, with exactly one verdict per story, identified by its
 {"verdicts":[{"id":"s1","aiReady":false,"aiReadyReason":""}]}
 ```
 
-## Prompt 3: reassessment
+## Prompt 3: reassessment (verdict-v3.3)
+
+The `{{IF_QUESTION}}` line carries the last open question (reason of the last `validation-necessaire` line); it is removed when there is none, and the text is then that of `verdict-v3.2`. Verdict lines are removed from the description sent (B3).
 
 ```
 MISSION: this User Story was judged not ready. The user provides a clarification. Reassess the story taking it into account.
@@ -119,6 +121,7 @@ The user's clarification is authoritative on what it settles. Assume nothing els
 STORY:
 Title: {{TITLE}}
 Description: {{DESCRIPTION}}
+{{IF_QUESTION}}Previous blocking question: {{PREVIOUS_QUESTION}}
 
 USER'S CLARIFICATION:
 {{PRECISION}}

@@ -132,11 +132,12 @@ public class LlmReadinessAssessor implements ReadinessAssessorPort {
     }
 
     @Override
-    public Readiness reassess(String summary, String description, String precision, Language language) {
+    public Readiness reassess(String summary, String description, String precision, String previousQuestion,
+                              Language language) {
         log.info("Reassessing a story with the user's precision ({}, output language {})", client.settings().describe(),
                 language.code());
         LlmRequest request = LlmRequest.of(LlmPrompts.system(language),
-                LlmPrompts.reassessment(summary, description, precision, language),
+                LlmPrompts.reassessment(summary, description, precision, previousQuestion, language),
                 LlmSchemas.READINESS, LlmSchemas.forProvider(schema));
         return output.call(client, request, schema, LlmReadinessAssessor::readiness);
     }

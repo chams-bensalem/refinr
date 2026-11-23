@@ -38,8 +38,14 @@ public class ReassessStoryService implements ReassessStory {
             throw new StoryNotAwaitingValidationException(storyKey);
         }
         Language language = languagePolicy.resolve(requested, story.summary() + "\n" + story.description());
-        Readiness verdict = LlmFailures.translate(() -> assessor.reassess(story.summary(), story.description(), precision, language));
-        issueTracker.applyReassessment(story, precision, verdict);
+        // B3 : lignes de verdict retirees du texte envoye (aucun ancrage sur un verdict precedent) ; la derniere question
+        // ouverte passe dans un champ a part ; les precisions precedentes restent dans le texte
+        String description = fr.heliocraft.refinr.domain.service.StoryMarkdown.forModel(story.description());
+        String previousQuestion = fr.heliocraft.refinr.domain.service.StoryMarkdown.lastOpenQuestion(story.description());
+        String summary = fr.heliocraft.refinr.domain.service.StoryMarkdown.decodeEntities(story.summary());
+        Readiness verdict = LlmFailures.translate(() -> assessor.reassess(summary, description, precision, previousQuestion,
+                language));
+        issueTracker.applyReassessment(story, precision, verdict, language);
         return verdict;
     }
 }

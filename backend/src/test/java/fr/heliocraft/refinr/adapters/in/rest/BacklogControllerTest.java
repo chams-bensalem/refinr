@@ -569,7 +569,7 @@ class BacklogControllerTest {
         TrackedStory story = new TrackedStory(
             "TEST-7", "Export PDF", "Exporter", List.of("backend", "validation-necessaire"));
         when(jiraService.findStory("TEST-7")).thenReturn(story);
-        when(assessor.reassess(eq("Export PDF"), eq("Exporter"), eq("format A4"), any()))
+        when(assessor.reassess(eq("Export PDF"), eq("Exporter"), eq("format A4"), any(), any()))
             .thenReturn(new Readiness(true, "Perimetre clair"));
 
         mockMvc.perform(post("/api/v1/reassess-story")
@@ -581,7 +581,7 @@ class BacklogControllerTest {
                 .andExpect(jsonPath("$.aiReady").value(true))
                 .andExpect(jsonPath("$.aiReadyReason").value("Perimetre clair"));
 
-        verify(jiraService).applyReassessment(story, "format A4", new Readiness(true, "Perimetre clair"));
+        verify(jiraService).applyReassessment(eq(story), eq("format A4"), eq(new Readiness(true, "Perimetre clair")), any());
     }
 
     @Test
@@ -597,7 +597,7 @@ class BacklogControllerTest {
                 .andExpect(jsonPath("$.success").value(false));
 
         verifyNoInteractions(generator, assessor);
-        verify(jiraService, never()).applyReassessment(any(), any(), any());
+        verify(jiraService, never()).applyReassessment(any(), any(), any(), any());
     }
 
     @Test
@@ -606,7 +606,7 @@ class BacklogControllerTest {
         TrackedStory story = new TrackedStory(
             "TEST-7", "Export PDF", "Exporter", List.of("validation-necessaire"));
         when(jiraService.findStory("TEST-7")).thenReturn(story);
-        when(assessor.reassess(eq("Export PDF"), eq("Exporter"), eq("format A4"), any()))
+        when(assessor.reassess(eq("Export PDF"), eq("Exporter"), eq("format A4"), any(), any()))
             .thenThrow(new LlmException(LlmException.Reason.UNAVAILABLE, "The google LLM provider is unreachable"));
 
         mockMvc.perform(post("/api/v1/reassess-story")
@@ -616,7 +616,7 @@ class BacklogControllerTest {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error").value("The AI provider is unavailable"));
 
-        verify(jiraService, never()).applyReassessment(any(), any(), any());
+        verify(jiraService, never()).applyReassessment(any(), any(), any(), any());
     }
 
     @Test
@@ -1099,8 +1099,9 @@ class BacklogControllerTest {
         try (MockWebServer server = new MockWebServer()) {
             server.enqueue(new MockResponse().setResponseCode(503).setBody("busy " + marker));
             LlmReadinessAssessor real = new LlmReadinessAssessor(llmClient(server, marker), new StructuredOutput(1), 5);
-            when(assessor.reassess(any(), any(), any(), any())).thenAnswer(call ->
-                    real.reassess(call.getArgument(0), call.getArgument(1), call.getArgument(2), call.getArgument(3)));
+            when(assessor.reassess(any(), any(), any(), any(), any())).thenAnswer(call ->
+                    real.reassess(call.getArgument(0), call.getArgument(1), call.getArgument(2), call.getArgument(3),
+                            call.getArgument(4)));
             when(jiraService.findStory("TEST-7")).thenReturn(new TrackedStory("TEST-7", "Export " + marker,
                     "Description " + marker, List.of("validation-necessaire")));
 
@@ -1153,7 +1154,7 @@ class BacklogControllerTest {
     void reassessIs503OnRateLimit() throws Exception {
         when(jiraService.findStory("TEST-7")).thenReturn(new TrackedStory("TEST-7", "Export PDF", "Exporter",
                 List.of("validation-necessaire")));
-        when(assessor.reassess(any(), any(), any(), any())).thenThrow(new LlmException(LlmException.Reason.RATE_LIMITED,
+        when(assessor.reassess(any(), any(), any(), any(), any())).thenThrow(new LlmException(LlmException.Reason.RATE_LIMITED,
                 "HTTP 429", Duration.ofSeconds(3600)));
 
         mockMvc.perform(post("/api/v1/reassess-story").contentType(MediaType.APPLICATION_JSON)
@@ -1162,7 +1163,7 @@ class BacklogControllerTest {
                 .andExpect(header().string("Retry-After", "3600"))
                 .andExpect(jsonPath("$.retryAfterSeconds").value(3600));
 
-        verify(jiraService, never()).applyReassessment(any(), any(), any());
+        verify(jiraService, never()).applyReassessment(any(), any(), any(), any());
     }
 
     @Test
@@ -1208,7 +1209,7 @@ class BacklogControllerTest {
     void reassessAnswersModelSource() throws Exception {
         when(jiraService.findStory("TEST-7")).thenReturn(new TrackedStory("TEST-7", "Export PDF", "Exporter",
                 List.of("validation-necessaire")));
-        when(assessor.reassess(any(), any(), any(), any())).thenReturn(new Readiness(true, "clair"));
+        when(assessor.reassess(any(), any(), any(), any(), any())).thenReturn(new Readiness(true, "clair"));
 
         mockMvc.perform(post("/api/v1/reassess-story").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"issueKey\":\"TEST-7\",\"precision\":\"format A4\"}"))
@@ -1240,7 +1241,7 @@ class BacklogControllerTest {
                 .andExpect(status().isBadRequest());
 
         verify(jiraService).applyHumanValidation(eq(story), argThat(v -> v.aiReady() && v.source() == ReadinessSource.HUMAN
-                && v.aiReadyReason().equals("validée par un humain, sans appel au modèle")));
+                && v.aiReadyReason().equals("validée par un humain, sans appel au modèle")), any());
         verifyNoInteractions(assessor, generator);
     }
 
@@ -1255,7 +1256,7 @@ class BacklogControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.success").value(false));
 
-        verify(jiraService, never()).applyHumanValidation(any(), any());
+        verify(jiraService, never()).applyHumanValidation(any(), any(), any());
     }
 
     @Test
@@ -1336,12 +1337,12 @@ class BacklogControllerTest {
     void reassessWithLanguage() throws Exception {
         TrackedStory story = new TrackedStory("TEST-7", "Export PDF", "Exporter", List.of("validation-necessaire"));
         when(jiraService.findStory("TEST-7")).thenReturn(story);
-        when(assessor.reassess(any(), any(), any(), any())).thenReturn(new Readiness(true, "Clear scope"));
+        when(assessor.reassess(any(), any(), any(), any(), any())).thenReturn(new Readiness(true, "Clear scope"));
 
         mockMvc.perform(post("/api/v1/reassess-story").contentType(MediaType.APPLICATION_JSON)
                         .content(json("issueKey", "TEST-7", "precision", "A4", "language", "en")))
                 .andExpect(status().isOk());
-        verify(assessor).reassess(eq("Export PDF"), eq("Exporter"), eq("A4"), eq(fr.heliocraft.refinr.domain.model.Language.EN));
+        verify(assessor).reassess(eq("Export PDF"), eq("Exporter"), eq("A4"), any(), eq(fr.heliocraft.refinr.domain.model.Language.EN));
     }
 
     @Test
