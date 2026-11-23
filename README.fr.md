@@ -823,6 +823,21 @@ et rappelez `story-tasks`. Deux appels simultanés pour la même story : le seco
 qu'`analyze-and-create` crée encore les sous-tâches de cette story (verrou dans le processus Refinr : une seule
 instance, comme les jobs).
 
+**Cas de test** (chaîne, stories prêtes seulement) : après leurs sous-tâches, le prompt 5 (`test-cases-v1`) écrit 1 à
+3 cas de test par critère d'acceptation, dans une section `### Test cases` de la description de la story, avant la
+ligne de verdict (`- **TC1 (AC2, error):** titre — Given …, When …, Then …` ; `testCases` sur chaque story de la
+réponse). Refinr contrôle la couverture : chaque critère a 1 à 3 cas et chaque cas désigne un critère existant ;
+sinon une seule réparation, pour cette story seulement. Si la réparation échoue, **aucune section partielle** n'est
+écrite : la story n'a pas de `testCases`, reçoit `testCasesError` (par exemple `test cases not written: AC2 has no
+test case`) et un avertissement la nomme ; ses sous-tâches et son verdict restent intacts. Quand une story devient
+prête plus tard (`story-tasks`, `createTasks`), ses cas de test sont ajoutés au même endroit. `story-tasks` sur une
+story qui a déjà ses sous-tâches mais pas de section de cas de test ne génère que les cas de test (`tasksSkipped` et
+`testCases`) : c'est aussi la reprise après un `testCasesError`. Une section n'est jamais ajoutée deux fois (repérée
+par son titre). La description est limitée à 32 767 caractères (limite de Jira) : au-delà, la section n'est pas
+écrite et la réponse le dit, jamais de troncature. `create-jira` valide les cas de test modifiés par un client
+(`400` sinon). **Limite connue (Jira)** : Jira n'a pas de verrou optimiste ; la description est relue juste avant
+d'être réécrite, mais une modification humaine faite entre-temps peut être écrasée.
+
 ### Alimenter votre agent de code
 
 Interrogez Jira avec `labels = "ai-ready"` ; dans OpenProject, filtrez les lots de travaux sur *Agent readiness* =
@@ -884,7 +899,7 @@ tickets et le label `validation-necessaire` ne changent pas.
 | `POST` | `/create-jira` | `Epic[]` (JSON) · `?projectKey=PROJ` *(optionnel, même format)* · `&language=de` *(optionnel)* | Crée une structure déjà générée ; le serveur recalcule le verdict (`aiReady` / `aiReadyReason` du client ignorés) |
 | `POST` | `/reassess-story` | `{ "issueKey": "PROJ-42", "precision": "…" }` · `"createTasks": true` *(optionnel : sous-tâches créées si la story devient `ai-ready`)* | Réévalue une story `validation-necessaire` (`409` si elle ne l'est pas) |
 | `POST` | `/validate-story` | `{ "issueKey": "PROJ-42" }` · `"createTasks": true` *(optionnel, avec `language`)* | Marque `ai-ready` une story `validation-necessaire` sur décision humaine, sans appel à l'IA (`409` si elle ne l'est pas) ; ligne de verdict ajoutée au ticket |
-| `POST` | `/story-tasks` | `{ "issueKey": "PROJ-42", "language": "fr" }` *(language optionnel)* | Chaîne : génère et crée les sous-tâches d'une story `ai-ready` qui n'en a aucune, dans son projet (`409` si elle n'est pas `ai-ready` ou si un autre appel les crée déjà) ; une story qui a des sous-tâches n'est pas touchée (`tasksSkipped`) |
+| `POST` | `/story-tasks` | `{ "issueKey": "PROJ-42", "language": "fr" }` *(language optionnel)* | Chaîne : génère et crée les sous-tâches d'une story `ai-ready` qui n'en a aucune, dans son projet (`409` si elle n'est pas `ai-ready` ou si un autre appel les crée déjà) ; une story qui a des sous-tâches n'est pas touchée (`tasksSkipped`) ; puis ses cas de test, si elle n'a pas de section de cas de test (`testCases`, `testCasesSkipped` ou `testCasesError`) |
 | `POST` | `/jobs/analyze-preview` | même corps que `/analyze-preview` | Exécute l'aperçu en job : `202`, `Location: /api/v1/jobs/{id}` |
 | `POST` | `/jobs/analyze-and-create` | même corps que `/analyze-and-create` | Exécute l'analyse et la création en job : `202`, `Location: /api/v1/jobs/{id}` |
 | `GET` | `/jobs/{id}` | — | État du job : `queued`, `running`, `succeeded` ou `failed`, étape en cours (`step`), dates, `outcome` une fois terminé |
