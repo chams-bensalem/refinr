@@ -1,0 +1,134 @@
+{
+  "source" : "eval/generation/results/2026-11-23-anthropic-claude-haiku-5-5-c1-fix-reservation-5/reservation-salles.json",
+  "stories" : [ {
+    "title" : "Consulter le planning journalier des salles",
+    "acceptanceCriteria" : [ "Étant donné un salarié connecté, Quand il ouvre le planning d'une journée, Alors il voit les salles de réunion découpées en tranches de 30 minutes.", "Étant donné une tranche couverte par une réservation, Quand le planning est affiché, Alors cette tranche est présentée comme occupée pour la salle concernée.", "Étant donné un visiteur non connecté, Quand il tente d'accéder au planning, Alors l'accès au planning lui est refusé." ],
+    "testCases" : [ {
+      "title" : "Un salarié connecté voit le planning d'une journée découpé en tranches de 30 minutes",
+      "criterion" : "AC1",
+      "kind" : "nominal",
+      "given" : "Un salarié est connecté et des salles de réunion existent",
+      "when" : "Il ouvre le planning d'une journée",
+      "then" : "Les salles de réunion sont affichées découpées en tranches de 30 minutes"
+    }, {
+      "title" : "Une tranche couverte par une réservation est affichée comme occupée",
+      "criterion" : "AC2",
+      "kind" : "nominal",
+      "given" : "Une réservation existe pour une salle sur une tranche donnée d'une journée",
+      "when" : "Le planning de cette journée est affiché",
+      "then" : "Cette tranche est présentée comme occupée pour la salle concernée"
+    }, {
+      "title" : "Un visiteur non connecté se voit refuser l'accès au planning",
+      "criterion" : "AC3",
+      "kind" : "error",
+      "given" : "Un visiteur n'est pas connecté",
+      "when" : "Il tente d'accéder au planning",
+      "then" : "L'accès au planning lui est refusé"
+    } ]
+  }, {
+    "title" : "Réserver une salle libre",
+    "acceptanceCriteria" : [ "Étant donné une salle libre sur un créneau de 2 heures dans les 30 jours à venir, Quand le salarié confirme la réservation, Alors la réservation est enregistrée et le créneau apparaît occupé dans le planning.", "Étant donné une demande d'une durée de 5 heures, Quand le salarié valide la réservation, Alors la réservation est refusée.", "Étant donné une demande portant sur une date situee à plus de 30 jours, Quand le salarié valide la réservation, Alors la réservation est refusée.", "Étant donné une salle déjà réservée de 10h à 11h, Quand un salarié demande cette salle de 10h30 à 11h30, Alors la demande est refusée." ],
+    "testCases" : [ {
+      "title" : "Un salarié réserve une salle libre sur un créneau de 2 heures dans les 30 jours",
+      "criterion" : "AC1",
+      "kind" : "nominal",
+      "given" : "Une salle est libre sur un créneau de 2 heures débutant dans les 30 jours à venir",
+      "when" : "Le salarié confirme la réservation",
+      "then" : "La réservation est enregistrée et le créneau apparaît occupé dans le planning"
+    }, {
+      "title" : "Une demande d'une durée de 5 heures est refusée",
+      "criterion" : "AC2",
+      "kind" : "error",
+      "given" : "Une salle est libre et une demande porte sur une durée de 5 heures",
+      "when" : "Le salarié valide la réservation",
+      "then" : "La réservation est refusée"
+    }, {
+      "title" : "Une durée de 4 heures, borne haute autorisée, est acceptée",
+      "criterion" : "AC2",
+      "kind" : "edge",
+      "given" : "Une salle est libre sur une durée de 4 heures dans les 30 jours à venir",
+      "when" : "Le salarié valide la réservation",
+      "then" : "La réservation est enregistrée"
+    }, {
+      "title" : "Une demande portant sur une date à plus de 30 jours est refusée",
+      "criterion" : "AC3",
+      "kind" : "error",
+      "given" : "Une demande porte sur une date située à plus de 30 jours",
+      "when" : "Le salarié valide la réservation",
+      "then" : "La réservation est refusée"
+    }, {
+      "title" : "Une demande qui chevauche une réservation existante est refusée",
+      "criterion" : "AC4",
+      "kind" : "error",
+      "given" : "Une salle est réservée de 10h à 11h",
+      "when" : "Un salarié demande cette salle de 10h30 à 11h30",
+      "then" : "La demande est refusée"
+    } ]
+  }, {
+    "title" : "Annuler sa propre réservation",
+    "acceptanceCriteria" : [ "Étant donné une réservation dont le début n'est pas encore atteint, Quand le salarié l'annule, Alors la salle redevient libre sur ce créneau.", "Étant donné une réservation qui a déjà commencé, Quand le salarié tente de l'annuler, Alors l'annulation est refusée.", "Étant donné une réservation faite par un autre salarié, Quand je tente de l'annuler, Alors l'annulation est refusée." ],
+    "testCases" : [ {
+      "title" : "Un salarié annule sa réservation avant son début et la salle redevient libre",
+      "criterion" : "AC1",
+      "kind" : "nominal",
+      "given" : "Un salarié possède une réservation dont le début n'est pas encore atteint",
+      "when" : "Le salarié annule cette réservation",
+      "then" : "La salle redevient libre sur ce créneau"
+    }, {
+      "title" : "L'annulation d'une réservation déjà commencée est refusée",
+      "criterion" : "AC2",
+      "kind" : "error",
+      "given" : "Un salarié possède une réservation qui a déjà commencé",
+      "when" : "Le salarié tente de l'annuler",
+      "then" : "L'annulation est refusée"
+    }, {
+      "title" : "Un salarié ne peut pas annuler la réservation d'un autre salarié",
+      "criterion" : "AC3",
+      "kind" : "error",
+      "given" : "Une réservation a été faite par un autre salarié",
+      "when" : "Le salarié tente de l'annuler",
+      "then" : "L'annulation est refusée"
+    } ]
+  }, {
+    "title" : "Gérer la liste des salles",
+    "acceptanceCriteria" : [ "Étant donné un gestionnaire connecté, Quand il crée une salle avec un nom, une capacité et des équipements, Alors la salle apparaît dans la liste et dans le planning.", "Étant donné une salle existante, Quand le gestionnaire modifie sa capacité, Alors la nouvelle capacité est enregistrée.", "Étant donné une création de salle sans nom ou sans capacité, Quand le gestionnaire valide, Alors la salle n'est pas créée.", "Étant donné un salarié qui n'est pas gestionnaire, Quand il tente d'accéder à la gestion des salles, Alors l'accès lui est refusé." ],
+    "testCases" : [ {
+      "title" : "Un gestionnaire crée une salle avec nom, capacité et équipements",
+      "criterion" : "AC1",
+      "kind" : "nominal",
+      "given" : "Un gestionnaire est connecté",
+      "when" : "Il crée une salle avec un nom, une capacité et des équipements",
+      "then" : "La salle apparaît dans la liste des salles et dans le planning"
+    }, {
+      "title" : "Un gestionnaire modifie la capacité d'une salle existante",
+      "criterion" : "AC2",
+      "kind" : "nominal",
+      "given" : "Une salle existe et un gestionnaire est connecté",
+      "when" : "Le gestionnaire modifie sa capacité",
+      "then" : "La nouvelle capacité est enregistrée"
+    }, {
+      "title" : "La création d'une salle sans nom est refusée",
+      "criterion" : "AC3",
+      "kind" : "error",
+      "given" : "Un gestionnaire est connecté et saisit une création de salle sans nom",
+      "when" : "Le gestionnaire valide",
+      "then" : "La salle n'est pas créée"
+    }, {
+      "title" : "La création d'une salle sans capacité est refusée",
+      "criterion" : "AC3",
+      "kind" : "error",
+      "given" : "Un gestionnaire est connecté et saisit une création de salle sans capacité",
+      "when" : "Le gestionnaire valide",
+      "then" : "La salle n'est pas créée"
+    }, {
+      "title" : "Un salarié non gestionnaire se voit refuser l'accès à la gestion des salles",
+      "criterion" : "AC4",
+      "kind" : "error",
+      "given" : "Un salarié connecté n'est pas gestionnaire",
+      "when" : "Il tente d'accéder à la gestion des salles",
+      "then" : "L'accès lui est refusé"
+    } ]
+  } ],
+  "repairs" : 0,
+  "language" : "fr"
+}
