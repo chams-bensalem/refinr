@@ -610,3 +610,19 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
   réponse, état dans les tickets) ; pas de stockage persistant ni de dépendance. **Pas d'`Idempotency-Key`** en C1
   (`story-tasks` est idempotent par construction) : phase courte juste avant U1.
 - Sous-tâches par lots de 10 stories (comme le verdict), par le fournisseur d'analyse ; pas de nouvelle propriété.
+- **Features vides interdites** (bug de contrat, découvert par la mesure légère C1, pas une question de prompt) : dans
+  les deux schémas de génération (`backlog`, prompt `generation-v2`, et `backlog-stories`, chaîne), au moins 1 story par
+  Feature et au moins 1 Feature par epic (`minItems: 1`) ; la validation locale applique la règle, une réponse qui la
+  viole passe par la réparation habituelle. `minItems` vaut 0 ou 1 : il est désormais **envoyé à Anthropic** (seules
+  ces valeurs y sont prises en charge ; une borne plus grande reste à la validation locale) ; sonde du 2026-11-23 :
+  `backlog` 200 en 7,1 s, `backlog-stories` 200 en 5,5 s. **Défense en profondeur** : une Feature vide qui arriverait
+  malgré tout (sortie du modèle, aperçu renvoyé par un client à `create-jira`) est retirée avant la création, avec
+  *an empty feature was dropped* dans `warnings` ; jamais de ticket Feature vide (une Feature restée seule devient
+  implicite). Aucun changement de prompt.
+- **Mesure C1, 2 exécutions de reservation-salles écartées** (`2026-11-23-anthropic-claude-haiku-5-5-c1-after-1` et
+  `-2`, fichier `reservation-salles.json`) : faites avec l'ancien schéma, qui acceptait une Feature vide (exécution 2 :
+  4 stories dans une Feature, 3 Features vides ; critère 2 non tenu, 6,50 stories contre 7,88 à 13,12). Règle fixée
+  par le mainteneur avant la relance : 5 nouvelles exécutions avec le schéma corrigé, critère 2 jugé sur leur moyenne,
+  critère 1 complété par « aucune Feature vide » ; order-export et customer-data-export : 1 exécution chacune
+  (critères 1, 4, 5, 6).
+

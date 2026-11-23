@@ -274,6 +274,36 @@ class CreateBacklogServiceTest {
     }
 
     @Test
+    @DisplayName("Empty feature (model output or client preview): dropped before the creation, warning, never a Feature issue")
+    void emptyFeatureIsDropped() {
+        RecordingTracker tracker = new RecordingTracker();
+        tracker.level = IssueTrackerPort.FeatureLevel.OPTIONAL;
+        fr.heliocraft.refinr.domain.model.Feature empty = feature("Admin");
+        fr.heliocraft.refinr.domain.model.Feature onlyNull = new fr.heliocraft.refinr.domain.model.Feature();
+        onlyNull.setName("Null");
+        onlyNull.setStories(new ArrayList<>(java.util.Arrays.asList((Story) null)));
+
+        BacklogCreationResult result = new CreateBacklogService(tracker).create(List.of(
+                epicWith("E", feature("Booking", story("S1")), empty, onlyNull)), null);
+
+        // Booking reste seule : Feature implicite, pas de ticket Feature, story sous l'epic
+        assertEquals(List.of("epic E project=null", "story S1 parent=PROJ-1 project=null"), tracker.calls);
+        assertEquals(List.of(CreateBacklogService.EMPTY_FEATURE_DROPPED, CreateBacklogService.EMPTY_FEATURE_DROPPED),
+                result.warnings());
+        assertEquals(1, result.epics().getFirst().getFeatures().size());
+    }
+
+    @Test
+    @DisplayName("Empty features dropped before the refusal check: no misleading 422 for a single real feature")
+    void emptyFeatureNeverTriggersTheRefusal() {
+        RecordingTracker tracker = new RecordingTracker();
+        BacklogCreationResult result = new CreateBacklogService(tracker, FeatureLevels.Policy.REFUSE).create(List.of(
+                epicWith("E", feature("Booking", story("S1")), feature("Admin"))), null);
+        assertEquals(List.of("epic E project=null", "story S1 parent=PROJ-1 project=null"), tracker.calls);
+        assertEquals(List.of(CreateBacklogService.EMPTY_FEATURE_DROPPED), result.warnings());
+    }
+
+    @Test
     @DisplayName("Native feature level: epic -> feature -> story -> subtask, stories under their feature, no label, no warning")
     void nativeFeatures() {
         RecordingTracker tracker = new RecordingTracker();

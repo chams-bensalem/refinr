@@ -17,6 +17,10 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   Option **`"createTasks": true`** de `reassess-story` et `validate-story` : sous-tâches créées si la story devient
   prête (`tasks`, ou `tasksError` sans annuler le verdict). Jamais deux fois : une story qui a déjà des sous-tâches
   n'est pas touchée (`tasksSkipped` : *the story already has N sub-tasks*).
+- **Features vides refusées** : le schéma de génération (`generation-v2` comme la chaîne) exige au moins une story par
+  Feature et une Feature par epic (réponse du modèle réparée sinon) ; une Feature vide reçue à la création (par
+  exemple un aperçu modifié renvoyé à `create-jira`) est retirée, avec *an empty feature was dropped* dans `warnings` :
+  jamais de ticket Feature vide.
 - **Ajouts rétrocompatibles du contrat REST** : `pipeline`, `questions`, `createTasks`, `tasks` / `tasksSkipped` /
   `tasksError`, `story-tasks`, étape `generating-tasks`. Sans ces options, les réponses sont inchangées (UI web et plugin
   Obsidian 0.2.0 compris).

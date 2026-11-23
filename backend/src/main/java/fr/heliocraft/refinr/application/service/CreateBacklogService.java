@@ -66,6 +66,8 @@ public class CreateBacklogService implements CreateBacklog {
     public BacklogCreationResult create(List<Epic> epics, String project) {
         log.info("Creating full hierarchy: {} epics in project {}", epics.size(),
                 project == null || project.isBlank() ? "(default)" : project);
+        // Defense en profondeur : jamais de ticket Feature sans story (sortie du modele ou apercu renvoye par un client)
+        List<String> dropped = dropEmptyFeatures(epics);
         FeatureLevel level = FeatureLevels.levelOf(issueTracker, project);
         // Refus seulement quand l'absence de niveau Feature est connue ; un niveau inconnu (gestionnaire injoignable
         // ou mal configure) ne donne jamais un 422 trompeur : la creation de l'epic echoue alors avec la vraie cause
@@ -170,8 +172,37 @@ public class CreateBacklogService implements CreateBacklog {
             log.warn("Hierarchy partially created: {} created, {} not created", created.size(), failed.size());
         }
         // Avertissement de ce qui a ete fait (labels), jamais celui du refus
-        List<String> warnings = FeatureLevels.warnings(epics, effective, FeatureLevels.Policy.LABEL);
+        List<String> warnings = new ArrayList<>(dropped);
+        warnings.addAll(FeatureLevels.warnings(epics, effective, FeatureLevels.Policy.LABEL));
         return new BacklogCreationResult(epics, created, failed, warnings);
+    }
+
+    static final String EMPTY_FEATURE_DROPPED = "an empty feature was dropped";
+
+    /**
+     * Retire les Features sans story (aucune story non nulle), avant tout appel au gestionnaire ; un avertissement par
+     * Feature retiree. Une Feature restee seule dans son epic devient implicite (pas de ticket Feature).
+     */
+    static List<String> dropEmptyFeatures(List<Epic> epics) {
+        List<String> warnings = new ArrayList<>();
+        for (Epic epic : nonNull(epics)) {
+            if (epic == null || epic.getFeatures() == null) {
+                continue;
+            }
+            List<Feature> kept = new ArrayList<>();
+            for (Feature feature : epic.getFeatures()) {
+                if (feature != null && nonNull(feature.getStories()).stream().anyMatch(java.util.Objects::nonNull)) {
+                    kept.add(feature);
+                } else {
+                    warnings.add(EMPTY_FEATURE_DROPPED);
+                }
+            }
+            if (kept.size() != epic.getFeatures().size()) {
+                log.warn("{} empty feature(s) dropped before the creation", epic.getFeatures().size() - kept.size());
+                epic.setFeatures(kept);
+            }
+        }
+        return warnings;
     }
 
     /** Ticket de Feature : niveau natif et Feature explicite, ou Feature implicite quand le niveau est obligatoire. */

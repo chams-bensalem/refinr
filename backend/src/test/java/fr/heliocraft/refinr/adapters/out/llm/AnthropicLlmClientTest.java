@@ -157,6 +157,9 @@ class AnthropicLlmClientTest extends AbstractLlmClientTest {
         StructuredOutput validator = new StructuredOutput(0);
         assertTrue(validator.validate(sent, json.readTree(empty)).isEmpty(), () -> validator.validate(sent, json.readTree(empty)).toString());
         if (name.equals(LlmSchemas.BACKLOG_STORIES)) {
+            assertEquals(1, sent.at("/properties/epics/items/properties/features/items/properties/stories/minItems").asInt());
+            String emptyFeature = empty.substring(0, empty.indexOf("\"stories\":[") + 11) + "]}]}]}";
+            assertFalse(validator.validate(sent, json.readTree(emptyFeature)).isEmpty(), "a feature without story is refused");
             String withTasks = empty.replace("\"aiReadyReason\":\"\"}", "\"aiReadyReason\":\"\",\"tasks\":[]}");
             assertFalse(validator.validate(sent, json.readTree(withTasks)).isEmpty(), "no tasks in the pipeline backlog");
         }
@@ -187,9 +190,16 @@ class AnthropicLlmClientTest extends AbstractLlmClientTest {
         StructuredOutput validator = new StructuredOutput(0);
         assertTrue(validator.validate(sent, json.readTree(backlog)).isEmpty(),
                 () -> validator.validate(sent, json.readTree(backlog)).toString());
-        String emptyLists = "{\"epics\":[{\"name\":\"\",\"description\":\"\",\"priority\":\"Low\",\"labels\":[],"
+        String emptyLists = backlog.replace("\"tasks\":[" + task + "]", "\"tasks\":[]").replace("\"labels\":[]", "\"labels\":[]");
+        assertTrue(validator.validate(sent, json.readTree(emptyLists)).isEmpty(), "empty lists accepted (tasks, labels)");
+        // Jamais d'epic sans Feature ni de Feature sans story : minItems 1 envoye a Anthropic (0 et 1 pris en charge)
+        assertEquals(1, sent.at("/properties/epics/items/properties/features/minItems").asInt());
+        assertEquals(1, sent.at("/properties/epics/items/properties/features/items/properties/stories/minItems").asInt());
+        String noFeature = "{\"epics\":[{\"name\":\"\",\"description\":\"\",\"priority\":\"Low\",\"labels\":[],"
                 + "\"features\":[]}]}";
-        assertTrue(validator.validate(sent, json.readTree(emptyLists)).isEmpty(), "empty lists accepted");
+        assertFalse(validator.validate(sent, json.readTree(noFeature)).isEmpty(), "an epic without feature is refused");
+        String emptyFeature = backlog.replace("\"stories\":[" + story + "]", "\"stories\":[]");
+        assertFalse(validator.validate(sent, json.readTree(emptyFeature)).isEmpty(), "a feature without story is refused");
     }
 
     @Test

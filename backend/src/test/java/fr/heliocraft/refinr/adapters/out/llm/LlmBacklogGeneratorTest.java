@@ -54,6 +54,28 @@ class LlmBacklogGeneratorTest {
                 "tasks":[{"title":"Composant curseur","description":"Slider","estimatedHours":4,"labels":["frontend"]}]}]}]}]}
             """;
 
+    /** Meme backlog, avec en plus une Feature sans story : sortie invalide (minItems 1). */
+    static final String WITH_EMPTY_FEATURE = BACKLOG.replace("]}]}]}", "]},{\"name\":\"Admin\",\"description\":\"\",\"stories\":[]}]}]}");
+
+    @org.junit.jupiter.params.ParameterizedTest(name = "pipeline={0}")
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    @DisplayName("A feature without story is an invalid output: repaired like any schema violation (generation-v2 and pipeline)")
+    void emptyFeatureIsRepaired(boolean pipeline) throws Exception {
+        assertTrue(WITH_EMPTY_FEATURE.contains("\"stories\":[]"), "fixture has an empty feature");
+        String valid = pipeline ? BACKLOG.replaceAll(",\\s*\"tasks\":\\[[^]]*]", "") : BACKLOG;
+        String invalid = pipeline ? WITH_EMPTY_FEATURE.replaceAll(",\\s*\"tasks\":\\[[^]]*]", "") : WITH_EMPTY_FEATURE;
+        server.enqueue(answer(invalid));
+        server.enqueue(answer(valid));
+
+        List<Epic> epics = pipeline ? generator.generateStories("spec", Language.FR) : generator.generate("spec", Language.FR);
+
+        assertEquals(1, epics.getFirst().getFeatures().size());
+        assertEquals(2, server.getRequestCount(), "one repair");
+        server.takeRequest();
+        String repair = server.takeRequest().getBody().readUtf8();
+        assertTrue(repair.contains("minItems") || repair.contains("stories"), "the repair names the violation: " + repair);
+    }
+
     @Test
     @DisplayName("Parses the backlog (story verdict included) and asks for a proportional breakdown with the backlog schema")
     void parsesBacklogAndSendsPromptAndSchema() throws Exception {
