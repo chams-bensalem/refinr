@@ -239,7 +239,7 @@ class HttpSecurityConfigurationTest {
                     .andExpect(jsonPath("$.error").value("Missing or invalid API key"));
             org.mockito.Mockito.when(generateStoryTasks.generate("PROJ-1", null, null,
                             fr.heliocraft.refinr.application.port.in.ContextRequest.NONE))
-                    .thenReturn(fr.heliocraft.refinr.application.port.in.StoryTasksResult.skipped(1));
+                    .thenReturn(fr.heliocraft.refinr.application.port.in.WithContext.none(fr.heliocraft.refinr.application.port.in.StoryTasksResult.skipped(1)));
             mockMvc.perform(post("/api/v1/story-tasks").header("X-API-Key", "test-api-key-123")
                             .contentType(MediaType.APPLICATION_JSON).content(body))
                     .andExpect(status().isOk())
@@ -270,7 +270,7 @@ class HttpSecurityConfigurationTest {
             when(previewBacklog.previewText(org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq("Gestion des stocks"),
                     org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq(false),
                     org.mockito.ArgumentMatchers.eq(fr.heliocraft.refinr.application.port.in.ContextRequest.NONE),
-                    org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
+                    org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.any())).thenReturn(fr.heliocraft.refinr.application.port.in.WithContext.none(List.of()));
             String body = "{\"content\":\"Gestion des stocks\"}";
             for (String uri : List.of("/api/v1/analyze-preview", "/api/v1/analyze-and-create")) {
                 mockMvc.perform(post(uri).contentType(MediaType.APPLICATION_JSON).content(body))
@@ -418,7 +418,11 @@ class HttpSecurityConfigurationTest {
         @Test
         @DisplayName("Body under the limit: unchanged behaviour (API key still required)")
         void bodyUnderTheLimitPasses() throws Exception {
-            when(previewBacklog.previewText(null, "Stocks", null)).thenReturn(List.of());
+            when(previewBacklog.previewText(org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq("Stocks"),
+                    org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq(false),
+                    org.mockito.ArgumentMatchers.eq(fr.heliocraft.refinr.application.port.in.ContextRequest.NONE),
+                    org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.any()))
+                    .thenReturn(fr.heliocraft.refinr.application.port.in.WithContext.none(List.of()));
             String small = "{\"content\":\"Stocks\"}";
             mockMvc.perform(post("/api/v1/analyze-preview").contentType(MediaType.APPLICATION_JSON).content(small))
                     .andExpect(status().isUnauthorized());

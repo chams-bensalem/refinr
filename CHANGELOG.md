@@ -12,7 +12,10 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
   corps d'`analyze-preview`, `analyze-and-create` (synchrones et jobs), `reassess-story`, `validate-story` (avec
   `createTasks`) et `story-tasks`, `?contextDocumentId=` sur `create-jira` ; `400` (les deux champs, identifiant mal
   formé, page vide, contexte sans `createTasks` sur `validate-story`) et `413` au-delà de 20 000 caractères, avant tout
-  appel à l'IA. Sans champ : `refinr.context.projects.<projectKey>` (projet de la requête ou du ticket), puis
+  appel à l'IA. Champ `context` dans les réponses (`analyze-preview`, `analyze-and-create` synchrones et résultat des
+  jobs, `create-jira`, `reassess-story`, `validate-story` avec `createTasks`, `story-tasks`) : `source` (`request`,
+  `project`, `default`), `characters`, `documentId` pour une page ; jamais le texte ; absent sans contexte (réponses
+  inchangées sans contexte configuré). Sans champ : `refinr.context.projects.<projectKey>` (projet de la requête ou du ticket), puis
   `refinr.context.document-id`, puis aucun. Une règle du contexte compte comme donnée par la spécification ; une
   contradiction bloque la story. Sans contexte, prompts inchangés octet pour octet. Jamais dans les logs ; empreinte
   dans la clé du cache des verdicts. Mesure : `eval/context/` (critères A.f.1 et A.g non tenus, voir `DECISIONS.md`).

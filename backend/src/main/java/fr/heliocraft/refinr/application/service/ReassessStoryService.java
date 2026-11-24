@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.application.service;
 
+import fr.heliocraft.refinr.application.port.in.WithContext;
 import fr.heliocraft.refinr.application.port.in.ContextRequest;
 import fr.heliocraft.refinr.domain.model.ProjectContext;
 import fr.heliocraft.refinr.domain.service.OutputLanguagePolicy;
@@ -43,11 +44,12 @@ public class ReassessStoryService implements ReassessStory {
 
     @Override
     public Readiness reassess(String storyKey, String precision, Language requested) {
-        return reassess(storyKey, precision, requested, ContextRequest.NONE);
+        return reassess(storyKey, precision, requested, ContextRequest.NONE).value();
     }
 
     @Override
-    public Readiness reassess(String storyKey, String precision, Language requested, ContextRequest contextRequest) {
+    public WithContext<Readiness> reassess(String storyKey, String precision, Language requested,
+                                           ContextRequest contextRequest) {
         if (contexts == null && !contextRequest.isEmpty()) {
             throw new UnsupportedOperationException("project context not configured");
         }
@@ -71,6 +73,6 @@ public class ReassessStoryService implements ReassessStory {
         Readiness verdict = LlmFailures.translate(() -> assessor.reassess(summary, description, precision, previousQuestion,
                 language));
         issueTracker.applyReassessment(story, precision, verdict, language);
-        return verdict;
+        return new WithContext<>(verdict, context);
     }
 }

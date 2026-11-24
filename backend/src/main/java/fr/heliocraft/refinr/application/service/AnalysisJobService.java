@@ -168,8 +168,8 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
                                  ContextRequest context) {
         DocumentAnalysis.requireValidId(documentSource, documentId);
         contexts.check(context);
-        return submit(JobView.Type.ANALYZE_PREVIEW, documentId, pipeline, progress -> new Result(
-                previewBacklog.preview(documentId, language, pipeline, context, project, progress), null, project));
+        return submit(JobView.Type.ANALYZE_PREVIEW, documentId, pipeline, progress -> Result.of(
+                previewBacklog.preview(documentId, language, pipeline, context, project, progress), project));
     }
 
     @Override
@@ -178,8 +178,8 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
         // Memes refus que l'endpoint synchrone (413, puis 400), avant de creer le job
         DocumentAnalysis.providedText(title, content, maxContentChars);
         contexts.check(context);
-        return submit(JobView.Type.ANALYZE_PREVIEW, null, pipeline, progress -> new Result(
-                previewBacklog.previewText(title, content, language, pipeline, context, project, progress), null, project));
+        return submit(JobView.Type.ANALYZE_PREVIEW, null, pipeline, progress -> Result.of(
+                previewBacklog.previewText(title, content, language, pipeline, context, project, progress), project));
     }
 
     @Override
@@ -187,7 +187,7 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
                                           ContextRequest context) {
         DocumentAnalysis.requireValidId(documentSource, documentId);
         contexts.check(context);
-        return submit(JobView.Type.ANALYZE_AND_CREATE, documentId, pipeline, progress -> new Result(null,
+        return submit(JobView.Type.ANALYZE_AND_CREATE, documentId, pipeline, progress -> Result.ofCreation(
                 analyzeDocument.analyzeAndCreate(documentId, project, language, pipeline, context, progress)));
     }
 
@@ -196,7 +196,7 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
                                               boolean pipeline, ContextRequest context) {
         DocumentAnalysis.providedText(title, content, maxContentChars);
         contexts.check(context);
-        return submit(JobView.Type.ANALYZE_AND_CREATE, null, pipeline, progress -> new Result(null,
+        return submit(JobView.Type.ANALYZE_AND_CREATE, null, pipeline, progress -> Result.ofCreation(
                 analyzeDocument.analyzeTextAndCreate(title, content, project, language, pipeline, context, progress)));
     }
 
@@ -383,9 +383,14 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
     }
 
     /** {@code project} : projet demande pour un apercu (son niveau Feature donne les avertissements). */
-    private record Result(List<Epic> preview, BacklogCreationResult creation, String project) {
-        Result(List<Epic> preview, BacklogCreationResult creation) {
-            this(preview, creation, null);
+    private record Result(List<Epic> preview, BacklogCreationResult creation, String project,
+                          fr.heliocraft.refinr.domain.model.ProjectContext context) {
+        static Result of(fr.heliocraft.refinr.application.port.in.WithContext<List<Epic>> preview, String project) {
+            return new Result(preview.value(), null, project, preview.context());
+        }
+
+        static Result ofCreation(fr.heliocraft.refinr.application.port.in.WithContext<BacklogCreationResult> creation) {
+            return new Result(null, creation.value(), null, creation.context());
         }
     }
 
@@ -449,7 +454,7 @@ public class AnalysisJobService implements AnalysisJobs, AutoCloseable {
                 // Hors du verrou du job : la lecture du niveau Feature peut interroger le gestionnaire
                 List<String> warnings = result.preview() != null && describeTracker != null
                         ? describeTracker.featureWarnings(result.preview(), result.project()) : List.of();
-                finish(v -> v.completed(result.preview(), result.creation(), clock.instant()).withWarnings(warnings));
+                finish(v -> v.completed(result.preview(), result.creation(), result.context(), clock.instant()).withWarnings(warnings));
             } catch (Exception e) {
                 boolean stopped;
                 synchronized (this) {

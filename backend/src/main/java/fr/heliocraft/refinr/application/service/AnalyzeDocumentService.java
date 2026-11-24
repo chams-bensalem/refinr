@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.application.service;
 
+import fr.heliocraft.refinr.application.port.in.WithContext;
 import fr.heliocraft.refinr.application.port.in.ContextRequest;
 import fr.heliocraft.refinr.domain.model.ProjectContext;
 import fr.heliocraft.refinr.domain.service.OutputLanguagePolicy;
@@ -85,12 +86,13 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
     @Override
     public BacklogCreationResult analyzeAndCreate(String documentId, String project, Language language, boolean pipelined,
                                                   AnalysisProgress progress) {
-        return analyzeAndCreate(documentId, project, language, pipelined, ContextRequest.NONE, progress);
+        return analyzeAndCreate(documentId, project, language, pipelined, ContextRequest.NONE, progress).value();
     }
 
     @Override
-    public BacklogCreationResult analyzeAndCreate(String documentId, String project, Language language, boolean pipelined,
-                                                  ContextRequest context, AnalysisProgress progress) {
+    public WithContext<BacklogCreationResult> analyzeAndCreate(String documentId, String project, Language language,
+                                                               boolean pipelined, ContextRequest context,
+                                                               AnalysisProgress progress) {
         requirePipeline(pipelined);
         DocumentAnalysis.requireValidId(documentSource, documentId);
         contexts.check(context);
@@ -98,7 +100,8 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
         progress.step(JobView.Step.READING_DOCUMENT);
         String content = SourceFailures.translate(() -> documentSource.getDocumentContent(documentId));
         DocumentAnalysis.requireUsefulText(content);
-        return analyzeAndCreateFrom(content, project, language, pipelined, contexts.resolve(context, project), progress);
+        ProjectContext resolved = contexts.resolve(context, project);
+        return new WithContext<>(analyzeAndCreateFrom(content, project, language, pipelined, resolved, progress), resolved);
     }
 
     @Override
@@ -115,18 +118,20 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
     @Override
     public BacklogCreationResult analyzeTextAndCreate(String title, String content, String project, Language language,
                                                       boolean pipelined, AnalysisProgress progress) {
-        return analyzeTextAndCreate(title, content, project, language, pipelined, ContextRequest.NONE, progress);
+        return analyzeTextAndCreate(title, content, project, language, pipelined, ContextRequest.NONE, progress).value();
     }
 
     @Override
-    public BacklogCreationResult analyzeTextAndCreate(String title, String content, String project, Language language,
-                                                      boolean pipelined, ContextRequest context, AnalysisProgress progress) {
+    public WithContext<BacklogCreationResult> analyzeTextAndCreate(String title, String content, String project,
+                                                                   Language language, boolean pipelined,
+                                                                   ContextRequest context, AnalysisProgress progress) {
         requirePipeline(pipelined);
         // Texte fourni : aucun appel a la source active (sauf pour une page de contexte)
         log.info("Step 1: Using the provided text...");
         String text = DocumentAnalysis.providedText(title, content, maxContentChars);
         contexts.check(context);
-        return analyzeAndCreateFrom(text, project, language, pipelined, contexts.resolve(context, project), progress);
+        ProjectContext resolved = contexts.resolve(context, project);
+        return new WithContext<>(analyzeAndCreateFrom(text, project, language, pipelined, resolved, progress), resolved);
     }
 
     private void requirePipeline(boolean pipelined) {

@@ -122,6 +122,81 @@ class ContextContractTest {
         return JSON.readTree(response.getContentAsString(StandardCharsets.UTF_8)).get("error").asString();
     }
 
+    private static JsonNode read(MockHttpServletResponse response) throws Exception {
+        return JSON.readTree(response.getContentAsString(StandardCharsets.UTF_8));
+    }
+
+    /** Champ context : source et taille, documentId seulement pour une page, jamais le texte dans le corps. */
+    private static void assertContext(MockHttpServletResponse response, String source, int characters, String documentId,
+                                      String secret) throws Exception {
+        JsonNode context = read(response).get("context");
+        assertNotNull(context, response.getContentAsString());
+        assertEquals(source, context.get("source").asString());
+        assertEquals(characters, context.get("characters").asInt());
+        if (documentId == null) {
+            assertFalse(context.has("documentId"), context.toString());
+        } else {
+            assertEquals(documentId, context.get("documentId").asString());
+        }
+        assertEquals(documentId == null ? 2 : 3, context.size(), "only source, characters and documentId");
+        assertFalse(response.getContentAsString(StandardCharsets.UTF_8).contains(secret), "never the context text");
+    }
+
+    @Test
+    @DisplayName("Response field context on every endpoint: request text (no documentId), request page (documentId), absent without context")
+    void contextFieldInResponses() throws Exception {
+        int ctx = CTX.length();
+        int page = PAGE.length();
+        assertContext(send("/api/v1/analyze-preview", body("content", "Spec", "context", CTX)), "request", ctx, null, "Glossaire-marqueur-x1");
+        assertContext(send("/api/v1/analyze-and-create", body("content", "Spec", "contextDocumentId", "123456")), "request", page, "123456", PAGE);
+        assertContext(send("/api/v1/analyze-preview", body("content", "Spec", "pipeline", true, "contextDocumentId", "123456")),
+                "request", page, "123456", PAGE);
+        // Sans contexte : champ absent, reponse inchangee
+        assertFalse(read(send("/api/v1/analyze-preview", body("content", "Spec"))).has("context"));
+        assertFalse(read(send("/api/v1/analyze-and-create", body("content", "Spec"))).has("context"));
+
+        String epics = "[{\"name\":\"E\",\"stories\":[{\"title\":\"S\",\"description\":\"d\"}]}]";
+        assertContext(mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/create-jira?contextDocumentId=123456")
+                .contentType(MediaType.APPLICATION_JSON).content(epics)).andReturn().getResponse(), "request", page, "123456", PAGE);
+        assertFalse(read(mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/create-jira")
+                .contentType(MediaType.APPLICATION_JSON).content(epics)).andReturn().getResponse()).has("context"));
+
+        when(tracker.findStory("TEST-7")).thenReturn(new TrackedStory("TEST-7", "S", "d", List.of("validation-necessaire")));
+        when(assessor.reassess(any(), any(), any(), any(), any())).thenReturn(new Readiness(false, "Which one?"));
+        assertContext(send("/api/v1/reassess-story", body("issueKey", "TEST-7", "precision", "p", "context", CTX)), "request", ctx,
+                null, "Glossaire-marqueur-x1");
+        assertFalse(read(send("/api/v1/reassess-story", body("issueKey", "TEST-7", "precision", "p"))).has("context"));
+
+        when(tracker.findStory("TEST-8")).thenReturn(new TrackedStory("TEST-8", "S", "d", List.of("ai-ready"), null, "TEST", List.of()));
+        assertContext(send("/api/v1/story-tasks", body("issueKey", "TEST-8", "contextDocumentId", "123456")), "request", page, "123456", PAGE);
+        assertFalse(read(send("/api/v1/story-tasks", body("issueKey", "TEST-8"))).has("context"));
+
+        // validate-story avec createTasks : la story validee passe par story-tasks, qui rend le contexte
+        when(tracker.findStory("TEST-9")).thenReturn(new TrackedStory("TEST-9", "S", "d", List.of("validation-necessaire")),
+                new TrackedStory("TEST-9", "S", "d", List.of("ai-ready"), null, "TEST", List.of()));
+        assertContext(send("/api/v1/validate-story", body("issueKey", "TEST-9", "createTasks", true, "context", CTX)), "request",
+                ctx, null, "Glossaire-marqueur-x1");
+    }
+
+    @Test
+    @DisplayName("Jobs: the replayed result carries the same context field as the synchronous response")
+    void contextFieldInJobResult() throws Exception {
+        MockHttpServletResponse submitted = send("/api/v1/jobs/analyze-preview", body("content", "Spec", "contextDocumentId", "123456"));
+        assertEquals(202, submitted.getStatus());
+        String id = read(submitted).get("jobId").asString();
+        MockHttpServletResponse result;
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        do {
+            Thread.sleep(10);
+            result = mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/jobs/" + id + "/result")).andReturn().getResponse();
+        } while (result.getStatus() == 409 && System.nanoTime() < deadline);
+        assertEquals(200, result.getStatus(), result.getContentAsString());
+        assertContext(result, "request", PAGE.length(), "123456", PAGE);
+        // Etat du job : aucun texte de contexte
+        assertFalse(mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/jobs/" + id)).andReturn().getResponse()
+                .getContentAsString().contains(PAGE));
+    }
+
     @Test
     @DisplayName("analyze-preview: context text bound to the generation; without context, no port is bound (unchanged path)")
     void previewWithAndWithoutContext(CapturedOutput output) throws Exception {

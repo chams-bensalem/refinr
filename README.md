@@ -850,7 +850,8 @@ The context goes to the five prompts as **data, never instructions**; a rule or 
 the specification, and a contradiction with the specification blocks the story (`aiReadyReason` names it). It never
 creates an epic, a feature or a story by itself. Without a context, the prompts are unchanged byte for byte. At most
 20,000 characters (`413` above, never truncated); never written to the logs (source and size only); part of the
-verdict cache key. Measured in `eval/context/` (no false `ai-ready`, questions answered by the context no longer
+verdict cache key. The response tells which one was used: `"context": {"source": "project", "characters": 812,
+"documentId": "123456"}` (absent without a context, never the text). Measured in `eval/context/` (no false `ai-ready`, questions answered by the context no longer
 asked).
 
 **Keep the context focused**: rules, glossary, choices already made. A very long or exhaustive context can make the
@@ -964,8 +965,12 @@ English prompt and are supported without being measured. Refinr's own lines in t
   combined*; malformed page id → `400` *Invalid contextDocumentId*; empty page → `400`; over
   `refinr.context.max-characters` (20,000) → `413` *The project context exceeds the maximum size of 20000 characters*,
   checked before any LLM call (and at job submission); missing page → `404`, source unavailable → `502`, as for a
-  document. `validate-story`: a context without `createTasks` → `400` (no LLM call to give it to). Responses are
-  unchanged (the logs give the source and the size of the context, never its text).
+  document. `validate-story`: a context without `createTasks` → `400` (no LLM call to give it to). The responses of
+  `analyze-preview`, `analyze-and-create` (synchronous and `/jobs/{id}/result`), `create-jira`, `reassess-story`,
+  `validate-story` (with `createTasks`) and `story-tasks` say which context was used:
+  `"context": { "source": "request" | "project" | "default", "characters": 1234, "documentId": "…" }` (`documentId`
+  only when the context comes from a page); never its text. **Without any context, the field is absent** (like
+  `testCases`), so responses are unchanged when no context is configured.
 - **Body size**: a request body over `refinr.http.max-body-bytes` (5 MiB, `Content-Length` or chunked) → `413`.
 - **Jobs** (since 1.5, additions; the synchronous endpoints are unchanged): a submission checks the request like the
   synchronous endpoint (same `400` and `413`, no job created), then answers `202` with the job address (`Location`,

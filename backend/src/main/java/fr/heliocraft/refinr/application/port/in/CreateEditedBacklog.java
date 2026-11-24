@@ -26,10 +26,11 @@ public interface CreateEditedBacklog {
     BacklogCreationResult create(List<Epic> epics, String project, Language language);
 
     /** X1 : verdicts recalcules avec le contexte projet demande (le contexte par projet suit {@code project}). */
-    default BacklogCreationResult create(List<Epic> epics, String project, Language language, ContextRequest context) {
+    default WithContext<BacklogCreationResult> create(List<Epic> epics, String project, Language language,
+                                                      ContextRequest context) {
         if (!context.isEmpty()) {
             throw new UnsupportedOperationException("project context not supported");
         }
-        return create(epics, project, language);
+        return WithContext.none(create(epics, project, language));
     }
 }

@@ -869,7 +869,9 @@ Le contexte est envoyé aux cinq prompts comme une **donnée, jamais une instruc
 qu'il donne compte comme donnée par la spécification, et une contradiction avec la spécification bloque la story
 (`aiReadyReason` la nomme). Il ne crée jamais à lui seul d'epic, de feature ni de story. Sans contexte, les prompts
 sont inchangés octet pour octet. 20 000 caractères au plus (`413` au-delà, jamais tronqué) ; jamais dans les logs
-(source et taille seulement) ; compris dans la clé du cache des verdicts. Mesuré dans `eval/context/` (aucun faux
+(source et taille seulement) ; compris dans la clé du cache des verdicts. La réponse indique celui qui a été utilisé :
+`"context": {"source": "project", "characters": 812, "documentId": "123456"}` (absent sans contexte, jamais le
+texte). Mesuré dans `eval/context/` (aucun faux
 `ai-ready`, les questions réglées par le contexte ne sont plus posées).
 
 **Gardez un contexte ciblé** : règles, glossaire, choix déjà faits. Un contexte très long ou exhaustif peut faire
@@ -995,7 +997,11 @@ tickets et le label `validation-necessaire` ne changent pas.
   `refinr.context.max-characters` (20 000) → `413` *The project context exceeds the maximum size of 20000
   characters*, contrôlé avant tout appel à l'IA (et à la soumission d'un job) ; page introuvable → `404`, source
   indisponible → `502`, comme pour un document. `validate-story` : un contexte sans `createTasks` → `400` (aucun appel
-  à l'IA à qui le donner). Réponses inchangées (les logs donnent la source et la taille du contexte, jamais son texte).
+  à l'IA à qui le donner). Les réponses d'`analyze-preview`, `analyze-and-create` (synchrones et
+  `/jobs/{id}/result`), `create-jira`, `reassess-story`, `validate-story` (avec `createTasks`) et `story-tasks`
+  indiquent le contexte utilisé : `"context": { "source": "request" | "project" | "default", "characters": 1234,
+  "documentId": "…" }` (`documentId` seulement quand le contexte vient d'une page) ; jamais son texte. **Sans aucun
+  contexte, le champ est absent** (comme `testCases`) : réponses inchangées quand aucun contexte n'est configuré.
 - **Taille du corps** : un corps de requête au-delà de `refinr.http.max-body-bytes` (5 Mio, `Content-Length` ou
   `chunked`) → `413`.
 - **Jobs** (depuis la 1.5, ajouts ; les endpoints synchrones ne changent pas) : la soumission contrôle la requête comme

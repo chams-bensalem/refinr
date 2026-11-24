@@ -44,10 +44,12 @@ class ProjectContextResolverTest {
     void priority() {
         ProjectContextResolver r = resolver(20_000);
         assertEquals(new ProjectContext("Texte", ProjectContext.Source.REQUEST), r.resolve(new ContextRequest(" Texte ", null), "PROJ"));
-        assertEquals(new ProjectContext("Contexte demande", ProjectContext.Source.REQUEST), r.resolve(new ContextRequest(null, "30"), "PROJ"));
+        assertEquals(new ProjectContext("Contexte demande", ProjectContext.Source.REQUEST, "30"), r.resolve(new ContextRequest(null, "30"), "PROJ"));
+        assertNull(r.resolve(new ContextRequest(" Texte ", null), "PROJ").documentId());
+        assertEquals("20", r.resolve(ContextRequest.NONE, "PROJ").documentId());
         assertEquals(ProjectContext.Source.PROJECT, r.resolve(ContextRequest.NONE, "proj").source());
         assertEquals("Contexte du projet PROJ", r.resolve(ContextRequest.NONE, "PROJ").text());
-        assertEquals(new ProjectContext("Contexte par defaut", ProjectContext.Source.DEFAULT), r.resolve(ContextRequest.NONE, "OTHER"));
+        assertEquals(new ProjectContext("Contexte par defaut", ProjectContext.Source.DEFAULT, "10"), r.resolve(ContextRequest.NONE, "OTHER"));
         assertEquals(ProjectContext.Source.DEFAULT, r.resolve(ContextRequest.NONE, null).source());
         assertSame(ProjectContext.NONE, ProjectContextResolver.requestOnly(source).resolve(ContextRequest.NONE, "PROJ"));
         assertTrue(r.configured());

@@ -1209,7 +1209,7 @@ public final class VerdictEval {
             try {
                 epics = preview.previewText(name, content, null, pipeline,
                         new fr.heliocraft.refinr.application.port.in.ContextRequest(contextText, null), null,
-                        fr.heliocraft.refinr.application.port.in.AnalysisProgress.NONE);
+                        fr.heliocraft.refinr.application.port.in.AnalysisProgress.NONE).value();
             } catch (Stop stop) {
                 stopFile(out, stop.reason, 1, i + 1, meter);
                 return;

@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.application.service;
 
+import fr.heliocraft.refinr.application.port.in.WithContext;
 import fr.heliocraft.refinr.application.port.in.ContextRequest;
 import fr.heliocraft.refinr.domain.model.ProjectContext;
 import fr.heliocraft.refinr.application.port.in.BacklogCreationResult.CreatedIssue;
@@ -85,11 +86,12 @@ public class StoryTasksService implements GenerateStoryTasks {
 
     @Override
     public StoryTasksResult generate(String storyKey, String precision, Language requested) {
-        return generate(storyKey, precision, requested, ContextRequest.NONE);
+        return generate(storyKey, precision, requested, ContextRequest.NONE).value();
     }
 
     @Override
-    public StoryTasksResult generate(String storyKey, String precision, Language requested, ContextRequest contextRequest) {
+    public WithContext<StoryTasksResult> generate(String storyKey, String precision, Language requested,
+                                                  ContextRequest contextRequest) {
         if (contexts == null && !contextRequest.isEmpty()) {
             throw new UnsupportedOperationException("project context not configured");
         }
@@ -117,7 +119,8 @@ public class StoryTasksService implements GenerateStoryTasks {
                     ? this.testCases.withContext(context.text()) : this.testCases;
             StoryTasksResult result = story.subtaskKeys().isEmpty() ? createTasks(story, precision, language, taskGenerator)
                     : skipTasks(story);
-            return testCases == null ? result : withTestCases(story, precision, result, language, testCases);
+            return new WithContext<>(testCases == null ? result : withTestCases(story, precision, result, language, testCases),
+                    context);
         } finally {
             locks.unlock(key);
         }
@@ -228,31 +231,31 @@ public class StoryTasksService implements GenerateStoryTasks {
 
     @Override
     public StoryTasksResult afterVerdict(String storyKey, String precision, Readiness verdict, Language language) {
-        return afterVerdict(storyKey, precision, verdict, language, ContextRequest.NONE);
+        return afterVerdict(storyKey, precision, verdict, language, ContextRequest.NONE).value();
     }
 
     @Override
-    public StoryTasksResult afterVerdict(String storyKey, String precision, Readiness verdict, Language language,
-                                         ContextRequest context) {
+    public WithContext<StoryTasksResult> afterVerdict(String storyKey, String precision, Readiness verdict,
+                                                      Language language, ContextRequest context) {
         if (verdict == null || !verdict.aiReady()) {
-            return StoryTasksResult.notReadyYet();
+            return WithContext.none(StoryTasksResult.notReadyYet());
         }
         try {
             return generate(storyKey, precision, language, context);
         } catch (StoryTasksInProgressException | StoryNotReadyException e) {
-            return StoryTasksResult.failure(e.getMessage());
+            return WithContext.none(StoryTasksResult.failure(e.getMessage()));
         } catch (fr.heliocraft.refinr.application.port.in.InvalidRequestException
                  | fr.heliocraft.refinr.application.port.in.ContentTooLargeException
                  | fr.heliocraft.refinr.application.port.in.DocumentNotFoundException
                  | fr.heliocraft.refinr.application.port.in.DocumentSourceUnavailableException e) {
             // Contexte projet illisible (X1) : message ecrit par l'application ou l'adaptateur, jamais le contexte
-            return StoryTasksResult.failure(e.getMessage());
+            return WithContext.none(StoryTasksResult.failure(e.getMessage()));
         } catch (ModelOutputException | ModelUnavailableException e) {
             log.warn("Sub-tasks of {} not generated after the verdict: {}", storyKey, e.getClass().getSimpleName());
-            return StoryTasksResult.failure(MODEL_FAILED);
+            return WithContext.none(StoryTasksResult.failure(MODEL_FAILED));
         } catch (RuntimeException e) {
             log.error("Sub-tasks of {} not created after the verdict", storyKey, e);
-            return StoryTasksResult.failure(CREATION_FAILED);
+            return WithContext.none(StoryTasksResult.failure(CREATION_FAILED));
         }
     }
 }

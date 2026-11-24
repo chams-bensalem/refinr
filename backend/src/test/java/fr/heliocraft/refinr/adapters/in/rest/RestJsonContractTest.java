@@ -93,7 +93,7 @@ class RestJsonContractTest {
     @DisplayName("analyze-preview serializes every Epic/Story/Task field exactly as the snapshot")
     void previewResponseMatchesSnapshot() throws Exception {
         when(previewBacklog.preview(eq("42"), isNull(), eq(false), eq(ContextRequest.NONE), isNull(), any()))
-                .thenReturn(List.of(fullEpic()));
+                .thenReturn(fr.heliocraft.refinr.application.port.in.WithContext.none(List.of(fullEpic())));
 
         String body = mockMvc.perform(post("/api/v1/analyze-preview")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -156,7 +156,7 @@ class RestJsonContractTest {
     /** create renvoie desormais le resultat de la creation (crees / echoues) : ici, tout est cree. */
     private void stubCreationResult() {
         when(createBacklog.create(any(), any(), any(), any())).thenAnswer(invocation ->
-            new BacklogCreationResult(invocation.getArgument(0), List.of(), List.of()));
+            fr.heliocraft.refinr.application.port.in.WithContext.none(new BacklogCreationResult(invocation.getArgument(0), List.of(), List.of())));
     }
 
     private static void assertEpicFields(Epic epic) {

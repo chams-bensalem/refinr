@@ -120,7 +120,7 @@ public class ProjectContextResolver {
             throw new InvalidRequestException(EMPTY);
         }
         requireSize(content);
-        return new ProjectContext(content.strip(), source);
+        return new ProjectContext(content.strip(), source, documentId);
     }
 
     private void requireSize(String text) {

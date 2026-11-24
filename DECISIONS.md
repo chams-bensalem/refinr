@@ -728,5 +728,7 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
   - **A.g** : 27 réponses valides sur 30 en AR (limite de 4 096 tokens de sortie) ; tous les verdicts récupérés par le
     découpage de production, sans repli. À surveiller (M1).
   - Correction du jeu A.f refusée (ajuster le jeu au résultat).
-- **Écart au plan** : pas de champ `context` dans les réponses (source et taille seulement dans les logs) ; à ajouter
-  dans une phase ultérieure si besoin.
+- **Champ `context` des réponses** : `source`, `characters`, `documentId` pour une page, jamais le texte ; **absent
+  sans contexte** (comme `testCases`) plutôt que `"source": "none"`, pour que les réponses restent identiques quand
+  aucun contexte n'est configuré (clients existants, plugin, UI). Ajouté avant l'essai réel, sans effet sur les
+  prompts ni les verdicts : la mesure reste valable.

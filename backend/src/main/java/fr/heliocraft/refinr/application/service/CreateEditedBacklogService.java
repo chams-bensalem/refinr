@@ -45,12 +45,12 @@ public class CreateEditedBacklogService implements CreateEditedBacklog {
 
     @Override
     public BacklogCreationResult create(List<Epic> epics, String project, Language language) {
-        return create(epics, project, language, fr.heliocraft.refinr.application.port.in.ContextRequest.NONE);
+        return create(epics, project, language, fr.heliocraft.refinr.application.port.in.ContextRequest.NONE).value();
     }
 
     @Override
-    public BacklogCreationResult create(List<Epic> epics, String project, Language language,
-                                        fr.heliocraft.refinr.application.port.in.ContextRequest context) {
+    public fr.heliocraft.refinr.application.port.in.WithContext<BacklogCreationResult> create(List<Epic> epics,
+            String project, Language language, fr.heliocraft.refinr.application.port.in.ContextRequest context) {
         if (contexts == null && !context.isEmpty()) {
             throw new UnsupportedOperationException("project context not configured");
         }
@@ -89,6 +89,7 @@ public class CreateEditedBacklogService implements CreateEditedBacklog {
                 : this.assessor;
         // Sans langue demandee : la propriete, puis la detection story par story
         StoryVerdicts.apply(epics, assessor, story -> languagePolicy.resolve(language, StoryText.of(story)));
-        return createBacklog.create(epics, project);
+        return new fr.heliocraft.refinr.application.port.in.WithContext<>(createBacklog.create(epics, project),
+                projectContext);
     }
 }

@@ -233,8 +233,9 @@ public class JobController {
                 response = BacklogResponses.withPipeline(response, preview ? job.preview() : job.creation().epics());
             }
             // Comme l'endpoint synchrone : lien vers le document seulement s'il a ete lu dans la source active
-            return job.documentId() == null ? response
+            response = job.documentId() == null ? response
                     : BacklogResponses.withDocumentUrl(response, describeSource.documentUrl(job.documentId()));
+            return BacklogResponses.withContext(response, job.context());
         }
         JobView.Failure failure = job.failure();
         return switch (failure.kind()) {

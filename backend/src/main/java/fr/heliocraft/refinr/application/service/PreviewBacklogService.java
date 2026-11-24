@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.application.service;
 
+import fr.heliocraft.refinr.application.port.in.WithContext;
 import fr.heliocraft.refinr.application.port.in.ContextRequest;
 import fr.heliocraft.refinr.domain.model.ProjectContext;
 import fr.heliocraft.refinr.domain.service.OutputLanguagePolicy;
@@ -74,34 +75,36 @@ public class PreviewBacklogService implements PreviewBacklog {
 
     @Override
     public List<Epic> preview(String documentId, Language language, boolean pipelined, AnalysisProgress progress) {
-        return preview(documentId, language, pipelined, ContextRequest.NONE, null, progress);
+        return preview(documentId, language, pipelined, ContextRequest.NONE, null, progress).value();
     }
 
     @Override
     public List<Epic> previewText(String title, String content, Language language, boolean pipelined,
                                   AnalysisProgress progress) {
-        return previewText(title, content, language, pipelined, ContextRequest.NONE, null, progress);
+        return previewText(title, content, language, pipelined, ContextRequest.NONE, null, progress).value();
     }
 
     @Override
-    public List<Epic> preview(String documentId, Language language, boolean pipelined, ContextRequest context,
-                              String projectKey, AnalysisProgress progress) {
+    public WithContext<List<Epic>> preview(String documentId, Language language, boolean pipelined,
+                                           ContextRequest context, String projectKey, AnalysisProgress progress) {
         requirePipeline(pipelined);
         DocumentAnalysis.requireValidId(documentSource, documentId);
         contexts.check(context);
         progress.step(JobView.Step.READING_DOCUMENT);
         String content = SourceFailures.translate(() -> documentSource.getDocumentContent(documentId));
         DocumentAnalysis.requireUsefulText(content);
-        return analyze(content, language, pipelined, contexts.resolve(context, projectKey), progress);
+        ProjectContext resolved = contexts.resolve(context, projectKey);
+        return new WithContext<>(analyze(content, language, pipelined, resolved, progress), resolved);
     }
 
     @Override
-    public List<Epic> previewText(String title, String content, Language language, boolean pipelined,
-                                  ContextRequest context, String projectKey, AnalysisProgress progress) {
+    public WithContext<List<Epic>> previewText(String title, String content, Language language, boolean pipelined,
+                                               ContextRequest context, String projectKey, AnalysisProgress progress) {
         requirePipeline(pipelined);
         String text = DocumentAnalysis.providedText(title, content, maxContentChars);
         contexts.check(context);
-        return analyze(text, language, pipelined, contexts.resolve(context, projectKey), progress);
+        ProjectContext resolved = contexts.resolve(context, projectKey);
+        return new WithContext<>(analyze(text, language, pipelined, resolved, progress), resolved);
     }
 
     private void requirePipeline(boolean pipelined) {

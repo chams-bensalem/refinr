@@ -24,10 +24,11 @@ public interface ReassessStory {
     Readiness reassess(String storyKey, String precision, Language language);
 
     /** X1 : reevaluation avec le contexte projet demande ; le contexte par projet suit le projet du ticket. */
-    default Readiness reassess(String storyKey, String precision, Language language, ContextRequest context) {
+    default WithContext<Readiness> reassess(String storyKey, String precision, Language language,
+                                            ContextRequest context) {
         if (!context.isEmpty()) {
             throw new UnsupportedOperationException("project context not supported");
         }
-        return reassess(storyKey, precision, language);
+        return WithContext.none(reassess(storyKey, precision, language));
     }
 }

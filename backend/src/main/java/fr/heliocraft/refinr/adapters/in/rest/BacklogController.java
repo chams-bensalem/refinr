@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.adapters.in.rest;
 
+import fr.heliocraft.refinr.application.port.in.WithContext;
 import fr.heliocraft.refinr.application.port.in.ContextRequest;
 import java.util.LinkedHashMap;
 import fr.heliocraft.refinr.application.port.in.StoryTasksInProgressException;
@@ -121,16 +122,16 @@ public class BacklogController {
                 AnalysisRequests.logTextInput(log, "Analyze", request);
                 String title = request.get(AnalysisRequests.TITLE);
                 String content = request.get(AnalysisRequests.CONTENT);
-                BacklogCreationResult result = analyzeDocument.analyzeTextAndCreate(title, content, projectKey, language,
-                        pipeline, AnalysisRequests.context(request), AnalysisProgress.NONE);
-                return creationResponse(result, pipeline);
+                WithContext<BacklogCreationResult> result = analyzeDocument.analyzeTextAndCreate(title, content,
+                        projectKey, language, pipeline, AnalysisRequests.context(request), AnalysisProgress.NONE);
+                return BacklogResponses.withContext(creationResponse(result.value(), pipeline), result.context());
             }
             String documentId = AnalysisRequests.documentId(request);
             log.info("Received request to analyze {} document: {}", describeSource.displayName(), documentId);
-            BacklogCreationResult result = analyzeDocument.analyzeAndCreate(documentId, projectKey, language, pipeline,
-                    AnalysisRequests.context(request), AnalysisProgress.NONE);
-            return BacklogResponses.withDocumentUrl(creationResponse(result, pipeline),
-                    describeSource.documentUrl(documentId));
+            WithContext<BacklogCreationResult> result = analyzeDocument.analyzeAndCreate(documentId, projectKey, language,
+                    pipeline, AnalysisRequests.context(request), AnalysisProgress.NONE);
+            return BacklogResponses.withContext(BacklogResponses.withDocumentUrl(creationResponse(result.value(), pipeline),
+                    describeSource.documentUrl(documentId)), result.context());
 
         } catch (InvalidRequestException e) {
             return invalidRequest(e);
@@ -245,16 +246,16 @@ public class BacklogController {
                 AnalysisRequests.logTextInput(log, "Preview", request);
                 String title = request.get(AnalysisRequests.TITLE);
                 String content = request.get(AnalysisRequests.CONTENT);
-                List<Epic> epics = previewBacklog.previewText(title, content, language, pipeline,
+                WithContext<List<Epic>> epics = previewBacklog.previewText(title, content, language, pipeline,
                         AnalysisRequests.context(request), projectKey, AnalysisProgress.NONE);
-                return previewResponse(epics, projectKey, pipeline);
+                return BacklogResponses.withContext(previewResponse(epics.value(), projectKey, pipeline), epics.context());
             }
             String documentId = AnalysisRequests.documentId(request);
             log.info("Preview request for {} document: {}", describeSource.displayName(), documentId);
-            List<Epic> epics = previewBacklog.preview(documentId, language, pipeline, AnalysisRequests.context(request),
-                    projectKey, AnalysisProgress.NONE);
-            return BacklogResponses.withDocumentUrl(previewResponse(epics, projectKey, pipeline),
-                    describeSource.documentUrl(documentId));
+            WithContext<List<Epic>> epics = previewBacklog.preview(documentId, language, pipeline,
+                    AnalysisRequests.context(request), projectKey, AnalysisProgress.NONE);
+            return BacklogResponses.withContext(BacklogResponses.withDocumentUrl(previewResponse(epics.value(), projectKey,
+                    pipeline), describeSource.documentUrl(documentId)), epics.context());
 
         } catch (InvalidRequestException e) {
             return invalidRequest(e);
@@ -298,8 +299,10 @@ public class BacklogController {
             List<String> shapeWarnings = new java.util.ArrayList<>();
             List<Epic> epics = RestBacklogMapper.toDomain(request, shapeWarnings);
             // Verdict recalcule sur le contenu final : aiReady / aiReadyReason envoyes par le client sont ignores
-            return BacklogResponses.creation(createEditedBacklog.create(epics, projectKey, verdictLanguage,
-                    new ContextRequest(null, contextDocumentId)).withWarnings(shapeWarnings));
+            WithContext<BacklogCreationResult> result = createEditedBacklog.create(epics, projectKey, verdictLanguage,
+                    new ContextRequest(null, contextDocumentId));
+            return BacklogResponses.withContext(BacklogResponses.creation(result.value().withWarnings(shapeWarnings)),
+                    result.context());
 
         } catch (InvalidRequestException e) {
             // Cas de test du client invalides : message ecrit par l'application, sans le contenu
@@ -349,7 +352,8 @@ public class BacklogController {
         log.info("Reassessment request for {}", issueKey);
         try {
             ContextRequest context = AnalysisRequests.context(request);
-            Readiness verdict = reassessStory.reassess(issueKey, precision, language, context);
+            WithContext<Readiness> reassessed = reassessStory.reassess(issueKey, precision, language, context);
+            Readiness verdict = reassessed.value();
             Map<String, Object> body = new LinkedHashMap<>(Map.of(
                     "success", true,
                     "issueKey", issueKey,
@@ -358,8 +362,9 @@ public class BacklogController {
                     "aiReadySource", verdict.source().id()
             ));
             if (createTasks) {
-                putTasks(body, storyTasks.afterVerdict(issueKey, precision, verdict, language, context));
+                putTasks(body, storyTasks.afterVerdict(issueKey, precision, verdict, language, context).value());
             }
+            BacklogResponses.putContext(body, reassessed.context());
             return ResponseEntity.ok(body);
         } catch (StoryNotAwaitingValidationException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponses.error(e.getMessage()));
@@ -424,7 +429,9 @@ public class BacklogController {
                     "aiReadySource", verdict.source().id()
             ));
             if (createTasks) {
-                putTasks(body, storyTasks.afterVerdict(issueKey, null, verdict, language, context));
+                WithContext<StoryTasksResult> tasks = storyTasks.afterVerdict(issueKey, null, verdict, language, context);
+                putTasks(body, tasks.value());
+                BacklogResponses.putContext(body, tasks.context());
             }
             return ResponseEntity.ok(body);
         } catch (StoryNotAwaitingValidationException e) {
@@ -458,7 +465,9 @@ public class BacklogController {
         }
         log.info("Sub-task request for {}", issueKey);
         try {
-            StoryTasksResult result = storyTasks.generate(issueKey, null, language, AnalysisRequests.context(request));
+            WithContext<StoryTasksResult> generated = storyTasks.generate(issueKey, null, language,
+                    AnalysisRequests.context(request));
+            StoryTasksResult result = generated.value();
             Map<String, Object> body = new LinkedHashMap<>();
             HttpStatus status = HttpStatus.OK;
             if (result.existingSubtasks() != null) {
@@ -480,6 +489,7 @@ public class BacklogController {
             }
             body.put("issueKey", issueKey);
             putTasks(body, result);
+            BacklogResponses.putContext(body, generated.context());
             return ResponseEntity.status(status).body(body);
         } catch (StoryNotReadyException | StoryTasksInProgressException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponses.error(e.getMessage()));

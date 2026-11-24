@@ -29,20 +29,21 @@ public interface GenerateStoryTasks {
     StoryTasksResult afterVerdict(String storyKey, String precision, Readiness verdict, Language language);
 
     /** X1 : comme {@link #generate}, avec le contexte projet demande ; le contexte par projet suit le projet du ticket. */
-    default StoryTasksResult generate(String storyKey, String precision, Language language, ContextRequest context) {
+    default WithContext<StoryTasksResult> generate(String storyKey, String precision, Language language,
+                                                   ContextRequest context) {
         if (!context.isEmpty()) {
             throw new UnsupportedOperationException("project context not supported");
         }
-        return generate(storyKey, precision, language);
+        return WithContext.none(generate(storyKey, precision, language));
     }
 
     /** X1 : comme {@link #afterVerdict}, avec le contexte projet demande. */
-    default StoryTasksResult afterVerdict(String storyKey, String precision, Readiness verdict, Language language,
-                                          ContextRequest context) {
+    default WithContext<StoryTasksResult> afterVerdict(String storyKey, String precision, Readiness verdict,
+                                                       Language language, ContextRequest context) {
         if (!context.isEmpty()) {
             throw new UnsupportedOperationException("project context not supported");
         }
-        return afterVerdict(storyKey, precision, verdict, language);
+        return WithContext.none(afterVerdict(storyKey, precision, verdict, language));
     }
 
     /** X1 : controles locaux du contexte demande (400, 413), avant toute ecriture ; rien sans contexte. */
