@@ -1,0 +1,60 @@
+{
+  "epics" : [ {
+    "description" : "Support agents need to export the data of a customer account so that they can answer customer requests. The specification describes a single user story; its format, encoding, access rights, content, and delivery method are not yet decided.",
+    "features" : [ {
+      "description" : "Support agent capability to export the data of a customer account. Blocked until the open points in the specification are decided.",
+      "labels" : [ "backend", "frontend", "security" ],
+      "name" : "Customer data export",
+      "priority" : "Medium",
+      "stories" : [ {
+        "acceptanceCriteria" : [ "Given a support agent has selected a customer account, When the agent starts an export of that account's data, Then the produced export contains only the data of the selected account.", "Given the export is produced in CSV format, When the file is generated, Then it is UTF-8 without BOM, uses a semicolon delimiter, has a header row, writes dates as YYYY-MM-DD and amounts with a dot and two decimals.", "Given the export is produced in CSV format, When the file is generated, Then the date in its file name is the export date in Europe/Paris." ],
+        "aiReady" : false,
+        "aiReadyReason" : "The export format (CSV, JSON or ZIP), the roles allowed to export, the included fields (orders, invoices, personal data, support history) and the delivery method and size limits are all undecided, so the developer cannot know what the export must contain or who may trigger it. Which export format, which fields and which roles are allowed to export?",
+        "aiReadySource" : "MODEL",
+        "asA" : "support agent",
+        "dependencies" : [ ],
+        "description" : "A support agent can trigger an export of the data of one customer account. The export contains only the data of the selected account. Still undecided by the specification: the export format (CSV, JSON or a ZIP archive of several files), the encoding and delimiter if CSV is chosen, the roles allowed to export, the fields included (orders, invoices, personal data, support history, subject to GDPR review), and the delivery method and size limits (browser download or email, behavior for very large accounts). If CSV is chosen, the project context rules apply: UTF-8 without BOM, semicolon-delimited, header row, dates as YYYY-MM-DD, amounts with a dot and two decimals, and the export date in the file name in Europe/Paris.",
+        "epicTrackerKey" : null,
+        "estimatedStoryPoints" : 5,
+        "iWant" : "to export the data of a customer account",
+        "labels" : [ "backend", "frontend", "security" ],
+        "priority" : "High",
+        "soThat" : "I can answer customer requests",
+        "tasks" : [ ],
+        "testCases" : [ ],
+        "testCasesError" : null,
+        "title" : "Export a customer account's data",
+        "trackerKey" : null,
+        "trackerUrl" : null
+      } ],
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "labels" : [ "backend", "frontend", "security" ],
+    "name" : "Customer data export",
+    "priority" : "Medium",
+    "stories" : [ {
+      "acceptanceCriteria" : [ "Given a support agent has selected a customer account, When the agent starts an export of that account's data, Then the produced export contains only the data of the selected account.", "Given the export is produced in CSV format, When the file is generated, Then it is UTF-8 without BOM, uses a semicolon delimiter, has a header row, writes dates as YYYY-MM-DD and amounts with a dot and two decimals.", "Given the export is produced in CSV format, When the file is generated, Then the date in its file name is the export date in Europe/Paris." ],
+      "aiReady" : false,
+      "aiReadyReason" : "The export format (CSV, JSON or ZIP), the roles allowed to export, the included fields (orders, invoices, personal data, support history) and the delivery method and size limits are all undecided, so the developer cannot know what the export must contain or who may trigger it. Which export format, which fields and which roles are allowed to export?",
+      "aiReadySource" : "MODEL",
+      "asA" : "support agent",
+      "dependencies" : [ ],
+      "description" : "A support agent can trigger an export of the data of one customer account. The export contains only the data of the selected account. Still undecided by the specification: the export format (CSV, JSON or a ZIP archive of several files), the encoding and delimiter if CSV is chosen, the roles allowed to export, the fields included (orders, invoices, personal data, support history, subject to GDPR review), and the delivery method and size limits (browser download or email, behavior for very large accounts). If CSV is chosen, the project context rules apply: UTF-8 without BOM, semicolon-delimited, header row, dates as YYYY-MM-DD, amounts with a dot and two decimals, and the export date in the file name in Europe/Paris.",
+      "epicTrackerKey" : null,
+      "estimatedStoryPoints" : 5,
+      "iWant" : "to export the data of a customer account",
+      "labels" : [ "backend", "frontend", "security" ],
+      "priority" : "High",
+      "soThat" : "I can answer customer requests",
+      "tasks" : [ ],
+      "testCases" : [ ],
+      "testCasesError" : null,
+      "title" : "Export a customer account's data",
+      "trackerKey" : null,
+      "trackerUrl" : null
+    } ],
+    "trackerKey" : null,
+    "trackerUrl" : null
+  } ]
+}

@@ -24,4 +24,13 @@ public interface CreateEditedBacklog {
      * @param language langue des verdicts demandee, ou null : propriete, puis detection story par story
      */
     BacklogCreationResult create(List<Epic> epics, String project, Language language);
+
+    /** X1 : verdicts recalcules avec le contexte projet demande (le contexte par projet suit {@code project}). */
+    default WithContext<BacklogCreationResult> create(List<Epic> epics, String project, Language language,
+                                                      ContextRequest context) {
+        if (!context.isEmpty()) {
+            throw new UnsupportedOperationException("project context not supported");
+        }
+        return WithContext.none(create(epics, project, language));
+    }
 }

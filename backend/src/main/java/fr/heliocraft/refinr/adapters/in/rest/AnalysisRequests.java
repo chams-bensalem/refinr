@@ -3,6 +3,7 @@
 
 package fr.heliocraft.refinr.adapters.in.rest;
 
+import fr.heliocraft.refinr.application.port.in.ContextRequest;
 import fr.heliocraft.refinr.application.port.in.InvalidRequestException;
 import fr.heliocraft.refinr.domain.model.Language;
 import org.slf4j.Logger;
@@ -29,6 +30,15 @@ final class AnalysisRequests {
     static final String INVALID_PROJECT_KEY = "Invalid projectKey: expected a project key or identifier of the active tracker";
     /** Chaine C1 (analyze-preview, analyze-and-create, synchrones et jobs). */
     static final String PIPELINE = "pipeline";
+    /** Contexte projet (X1) : texte, ou page de la source documentaire ; exclusifs, jamais journalises ni recopies. */
+    static final String CONTEXT = "context";
+    static final String CONTEXT_DOCUMENT_ID = "contextDocumentId";
+
+    /** Contexte projet demande par le corps de la requete (valeurs vides ignorees). */
+    static ContextRequest context(Map<String, String> request) {
+        return new ContextRequest(request.get(CONTEXT), request.get(CONTEXT_DOCUMENT_ID));
+    }
+
     /** reassess-story, validate-story : sous-taches creees si la story devient prete. */
     static final String CREATE_TASKS = "createTasks";
 

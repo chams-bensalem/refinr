@@ -3,6 +3,9 @@
 
 package fr.heliocraft.refinr.application.service;
 
+import fr.heliocraft.refinr.application.port.in.WithContext;
+import fr.heliocraft.refinr.application.port.in.ContextRequest;
+import fr.heliocraft.refinr.domain.model.ProjectContext;
 import fr.heliocraft.refinr.domain.service.OutputLanguagePolicy;
 import fr.heliocraft.refinr.domain.model.Language;
 import fr.heliocraft.refinr.application.port.in.AnalysisProgress;
@@ -33,6 +36,8 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
     private final OutputLanguagePolicy languagePolicy;
     // Chaine C1, ou null : "pipeline": true refuse
     private final BacklogPipeline pipeline;
+    // Contexte projet (X1)
+    private final ProjectContextResolver contexts;
 
     public AnalyzeDocumentService(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
                                   ReadinessAssessorPort separateAssessor, CreateBacklog createBacklog,
@@ -49,6 +54,15 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
     public AnalyzeDocumentService(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
                                   ReadinessAssessorPort separateAssessor, CreateBacklog createBacklog,
                                   int maxContentChars, OutputLanguagePolicy languagePolicy, BacklogPipeline pipeline) {
+        this(documentSource, generator, separateAssessor, createBacklog, maxContentChars, languagePolicy, pipeline, null);
+    }
+
+    /** @param contexts contexte projet (X1) ; null : seul le contexte de la requete s'applique */
+    public AnalyzeDocumentService(DocumentSourcePort documentSource, BacklogGeneratorPort generator,
+                                  ReadinessAssessorPort separateAssessor, CreateBacklog createBacklog,
+                                  int maxContentChars, OutputLanguagePolicy languagePolicy, BacklogPipeline pipeline,
+                                  ProjectContextResolver contexts) {
+        this.contexts = contexts != null ? contexts : ProjectContextResolver.requestOnly(documentSource);
         this.pipeline = pipeline;
         this.languagePolicy = languagePolicy;
         this.documentSource = documentSource;
@@ -72,12 +86,22 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
     @Override
     public BacklogCreationResult analyzeAndCreate(String documentId, String project, Language language, boolean pipelined,
                                                   AnalysisProgress progress) {
+        return analyzeAndCreate(documentId, project, language, pipelined, ContextRequest.NONE, progress).value();
+    }
+
+    @Override
+    public WithContext<BacklogCreationResult> analyzeAndCreate(String documentId, String project, Language language,
+                                                               boolean pipelined, ContextRequest context,
+                                                               AnalysisProgress progress) {
         requirePipeline(pipelined);
         DocumentAnalysis.requireValidId(documentSource, documentId);
+        contexts.check(context);
         log.info("Step 1: Reading source document...");
         progress.step(JobView.Step.READING_DOCUMENT);
         String content = SourceFailures.translate(() -> documentSource.getDocumentContent(documentId));
-        return analyzeAndCreateFrom(content, project, language, pipelined, progress);
+        DocumentAnalysis.requireUsefulText(content);
+        ProjectContext resolved = contexts.resolve(context, project);
+        return new WithContext<>(analyzeAndCreateFrom(content, project, language, pipelined, resolved, progress), resolved);
     }
 
     @Override
@@ -94,11 +118,20 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
     @Override
     public BacklogCreationResult analyzeTextAndCreate(String title, String content, String project, Language language,
                                                       boolean pipelined, AnalysisProgress progress) {
+        return analyzeTextAndCreate(title, content, project, language, pipelined, ContextRequest.NONE, progress).value();
+    }
+
+    @Override
+    public WithContext<BacklogCreationResult> analyzeTextAndCreate(String title, String content, String project,
+                                                                   Language language, boolean pipelined,
+                                                                   ContextRequest context, AnalysisProgress progress) {
         requirePipeline(pipelined);
-        // Texte fourni : aucun appel a la source active
+        // Texte fourni : aucun appel a la source active (sauf pour une page de contexte)
         log.info("Step 1: Using the provided text...");
-        return analyzeAndCreateFrom(DocumentAnalysis.providedText(title, content, maxContentChars), project, language,
-                pipelined, progress);
+        String text = DocumentAnalysis.providedText(title, content, maxContentChars);
+        contexts.check(context);
+        ProjectContext resolved = contexts.resolve(context, project);
+        return new WithContext<>(analyzeAndCreateFrom(text, project, language, pipelined, resolved, progress), resolved);
     }
 
     private void requirePipeline(boolean pipelined) {
@@ -109,7 +142,7 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
 
     /** Chemin commun aux deux entrees : texte utile, generation, verdict distinct eventuel, creation. */
     private BacklogCreationResult analyzeAndCreateFrom(String content, String project, Language requested,
-                                                       boolean pipelined, AnalysisProgress progress) {
+                                                       boolean pipelined, ProjectContext context, AnalysisProgress progress) {
         DocumentAnalysis.requireUsefulText(content);
 
         log.info("Step 2: Analyzing document with AI...");
@@ -117,13 +150,15 @@ public class AnalyzeDocumentService implements AnalyzeDocument {
         Language language = languagePolicy.resolve(requested, content);
         List<Epic> epics;
         if (pipelined) {
-            epics = pipeline.run(content, language, progress);
+            epics = pipeline.run(content, language, progress, context.text());
         } else {
             progress.step(JobView.Step.GENERATING);
+            BacklogGeneratorPort generator = context.isPresent() ? this.generator.withContext(context.text()) : this.generator;
             epics = LlmFailures.translate(() -> generator.generate(content, language));
             if (separateAssessor != null) {
                 progress.step(JobView.Step.ASSESSING);
-                StoryVerdicts.apply(epics, separateAssessor, story -> language);
+                StoryVerdicts.apply(epics, context.isPresent() ? separateAssessor.withContext(context.text())
+                        : separateAssessor, story -> language);
             }
         }
 

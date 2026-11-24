@@ -81,14 +81,12 @@ public class JobController {
                 AnalysisRequests.logTextInput(log, "Preview job", request);
                 String title = request.get(AnalysisRequests.TITLE);
                 String content = request.get(AnalysisRequests.CONTENT);
-                // Sans la chaine : exactement l'appel d'avant
-                return pipeline ? jobs.submitPreviewText(title, content, projectKey, language.orElse(null), true)
-                        : jobs.submitPreviewText(title, content, projectKey, language.orElse(null));
+                return jobs.submitPreviewText(title, content, projectKey, language.orElse(null), pipeline,
+                        AnalysisRequests.context(request));
             }
             String documentId = AnalysisRequests.documentId(request);
             log.info("Preview job request for {} document: {}", describeSource.displayName(), documentId);
-            return pipeline ? jobs.submitPreview(documentId, projectKey, language.orElse(null), true)
-                    : jobs.submitPreview(documentId, projectKey, language.orElse(null));
+            return jobs.submitPreview(documentId, projectKey, language.orElse(null), pipeline, AnalysisRequests.context(request));
         });
     }
 
@@ -115,13 +113,13 @@ public class JobController {
                 AnalysisRequests.logTextInput(log, "Analyze job", request);
                 String title = request.get(AnalysisRequests.TITLE);
                 String content = request.get(AnalysisRequests.CONTENT);
-                return pipeline ? jobs.submitAnalyzeTextAndCreate(title, content, projectKey, language.orElse(null), true)
-                        : jobs.submitAnalyzeTextAndCreate(title, content, projectKey, language.orElse(null));
+                return jobs.submitAnalyzeTextAndCreate(title, content, projectKey, language.orElse(null), pipeline,
+                        AnalysisRequests.context(request));
             }
             String documentId = AnalysisRequests.documentId(request);
             log.info("Analyze job request for {} document: {}", describeSource.displayName(), documentId);
-            return pipeline ? jobs.submitAnalyzeAndCreate(documentId, projectKey, language.orElse(null), true)
-                    : jobs.submitAnalyzeAndCreate(documentId, projectKey, language.orElse(null));
+            return jobs.submitAnalyzeAndCreate(documentId, projectKey, language.orElse(null), pipeline,
+                    AnalysisRequests.context(request));
         });
     }
 
@@ -235,8 +233,9 @@ public class JobController {
                 response = BacklogResponses.withPipeline(response, preview ? job.preview() : job.creation().epics());
             }
             // Comme l'endpoint synchrone : lien vers le document seulement s'il a ete lu dans la source active
-            return job.documentId() == null ? response
+            response = job.documentId() == null ? response
                     : BacklogResponses.withDocumentUrl(response, describeSource.documentUrl(job.documentId()));
+            return BacklogResponses.withContext(response, job.context());
         }
         JobView.Failure failure = job.failure();
         return switch (failure.kind()) {

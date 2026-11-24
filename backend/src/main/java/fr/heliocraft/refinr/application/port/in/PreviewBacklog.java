@@ -60,4 +60,25 @@ public interface PreviewBacklog {
         }
         return previewText(title, content, language, progress);
     }
+
+    /**
+     * X1 : meme apercu avec le contexte projet demande ({@code context}) ; {@code projectKey} : projet nomme par la
+     * requete (contexte par projet), ou null. Sans contexte demande ni configure : exactement l'apercu sans contexte.
+     */
+    default WithContext<List<Epic>> preview(String documentId, Language language, boolean pipeline,
+                                            ContextRequest context, String projectKey, AnalysisProgress progress) {
+        if (!context.isEmpty()) {
+            throw new UnsupportedOperationException("project context not supported");
+        }
+        return WithContext.none(preview(documentId, language, pipeline, progress));
+    }
+
+    /** Comme {@link #preview(String, Language, boolean, ContextRequest, String, AnalysisProgress)}, pour un texte. */
+    default WithContext<List<Epic>> previewText(String title, String content, Language language, boolean pipeline,
+                                                ContextRequest context, String projectKey, AnalysisProgress progress) {
+        if (!context.isEmpty()) {
+            throw new UnsupportedOperationException("project context not supported");
+        }
+        return WithContext.none(previewText(title, content, language, pipeline, progress));
+    }
 }

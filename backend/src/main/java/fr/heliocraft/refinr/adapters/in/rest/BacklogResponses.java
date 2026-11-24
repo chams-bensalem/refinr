@@ -160,6 +160,34 @@ final class BacklogResponses {
         return ResponseEntity.status(response.getStatusCode()).headers(response.getHeaders()).body(body);
     }
 
+    /**
+     * X1 : champ {@code context} ({@code source}, {@code characters}, {@code documentId} quand le contexte vient d'une
+     * page), jamais le texte ; absent sans contexte, pour que les reponses sans contexte configure restent inchangees.
+     */
+    static ResponseEntity<Map<String, Object>> withContext(ResponseEntity<Map<String, Object>> response,
+                                                           fr.heliocraft.refinr.domain.model.ProjectContext context) {
+        if (context == null || !context.isPresent() || response.getBody() == null) {
+            return response;
+        }
+        Map<String, Object> body = new LinkedHashMap<>(response.getBody());
+        putContext(body, context);
+        return ResponseEntity.status(response.getStatusCode()).headers(response.getHeaders()).body(body);
+    }
+
+    /** Ajoute le champ {@code context} a un corps de reponse, rien sans contexte. */
+    static void putContext(Map<String, Object> body, fr.heliocraft.refinr.domain.model.ProjectContext context) {
+        if (context == null || !context.isPresent()) {
+            return;
+        }
+        Map<String, Object> field = new LinkedHashMap<>();
+        field.put("source", context.source().name().toLowerCase(java.util.Locale.ROOT));
+        field.put("characters", context.characters());
+        if (context.documentId() != null) {
+            field.put("documentId", context.documentId());
+        }
+        body.put("context", field);
+    }
+
     /** 400 : entree refusee par le cas d'usage ; son message, ecrit par l'application, est renvoye tel quel. */
     static ResponseEntity<Map<String, Object>> invalidRequest(String message) {
         return ResponseEntity.badRequest().body(ErrorResponses.error(message));

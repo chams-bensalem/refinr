@@ -42,13 +42,26 @@ public class LlmReadinessAssessor implements ReadinessAssessorPort {
     /** Garde-fou : profondeur maximale du decoupage d'un lot tronque (un lot de 256 stories atteint la story seule). */
     static final int MAX_SPLIT_DEPTH = 8;
 
+    // Contexte projet (X1), ou null
+    private final String context;
+
     public LlmReadinessAssessor(LlmClient client, StructuredOutput output, int batchSize) {
+        this(client, output, batchSize, null);
+    }
+
+    private LlmReadinessAssessor(LlmClient client, StructuredOutput output, int batchSize, String context) {
         if (batchSize < 1) {
             throw new IllegalArgumentException("verdict batch-size must be >= 1");
         }
         this.client = client;
         this.output = output;
         this.batchSize = batchSize;
+        this.context = context;
+    }
+
+    @Override
+    public LlmReadinessAssessor withContext(String context) {
+        return new LlmReadinessAssessor(client, output, batchSize, context);
     }
 
     /** Fournisseur, modele et version du prompt : ce qui, avec le contenu de la story, determine un verdict. */
@@ -103,7 +116,7 @@ public class LlmReadinessAssessor implements ReadinessAssessorPort {
                 client.settings().describe(), language.code());
         Map<String, Readiness> byId;
         try {
-            LlmRequest request = LlmRequest.of(LlmPrompts.system(language), LlmPrompts.verdicts(batch, ids, language),
+            LlmRequest request = LlmRequest.of(LlmPrompts.system(language), LlmPrompts.verdicts(batch, ids, language, context),
                     LlmSchemas.READINESS_BATCH, LlmSchemas.forProvider(batchSchema));
             byId = output.call(client, request, batchSchema, LlmReadinessAssessor::verdictsById);
         } catch (LlmException e) {
@@ -137,7 +150,7 @@ public class LlmReadinessAssessor implements ReadinessAssessorPort {
         log.info("Reassessing a story with the user's precision ({}, output language {})", client.settings().describe(),
                 language.code());
         LlmRequest request = LlmRequest.of(LlmPrompts.system(language),
-                LlmPrompts.reassessment(summary, description, precision, previousQuestion, language),
+                LlmPrompts.reassessment(summary, description, precision, previousQuestion, language, context),
                 LlmSchemas.READINESS, LlmSchemas.forProvider(schema));
         return output.call(client, request, schema, LlmReadinessAssessor::readiness);
     }

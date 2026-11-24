@@ -32,7 +32,8 @@ class JobConfigurationTest {
         when(source.acceptsDocumentId(anyString())).thenReturn(true);
         JobStorePort<JobView> store = config.jobStore(Duration.ofHours(24));
         AnalysisJobService jobs = config.analysisJobs(mock(PreviewBacklog.class), mock(AnalyzeDocument.class), source,
-                store, mock(fr.heliocraft.refinr.application.port.in.DescribeTracker.class), 1000, Duration.ofMinutes(30),
+                store, mock(fr.heliocraft.refinr.application.port.in.DescribeTracker.class),
+                mock(org.springframework.beans.factory.ObjectProvider.class), 1000, Duration.ofMinutes(30),
                 Duration.ofSeconds(30));
         try {
             config.analysisJobsShutdown(jobs).onApplicationEvent(new ContextClosedEvent(mock(ApplicationContext.class)));

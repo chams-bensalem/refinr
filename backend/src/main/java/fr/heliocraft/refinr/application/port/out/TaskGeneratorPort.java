@@ -21,4 +21,12 @@ public interface TaskGeneratorPort {
      * @throws LlmException fournisseur indisponible, ou aucune reponse exploitable
      */
     List<List<Task>> generateTasks(List<Story> stories, List<String> precisions, Language language);
+
+    /**
+     * Meme port, lie au contexte projet {@code context} (X1, une donnee, jamais une instruction) ; une implementation
+     * qui ne sait pas l'utiliser refuse plutot que de l'ignorer.
+     */
+    default TaskGeneratorPort withContext(String context) {
+        throw new UnsupportedOperationException("project context not supported");
+    }
 }

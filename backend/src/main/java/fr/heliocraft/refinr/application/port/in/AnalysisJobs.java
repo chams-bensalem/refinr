@@ -77,6 +77,42 @@ public interface AnalysisJobs {
     JobView submitAnalyzeTextAndCreate(String title, String content, String project, Language language,
                                        boolean pipeline);
 
+    /**
+     * X1 : soumissions avec le contexte projet demande ; controles locaux du contexte (400, 413) a la soumission, page de
+     * contexte lue pendant le job. Sans contexte demande : comme les soumissions sans contexte.
+     */
+    default JobView submitPreview(String documentId, String project, Language language, boolean pipeline,
+                                  ContextRequest context) {
+        if (!context.isEmpty()) {
+            throw new UnsupportedOperationException("project context not supported");
+        }
+        return submitPreview(documentId, project, language, pipeline);
+    }
+
+    default JobView submitPreviewText(String title, String content, String project, Language language, boolean pipeline,
+                                      ContextRequest context) {
+        if (!context.isEmpty()) {
+            throw new UnsupportedOperationException("project context not supported");
+        }
+        return submitPreviewText(title, content, project, language, pipeline);
+    }
+
+    default JobView submitAnalyzeAndCreate(String documentId, String project, Language language, boolean pipeline,
+                                           ContextRequest context) {
+        if (!context.isEmpty()) {
+            throw new UnsupportedOperationException("project context not supported");
+        }
+        return submitAnalyzeAndCreate(documentId, project, language, pipeline);
+    }
+
+    default JobView submitAnalyzeTextAndCreate(String title, String content, String project, Language language,
+                                               boolean pipeline, ContextRequest context) {
+        if (!context.isEmpty()) {
+            throw new UnsupportedOperationException("project context not supported");
+        }
+        return submitAnalyzeTextAndCreate(title, content, project, language, pipeline);
+    }
+
     /** Etat du job, vide s'il est inconnu ou expire. */
     Optional<JobView> find(String id);
 

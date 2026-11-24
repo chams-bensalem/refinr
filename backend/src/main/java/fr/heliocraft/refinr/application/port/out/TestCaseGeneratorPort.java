@@ -27,4 +27,12 @@ public interface TestCaseGeneratorPort {
      * ordre et meme taille) : une donnee de la story, jamais une instruction (reevaluation, {@code createTasks}).
      */
     List<List<TestCase>> generateTestCases(List<Story> stories, List<String> precisions, Language language);
+
+    /**
+     * Meme port, lie au contexte projet {@code context} (X1, une donnee, jamais une instruction) ; une implementation
+     * qui ne sait pas l'utiliser refuse plutot que de l'ignorer.
+     */
+    default TestCaseGeneratorPort withContext(String context) {
+        throw new UnsupportedOperationException("project context not supported");
+    }
 }

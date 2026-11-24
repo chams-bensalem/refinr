@@ -22,4 +22,13 @@ public interface ReassessStory {
      * @throws StoryNotAwaitingValidationException si la story n'est pas en attente de validation
      */
     Readiness reassess(String storyKey, String precision, Language language);
+
+    /** X1 : reevaluation avec le contexte projet demande ; le contexte par projet suit le projet du ticket. */
+    default WithContext<Readiness> reassess(String storyKey, String precision, Language language,
+                                            ContextRequest context) {
+        if (!context.isEmpty()) {
+            throw new UnsupportedOperationException("project context not supported");
+        }
+        return WithContext.none(reassess(storyKey, precision, language));
+    }
 }

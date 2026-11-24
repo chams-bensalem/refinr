@@ -6,6 +6,20 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) · versionnage
 ## [Unreleased]
 
 ### Added
+- **Contexte projet (X1)** : glossaire, stack, conventions, règles et choix du projet donnés à l'IA en plus du
+  document ou de la story, pour la génération, le verdict, la réévaluation, les sous-tâches et les cas de test.
+  Ajouts au contrat REST : `context` (texte) ou `contextDocumentId` (page de la source active), exclusifs, dans le
+  corps d'`analyze-preview`, `analyze-and-create` (synchrones et jobs), `reassess-story`, `validate-story` (avec
+  `createTasks`) et `story-tasks`, `?contextDocumentId=` sur `create-jira` ; `400` (les deux champs, identifiant mal
+  formé, page vide, contexte sans `createTasks` sur `validate-story`) et `413` au-delà de 20 000 caractères, avant tout
+  appel à l'IA. Champ `context` dans les réponses (`analyze-preview`, `analyze-and-create` synchrones et résultat des
+  jobs, `create-jira`, `reassess-story`, `validate-story` avec `createTasks`, `story-tasks`) : `source` (`request`,
+  `project`, `default`), `characters`, `documentId` pour une page ; jamais le texte ; absent sans contexte (réponses
+  inchangées sans contexte configuré). Sans champ : `refinr.context.projects.<projectKey>` (projet de la requête ou du ticket), puis
+  `refinr.context.document-id`, puis aucun. Une règle du contexte compte comme donnée par la spécification ; une
+  contradiction bloque la story. Sans contexte, prompts inchangés octet pour octet. Jamais dans les logs ; empreinte
+  dans la clé du cache des verdicts. Mesure : `eval/context/` (critères A.f.1 et A.g non tenus, voir `DECISIONS.md`).
+  Outil de mesure : option `--context FILE`.
 - **Cas de test (C2)**, dans la chaîne (`"pipeline": true`) et pour les seules stories prêtes : prompt 5
   (`test-cases-v1`), section `### Test cases` dans la description de la story, avant la ligne de verdict ; `testCases`
   sur les stories qui en ont (absent sinon : réponses sans la chaîne inchangées ; aperçu, création, entrée de `create-jira`), nouvelle étape de job `generating-test-cases`.

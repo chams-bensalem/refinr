@@ -79,10 +79,10 @@ class LlmPromptsTest {
         assertEquals(fr.lines().filter(l -> l.startsWith("## ")).count(), en.lines().filter(l -> l.startsWith("## ")).count(),
                 "same number of sections");
         List<String> frBlocks = blocks(fr), enBlocks = blocks(en);
-        assertEquals(8, frBlocks.size());
-        assertEquals(8, enBlocks.size());
+        assertEquals(10, frBlocks.size());
+        assertEquals(10, enBlocks.size());
         long frRules = 0, enRules = 0;
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < 10; i++) {
             assertEquals(markers(frBlocks.get(i)), markers(enBlocks.get(i)), "same markers, same order, block " + i);
             assertEquals(rules(frBlocks.get(i)), rules(enBlocks.get(i)), "same number of rules, block " + i);
             assertEquals(jsonLines(frBlocks.get(i)), jsonLines(enBlocks.get(i)), "identical JSON, block " + i);

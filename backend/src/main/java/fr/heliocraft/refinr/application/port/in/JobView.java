@@ -27,7 +27,8 @@ import java.util.Optional;
  */
 public record JobView(String id, Type type, Status status, Step step, Instant createdAt, Instant startedAt,
                       Instant finishedAt, String documentId, List<Epic> preview, BacklogCreationResult creation,
-                      Failure failure, List<String> warnings, boolean pipeline) implements JobStorePort.Entry {
+                      Failure failure, List<String> warnings, boolean pipeline,
+                      fr.heliocraft.refinr.domain.model.ProjectContext context) implements JobStorePort.Entry {
 
     /** Nature du job : l'endpoint synchrone dont il rejoue la reponse. */
     public enum Type {
@@ -90,12 +91,14 @@ public record JobView(String id, Type type, Status status, Step step, Instant cr
         Objects.requireNonNull(createdAt, "createdAt");
         preview = preview == null ? null : List.copyOf(preview);
         warnings = warnings == null ? List.of() : List.copyOf(warnings);
+        // Contexte projet du job (X1) : source et taille rejouees dans la reponse, jamais le texte
+        context = context == null ? fr.heliocraft.refinr.domain.model.ProjectContext.NONE : context;
     }
 
     /** Meme etat avec les avertissements de l'apercu. */
     public JobView withWarnings(List<String> newWarnings) {
         return new JobView(id, type, status, step, createdAt, startedAt, finishedAt, documentId, preview, creation,
-                failure, newWarnings, pipeline);
+                failure, newWarnings, pipeline, context);
     }
 
     /** Nouveau job, en attente. */
@@ -105,7 +108,7 @@ public record JobView(String id, Type type, Status status, Step step, Instant cr
 
     /** Nouveau job, en attente ; {@code pipeline} : chaine C1. */
     public static JobView queued(String id, Type type, String documentId, Instant now, boolean pipeline) {
-        return new JobView(id, type, Status.QUEUED, null, now, null, null, documentId, null, null, null, null, pipeline);
+        return new JobView(id, type, Status.QUEUED, null, now, null, null, documentId, null, null, null, null, pipeline, null);
     }
 
     @Override
@@ -114,12 +117,12 @@ public record JobView(String id, Type type, Status status, Step step, Instant cr
     }
 
     public JobView started(Instant now) {
-        return new JobView(id, type, Status.RUNNING, step, createdAt, now, null, documentId, null, null, null, null, pipeline);
+        return new JobView(id, type, Status.RUNNING, step, createdAt, now, null, documentId, null, null, null, null, pipeline, context);
     }
 
     public JobView at(Step newStep) {
         return new JobView(id, type, status, newStep, createdAt, startedAt, finishedAt, documentId, preview, creation,
-                failure, warnings, pipeline);
+                failure, warnings, pipeline, context);
     }
 
     /**
@@ -127,11 +130,18 @@ public record JobView(String id, Type type, Status status, Step step, Instant cr
      * garde pour rejouer la reponse synchrone, 502). Regle : {@code SUCCEEDED} seulement si la reponse rejouee est 2xx.
      */
     public JobView completed(List<Epic> epics, BacklogCreationResult result, Instant now) {
+        return completed(epics, result, context, now);
+    }
+
+    /** Comme {@link #completed(List, BacklogCreationResult, Instant)}, avec le contexte projet du job (X1). */
+    public JobView completed(List<Epic> epics, BacklogCreationResult result,
+                             fr.heliocraft.refinr.domain.model.ProjectContext resolved, Instant now) {
         Status outcome = result != null && result.isNothingCreated() ? Status.FAILED : Status.SUCCEEDED;
-        return new JobView(id, type, outcome, step, createdAt, startedAt, now, documentId, epics, result, null, null, pipeline);
+        return new JobView(id, type, outcome, step, createdAt, startedAt, now, documentId, epics, result, null, null, pipeline,
+                resolved);
     }
 
     public JobView failed(Failure cause, Instant now) {
-        return new JobView(id, type, Status.FAILED, step, createdAt, startedAt, now, documentId, null, null, cause, null, pipeline);
+        return new JobView(id, type, Status.FAILED, step, createdAt, startedAt, now, documentId, null, null, cause, null, pipeline, context);
     }
 }

@@ -31,4 +31,12 @@ public interface BacklogGeneratorPort {
         epics.forEach(epic -> epic.getStories().forEach(story -> story.setTasks(new java.util.ArrayList<>())));
         return epics;
     }
+
+    /**
+     * Meme port, lie au contexte projet {@code context} (X1, une donnee, jamais une instruction) ; une implementation
+     * qui ne sait pas l'utiliser refuse plutot que de l'ignorer.
+     */
+    default BacklogGeneratorPort withContext(String context) {
+        throw new UnsupportedOperationException("project context not supported");
+    }
 }

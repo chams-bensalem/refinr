@@ -22,6 +22,8 @@ public class CreateEditedBacklogService implements CreateEditedBacklog {
     private final ReadinessAssessorPort assessor;
     private final CreateBacklog createBacklog;
     private final OutputLanguagePolicy languagePolicy;
+    // Contexte projet (X1), ou null
+    private final ProjectContextResolver contexts;
 
     public CreateEditedBacklogService(ReadinessAssessorPort assessor, CreateBacklog createBacklog) {
         this(assessor, createBacklog, OutputLanguagePolicy.DETECT);
@@ -29,6 +31,13 @@ public class CreateEditedBacklogService implements CreateEditedBacklog {
 
     public CreateEditedBacklogService(ReadinessAssessorPort assessor, CreateBacklog createBacklog,
                                       OutputLanguagePolicy languagePolicy) {
+        this(assessor, createBacklog, languagePolicy, null);
+    }
+
+    /** @param contexts contexte projet (X1) ; null : la requete seule (sans source documentaire : texte seulement) */
+    public CreateEditedBacklogService(ReadinessAssessorPort assessor, CreateBacklog createBacklog,
+                                      OutputLanguagePolicy languagePolicy, ProjectContextResolver contexts) {
+        this.contexts = contexts;
         this.languagePolicy = languagePolicy;
         this.assessor = assessor;
         this.createBacklog = createBacklog;
@@ -36,6 +45,18 @@ public class CreateEditedBacklogService implements CreateEditedBacklog {
 
     @Override
     public BacklogCreationResult create(List<Epic> epics, String project, Language language) {
+        return create(epics, project, language, fr.heliocraft.refinr.application.port.in.ContextRequest.NONE).value();
+    }
+
+    @Override
+    public fr.heliocraft.refinr.application.port.in.WithContext<BacklogCreationResult> create(List<Epic> epics,
+            String project, Language language, fr.heliocraft.refinr.application.port.in.ContextRequest context) {
+        if (contexts == null && !context.isEmpty()) {
+            throw new UnsupportedOperationException("project context not configured");
+        }
+        if (contexts != null) {
+            contexts.check(context);
+        }
         // Cas de test envoyes par le client : controles avant tout appel (modele ou gestionnaire), 400 sinon
         for (int e = 0; e < epics.size(); e++) {
             List<fr.heliocraft.refinr.domain.model.Story> stories = epics.get(e) != null ? epics.get(e).getStories() : List.of();
@@ -62,8 +83,13 @@ public class CreateEditedBacklogService implements CreateEditedBacklog {
                 }
             }
         }
+        fr.heliocraft.refinr.domain.model.ProjectContext projectContext = contexts == null
+                ? fr.heliocraft.refinr.domain.model.ProjectContext.NONE : contexts.resolve(context, project);
+        ReadinessAssessorPort assessor = projectContext.isPresent() ? this.assessor.withContext(projectContext.text())
+                : this.assessor;
         // Sans langue demandee : la propriete, puis la detection story par story
         StoryVerdicts.apply(epics, assessor, story -> languagePolicy.resolve(language, StoryText.of(story)));
-        return createBacklog.create(epics, project);
+        return new fr.heliocraft.refinr.application.port.in.WithContext<>(createBacklog.create(epics, project),
+                projectContext);
     }
 }

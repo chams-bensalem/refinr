@@ -706,3 +706,29 @@ Références ci-dessous : celles de l'instance de test. Aucune différence d'API
 - **Plafond d'appels des mesures** : il ne se change qu'avec un accord explicite et chiffré du mainteneur (écart noté
   dans le résumé R3 : 400 choisi par l'assistant sur un accord non chiffré).
 
+## Contexte projet (v1.5, X1)
+
+- **Source** : texte (`context`) ou page de la source documentaire (`contextDocumentId`), exclusifs ; sinon
+  `refinr.context.projects.<projectKey>`, puis `refinr.context.document-id`, puis aucun. Configuration sans stockage ;
+  pour `reassess-story`, `validate-story` et `story-tasks`, projet lu dans le ticket.
+- **Taille** : 20 000 caractères au plus (`413`), jamais tronqué ; jamais dans les logs (source et taille seulement) ;
+  empreinte dans la clé du cache des verdicts.
+- **Prompts** : deux blocs ajoutés aux fichiers de prompts (contexte en tête des prompts 1 à 5, règle READINESS pour
+  1 à 3), envoyés seulement avec un contexte : sans contexte, prompts identiques octet pour octet (E0, F1, C1, C2, R3
+  restent valables). Ports sortants liés au contexte (`withContext`) plutôt qu'un paramètre de plus : sans contexte,
+  le chemin d'appel est exactement celui d'avant.
+- **Mesure** (`eval/context/results/2026-11-24-summary.md`, Haiku, 206 appels, 0,2753 $) : A.a à A.e et B.a à B.d
+  tenus (aucun faux `ai-ready`, 98 % d'accord neutre / sans contexte, 6 cibles sur 7, contradictions bloquantes et
+  nommées, aucune question sur un sujet réglé, aucun élément issu d'un module hors spec).
+- **Accepté avec deux critères non tenus** :
+  - **A.f.1** : avec le contexte de réévaluation, 1 puis 2 cibles sur 4 prêtes ; l'ensemble à 7 et 9 sur 18 (11 et 10
+    sans contexte en R3). En listant tous les statuts, le contexte ouvre de nouvelles questions (v008, v021). Limite
+    connue : un contexte rend la réévaluation plus prudente, jamais plus permissive (A.f.2 : 0 sur 20) ; v001 passée
+    prête aux 2 exécutions sans que le contexte réponde à sa question. Suite : phase R4.
+  - **A.g** : 27 réponses valides sur 30 en AR (limite de 4 096 tokens de sortie) ; tous les verdicts récupérés par le
+    découpage de production, sans repli. À surveiller (M1).
+  - Correction du jeu A.f refusée (ajuster le jeu au résultat).
+- **Champ `context` des réponses** : `source`, `characters`, `documentId` pour une page, jamais le texte ; **absent
+  sans contexte** (comme `testCases`) plutôt que `"source": "none"`, pour que les réponses restent identiques quand
+  aucun contexte n'est configuré (clients existants, plugin, UI). Ajouté avant l'essai réel, sans effet sur les
+  prompts ni les verdicts : la mesure reste valable.

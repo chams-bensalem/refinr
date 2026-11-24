@@ -38,4 +38,12 @@ public interface ReadinessAssessorPort {
      * @throws LlmException fournisseur indisponible, sortie invalide ou tronquee
      */
     Readiness reassess(String summary, String description, String precision, String previousQuestion, Language language);
+
+    /**
+     * Meme port, lie au contexte projet {@code context} (X1, une donnee, jamais une instruction) ; une implementation
+     * qui ne sait pas l'utiliser refuse plutot que de l'ignorer.
+     */
+    default ReadinessAssessorPort withContext(String context) {
+        throw new UnsupportedOperationException("project context not supported");
+    }
 }

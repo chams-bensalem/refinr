@@ -184,6 +184,36 @@ public final class VerdictEval {
     private final Path dataDir;
     private final Path stateDir;
 
+    // Contexte projet (X1, --context FILE), ou null
+    String contextText;
+    String contextFile;
+
+    /** Bloc de code unique d'un fichier de contexte (eval/context/*.md) : seul texte envoye au modele. */
+    static String readContext(Path file) throws IOException {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("```\\n(.*?)\\n```", java.util.regex.Pattern.DOTALL)
+                .matcher(Files.readString(file, StandardCharsets.UTF_8));
+        if (!m.find()) throw new IllegalArgumentException("no context block in " + file);
+        String text = m.group(1);
+        if (m.find()) throw new IllegalArgumentException("more than one block in " + file);
+        return text;
+    }
+
+    static String sha256(String text) {
+        try {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(text.getBytes(StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** Ligne de meta.md : fichier, taille et empreinte du contexte, ou « aucun ». */
+    String contextLine() {
+        return contextText == null ? "- Contexte projet : aucun\n" : "- Contexte projet : `" + contextFile + "` ("
+                + contextText.codePointCount(0, contextText.length()) + " caractères, sha256 " + sha256(contextText).substring(0, 12)
+                + ") ; aucun cache : chaque exécution appelle le modèle\n";
+    }
+
     VerdictEval(Path root) {
         this.root = root;
         this.dataDir = root.resolve("eval/verdict");
@@ -221,6 +251,14 @@ public final class VerdictEval {
         if (opts.containsKey("set")) {
             if (!"en".equals(opts.get("set"))) throw new IllegalArgumentException("--set only accepts en (English control set)");
             eval.set = "en";
+        }
+        if (opts.containsKey("context")) {
+            // X1 : contexte projet de la mesure (seul le bloc de code du fichier est envoye)
+            // Chemin deja relatif a backend/ (scripts/eval-verdict.sh prefixe eval/... par ../)
+            eval.contextText = readContext(Path.of(opts.get("context")).toAbsolutePath());
+            eval.contextFile = opts.get("context").replaceFirst("^\\.\\./", "");
+            System.out.println("context=" + eval.contextFile + " characters=" + eval.contextText.codePointCount(0,
+                    eval.contextText.length()) + " sha256=" + sha256(eval.contextText).substring(0, 12));
         }
         switch (positional.get(0)) {
             case "check" -> eval.check();
@@ -296,13 +334,14 @@ public final class VerdictEval {
                   check                                  validate stories.jsonl and labels.csv (no model call)
                   describe  <env|anthropic|anthropic-check>          effective verdict settings (no model call)
                   estimate  <target> <runs> [--assume-model ID]      calls and cost estimate (no model call)
-                  run       <target> <runs> [--out DIR] [--pause 15] [--cap N] [--budget 20] [--phase E0]   CALLS THE MODEL
+                  run       <target> <runs> [--out DIR] [--pause 15] [--cap N] [--budget 20] [--phase E0] [--context FILE]   CALLS THE MODEL
                   summarize <resultsDir> [--baseline DIR[,DIR]]      metrics against the labels (no model call)
-                  generate  <target> <spec.md>... [--out DIR] [--cap N] [--budget 20] [--phase E0] [--pipeline true]   CALLS THE MODEL
+                  generate  <target> <spec.md>... [--out DIR] [--cap N] [--budget 20] [--phase E0] [--pipeline true] [--context FILE]   CALLS THE MODEL
                   probe-schema <target> [--out DIR] [--budget 20] [--phase E0] [--schema backlog|backlog-stories|story-tasks|story-test-cases]   CALLS THE MODEL (Anthropic, 1 call)
-                  reassess <target> <precisions.jsonl> [--versions v3.2,v3.3|v3.3,v3.4] [--runs 1] [--out DIR] [--cap N] [--budget 20] [--phase E0]   CALLS THE MODEL (prompt 3, before = verdict-v3.2 / after = verdict-v3.3)
+                  reassess <target> <precisions.jsonl> [--versions v3.2,v3.3|v3.3,v3.4] [--runs 1] [--out DIR] [--cap N] [--budget 20] [--phase E0] [--context FILE: v3.4 only]   CALLS THE MODEL (prompt 3 versions)
                   test-cases <target> <backlog.json>... [--out DIR] [--passes 1] [--budget 20] [--phase E0]   CALLS THE MODEL (prompt 5 only, ready stories of saved backlogs)
-                            backlog generation (analysis role) of each spec, one call each, saved as <spec>.json""");
+                            backlog generation (analysis role) of each spec, one call each, saved as <spec>.json
+                  --context FILE: project context (X1), the single code block of the file (eval/context/*.md)""");
     }
 
     // ---------- jeu de reference ----------
@@ -819,7 +858,8 @@ public final class VerdictEval {
                             ? "\n- **Circularité** : modèle Claude évalué contre des étiquettes posées par Claude ; résultats indicatifs." : "")
                     + ("en".equals(set) ? "- Jeu mesuré : `" + ENGLISH_SET + "` (contrôle 1 traduit en anglais, étiquettes `"
                             + ENGLISH_CONTROL.labels() + "` reprises telles quelles)\n" : "")
-                    + "- Langue de sortie : propriété `" + OutputLanguagePolicy.PROPERTY + "` puis détection par story\n");
+                    + "- Langue de sortie : propriété `" + OutputLanguagePolicy.PROPERTY + "` puis détection par story\n"
+                    + contextLine());
         }
         Path runsCsv = out.resolve("runs.csv");
         Set<String> done = new HashSet<>();
@@ -827,8 +867,10 @@ public final class VerdictEval {
             Csv.read(runsCsv).stream().skip(1).forEach(r -> done.add(r.get(0) + "/" + r.get(2)));
         }
         Meter meter = new Meter(s, price, out.resolve("calls.csv"), cap, budget, phase);
-        LlmReadinessAssessor assessor = new LlmReadinessAssessor(MeteredLlmClients.create(s.settings(), meter),
+        LlmReadinessAssessor plainAssessor = new LlmReadinessAssessor(MeteredLlmClients.create(s.settings(), meter),
                 new StructuredOutput(s.repairs()), s.batchSize());
+        // X1 : evaluateur lie au contexte, sans cache (chaque exécution appelle le modele)
+        LlmReadinessAssessor assessor = contextText == null ? plainAssessor : plainAssessor.withContext(contextText);
         boolean first = true;
         int overload = 0;
         for (int run = 1; run <= runs; run++) {
@@ -1021,7 +1063,11 @@ public final class VerdictEval {
         Meter meter = new Meter(s, price, out.resolve("calls.csv"), cap, budget, phase);
         fr.heliocraft.refinr.adapters.out.llm.LlmClient client = MeteredLlmClients.create(s.settings(), meter);
         StructuredOutput output = new StructuredOutput(s.repairs());
+        if (contextText != null && !versions.equals(List.of("v3.4"))) {
+            throw new IllegalArgumentException("--context is measured with the production prompt 3 only: --versions v3.4");
+        }
         System.out.println("versions=" + versions + " runs=" + runs);
+        System.out.print(contextLine());
         Path runsCsv = out.resolve("runs.csv");
         int position = 0;
         List<String> lines = Files.readAllLines(precisions, StandardCharsets.UTF_8);
@@ -1050,7 +1096,7 @@ public final class VerdictEval {
                     Readiness verdict;
                     try {
                         verdict = fr.heliocraft.refinr.adapters.out.llm.PromptThreeVariants.reassess(version, client, output,
-                                domain.getTitle(), written, precision, fr.heliocraft.refinr.domain.model.Language.FR);
+                                domain.getTitle(), written, precision, fr.heliocraft.refinr.domain.model.Language.FR, contextText);
                     } catch (Stop stop) {
                         stopFile(out, stop.reason, run, position, meter);
                         return;
@@ -1148,6 +1194,7 @@ public final class VerdictEval {
                                 MeteredLlmClients.create(s.settings(), meter), new StructuredOutput(s.repairs()), 10));
         PreviewBacklogService preview = new PreviewBacklogService(null, generator, null, 200_000, s.languages(), chain);
         System.out.println("pipeline=" + pipeline);
+        System.out.print(contextLine());
         JsonMapper json = JsonMapper.builder().build();
         for (int i = 0; i < specs.size(); i++) {
             Path spec = Path.of(specs.get(i));
@@ -1160,8 +1207,9 @@ public final class VerdictEval {
             meter.batch = i + 1;
             List<Epic> epics;
             try {
-                epics = pipeline ? preview.previewText(name, content, null, true,
-                        fr.heliocraft.refinr.application.port.in.AnalysisProgress.NONE) : preview.previewText(name, content);
+                epics = preview.previewText(name, content, null, pipeline,
+                        new fr.heliocraft.refinr.application.port.in.ContextRequest(contextText, null), null,
+                        fr.heliocraft.refinr.application.port.in.AnalysisProgress.NONE).value();
             } catch (Stop stop) {
                 stopFile(out, stop.reason, 1, i + 1, meter);
                 return;
