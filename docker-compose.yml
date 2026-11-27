@@ -73,7 +73,7 @@ services:
   # --- Optional local LLM: docker compose --profile ollama up -d ---
   ollama:
     profiles: [ollama]
-    image: ollama/ollama:0.40.16
+    image: ollama/ollama:0.40.17
     restart: unless-stopped
     volumes:
       - ollama-models:/root/.ollama
@@ -85,7 +85,7 @@ services:
 
   ollama-pull:
     profiles: [ollama]
-    image: ollama/ollama:0.40.16
+    image: ollama/ollama:0.40.17
     environment:
       OLLAMA_HOST: http://ollama:11434
     # qwen3:8b: this profile's example model, pulled only when LLM_ANALYSIS_MODEL is unset (the backend has no default
